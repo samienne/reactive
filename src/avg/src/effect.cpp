@@ -1,9 +1,12 @@
 #include "effect.h"
 
+#include "effectfactory.h"
 #include "effectshader.h"
 
+#include <atomic>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace avg
 {
@@ -72,12 +75,51 @@ std::ostream& operator<<(std::ostream& stream, PassInput const& input)
     return stream << "pass(" << input.getPass() << ")";
 }
 
+ShaderId ShaderId::create()
+{
+    static std::atomic<uint64_t> next(1);
+
+    ShaderId id;
+    id.value_ = next.fetch_add(1, std::memory_order_relaxed);
+    return id;
+}
+
+bool ShaderId::operator==(ShaderId const& rhs) const
+{
+    return value_ == rhs.value_;
+}
+
+bool ShaderId::operator!=(ShaderId const& rhs) const
+{
+    return !(*this == rhs);
+}
+
 bool PassOutput::operator==(PassOutput const& rhs) const
 {
     return divisor == rhs.divisor && format == rhs.format;
 }
 
 bool PassOutput::operator!=(PassOutput const& rhs) const
+{
+    return !(*this == rhs);
+}
+
+bool Pass::operator==(Pass const& rhs) const
+{
+    bool const hasDefaultId = shader.id == ShaderId()
+        || rhs.shader.id == ShaderId();
+
+    return shader.id == rhs.shader.id
+        && (!hasDefaultId || shader.fragmentSource == rhs.shader.fragmentSource)
+        && inputs == rhs.inputs
+        && output == rhs.output
+        && geometry == rhs.geometry
+        && padding == rhs.padding
+        && parameters == rhs.parameters
+        ;
+}
+
+bool Pass::operator!=(Pass const& rhs) const
 {
     return !(*this == rhs);
 }
@@ -247,12 +289,63 @@ std::vector<std::string> validate(std::vector<Pass> const& passes)
     return errors;
 }
 
-Effect::Effect(std::vector<Pass> passes) :
-    passes_(std::move(passes))
+struct Effect::Content
 {
-    std::vector<std::string> errors = validate(passes_);
+    std::vector<Pass> passes;
+    std::shared_ptr<EffectRecipe const> recipe;
+};
+
+struct ElementPass::Content
+{
+    Pass pass;
+    Vector2i reach;
+    std::shared_ptr<ElementPassRecipe const> recipe;
+};
+
+class EffectAccess
+{
+public:
+    static ElementPass make(Pass pass, Vector2i reach,
+            std::shared_ptr<ElementPassRecipe const> recipe)
+    {
+        return ElementPass(std::make_shared<ElementPass::Content const>(
+                    ElementPass::Content{ std::move(pass), reach,
+                    std::move(recipe) }));
+    }
+
+    static ElementPassRecipe const* getRecipe(ElementPass const& pass)
+    {
+        return pass.content_->recipe.get();
+    }
+
+    static Effect make(std::vector<Pass> passes,
+            std::shared_ptr<EffectRecipe const> recipe)
+    {
+        return Effect(std::make_shared<Effect::Content const>(
+                    Effect::Content{ std::move(passes), std::move(recipe) }));
+    }
+
+    static bool isSameContent(Effect const& a, Effect const& b)
+    {
+        return a.content_ == b.content_;
+    }
+
+    static EffectRecipe const* getRecipe(Effect const& effect)
+    {
+        return effect.content_->recipe.get();
+    }
+};
+
+EffectRecipe::~EffectRecipe()
+{
+}
+
+Effect makeEffect(std::vector<Pass> passes,
+        std::shared_ptr<EffectRecipe const> recipe)
+{
+    std::vector<std::string> errors = validate(passes);
     if (errors.empty())
-        return;
+        return EffectAccess::make(std::move(passes), std::move(recipe));
 
     std::string message = "invalid effect:";
     for (std::string const& error : errors)
@@ -261,18 +354,164 @@ Effect::Effect(std::vector<Pass> passes) :
     throw std::invalid_argument(message);
 }
 
+ElementPassRecipe::~ElementPassRecipe()
+{
+}
+
+ElementPass makeElementPass(Pass pass,
+        std::shared_ptr<ElementPassRecipe const> recipe,
+        std::optional<Vector2i> reach)
+{
+    std::vector<std::string> errors;
+
+    Vector2i const resolved = reach.value_or(
+            Vector2i(pass.padding, pass.padding));
+    if (resolved.minCoeff() < 0 || resolved.maxCoeff() > pass.padding)
+        errors.push_back("the element pass's reach must be within its padding");
+
+    if (pass.geometry != Geometry::Region)
+        errors.push_back("an element pass must have Region geometry");
+
+    if (!pass.inputs.empty())
+        errors.push_back("an element pass takes its inputs from the element");
+
+    if (!pass.output)
+        errors.push_back("an element pass needs an output");
+    else
+    {
+        if (!isValid(pass.output->divisor))
+            errors.push_back("the element pass's divisor must be 1, 2, 4 or 8");
+
+        if (!isTargetFormat(pass.output->format))
+        {
+            errors.push_back("the element pass's format must be FORMAT_SRGBA,"
+                    " FORMAT_R8 or FORMAT_RGBA16F");
+        }
+    }
+
+    // The rules a single final pass shares with an element pass.
+    Pass asFinal = pass;
+    asFinal.geometry = Geometry::Shape;
+    asFinal.output.reset();
+    asFinal.inputs.assign(pass.shader.interface.getSamplers().size(),
+            PassInput::backdrop());
+    for (std::string const& error : validate({ asFinal }))
+        errors.push_back(error);
+
+    if (errors.empty())
+        return EffectAccess::make(std::move(pass), resolved,
+                std::move(recipe));
+
+    std::string message = "invalid element pass:";
+    for (std::string const& error : errors)
+        message += "\n  " + error;
+
+    throw std::invalid_argument(message);
+}
+
+ElementPass::ElementPass(std::shared_ptr<Content const> content) :
+    content_(std::move(content))
+{
+}
+
+ElementPass::~ElementPass()
+{
+}
+
+Pass const& ElementPass::getPass() const
+{
+    return content_->pass;
+}
+
+size_t ElementPass::getInputCount() const
+{
+    return content_->pass.shader.interface.getSamplers().size();
+}
+
+Vector2i ElementPass::getReach() const
+{
+    return content_->reach;
+}
+
+bool ElementPass::operator==(ElementPass const& rhs) const
+{
+    return content_ == rhs.content_
+        || (content_->pass == rhs.content_->pass
+                && content_->reach == rhs.content_->reach);
+}
+
+bool ElementPass::operator!=(ElementPass const& rhs) const
+{
+    return !(*this == rhs);
+}
+
+Effect::Effect(std::shared_ptr<Content const> content) :
+    content_(std::move(content))
+{
+}
+
 Effect::~Effect()
 {
 }
 
 std::vector<Pass> const& Effect::getPasses() const
 {
-    return passes_;
+    return content_->passes;
 }
 
 Pass const& Effect::getFinalPass() const
 {
-    return passes_.back();
+    return content_->passes.back();
+}
+
+bool Effect::operator==(Effect const& rhs) const
+{
+    return content_ == rhs.content_ || content_->passes == rhs.content_->passes;
+}
+
+bool Effect::operator!=(Effect const& rhs) const
+{
+    return !(*this == rhs);
+}
+
+std::ostream& operator<<(std::ostream& stream, Effect const& effect)
+{
+    return stream << "Effect{" << effect.getPasses().size() << " passes}";
+}
+
+bool isSameKind(Effect const& a, Effect const& b)
+{
+    EffectRecipe const* recipe = EffectAccess::getRecipe(a);
+    EffectRecipe const* other = EffectAccess::getRecipe(b);
+
+    return recipe && other && recipe->isSameKind(*other);
+}
+
+Effect toPixels(Effect const& effect, float scalingFactor)
+{
+    EffectRecipe const* recipe = EffectAccess::getRecipe(effect);
+    if (!recipe || scalingFactor == 1.0f)
+        return effect;
+
+    return recipe->scaled(scalingFactor);
+}
+
+ElementPass toPixels(ElementPass const& pass, float scalingFactor)
+{
+    ElementPassRecipe const* recipe = EffectAccess::getRecipe(pass);
+    if (!recipe || scalingFactor == 1.0f)
+        return pass;
+
+    return recipe->scaled(scalingFactor);
+}
+
+Effect lerp(Effect const& a, Effect const& b, float t)
+{
+    if (EffectAccess::isSameContent(a, b) || !isSameKind(a, b))
+        return b;
+
+    return EffectAccess::getRecipe(a)->interpolate(
+            *EffectAccess::getRecipe(b), t);
 }
 
 } // namespace avg

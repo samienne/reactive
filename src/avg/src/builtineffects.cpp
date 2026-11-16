@@ -1,5 +1,7 @@
 #include "builtineffects.h"
 
+#include "builtinelements.h"
+#include "effectfactory.h"
 #include "effectshader.h"
 #include "lerp.h"
 
@@ -8,8 +10,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace avg
 {
@@ -71,6 +76,184 @@ namespace
         "    result = vec4(mix(colour, param.tint.rgb, param.tint.a), 1.0);\n"
         "}\n";
 
+    char const* const opacityBody =
+        "void main()\n"
+        "{\n"
+        "    result = texture(input0, inputUv(pass.texel0))"
+        " * param.opacity.x;\n"
+        "}\n";
+
+    PassShader const& copyShader()
+    {
+        static PassShader const shader = makePassShader(1, {}, copyBody);
+        return shader;
+    }
+
+    PassShader const& blurShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "blur", ase::UniformType::Float4 },
+                }, blurBody);
+        return shader;
+    }
+
+    PassShader const& glassShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "tint", ase::UniformType::Float4 },
+                { "highlight", ase::UniformType::Float4 },
+                { "adjust", ase::UniformType::Float4 },
+                }, glassBody);
+        return shader;
+    }
+
+    PassShader const& opacityShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "opacity", ase::UniformType::Float4 },
+                }, opacityBody);
+        return shader;
+    }
+
+    PassShader const& tintShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "tint", ase::UniformType::Float4 },
+                }, tintBody);
+        return shader;
+    }
+
+    struct TintParameters
+    {
+        Color colour;
+        float strength;
+    };
+
+    TintParameters lerp(TintParameters const& a, TintParameters const& b,
+            float t)
+    {
+        return TintParameters{
+            avg::lerp(a.colour, b.colour, t),
+            avg::lerp(a.strength, b.strength, t)
+        };
+    }
+
+    TintParameters scaleSizes(TintParameters const& parameters, float)
+    {
+        return parameters;
+    }
+
+    FrostedGlassOptions scaleSizes(FrostedGlassOptions options, float factor)
+    {
+        options.radius *= factor;
+        options.highlightWidth *= factor;
+        return options;
+    }
+
+    template <typename TParameters>
+    class ParameterRecipe final : public EffectRecipe
+    {
+    public:
+        using Build = Effect (*)(TParameters const&);
+
+        ParameterRecipe(TParameters parameters, Build build) :
+            parameters_(std::move(parameters)),
+            build_(build)
+        {
+        }
+
+        bool isSameKind(EffectRecipe const& rhs) const override
+        {
+            auto const* other = dynamic_cast<ParameterRecipe const*>(&rhs);
+            return other && other->build_ == build_;
+        }
+
+        Effect interpolate(EffectRecipe const& rhs, float t) const override
+        {
+            auto const& other = static_cast<ParameterRecipe const&>(rhs);
+            return build_(lerp(parameters_, other.parameters_, t));
+        }
+
+        Effect scaled(float factor) const override
+        {
+            return build_(scaleSizes(parameters_, factor));
+        }
+
+    private:
+        TParameters parameters_;
+        Build build_;
+    };
+
+    template <typename TParameters>
+    std::shared_ptr<EffectRecipe const> makeRecipe(TParameters parameters,
+            Effect (*build)(TParameters const&))
+    {
+        return std::make_shared<ParameterRecipe<TParameters> const>(
+                std::move(parameters), build);
+    }
+
+    // The element passes of contentBlur, each built from the radius.
+    enum class BlurStage
+    {
+        Downsample,
+        Horizontal,
+        Vertical,
+        Composite
+    };
+
+    struct ContentBlurParameters
+    {
+        float radius;
+        BlurStage stage;
+    };
+
+    ContentBlurParameters scaleSizes(ContentBlurParameters parameters,
+            float factor)
+    {
+        parameters.radius *= factor;
+        return parameters;
+    }
+
+    template <typename TParameters>
+    class ElementRecipe final : public ElementPassRecipe
+    {
+    public:
+        using Build = ElementPass (*)(TParameters const&);
+
+        ElementRecipe(TParameters parameters, Build build) :
+            parameters_(std::move(parameters)),
+            build_(build)
+        {
+        }
+
+        ElementPass scaled(float factor) const override
+        {
+            return build_(scaleSizes(parameters_, factor));
+        }
+
+    private:
+        TParameters parameters_;
+        Build build_;
+    };
+
+    template <typename TParameters>
+    std::shared_ptr<ElementPassRecipe const> makeElementRecipe(
+            TParameters parameters, ElementPass (*build)(TParameters const&))
+    {
+        return std::make_shared<ElementRecipe<TParameters> const>(
+                std::move(parameters), build);
+    }
+
+    float clampNonNegative(float value)
+    {
+        return value >= 0.0f ? value : 0.0f;
+    }
+
+    float clampStrength(float strength)
+    {
+        return std::min(clampNonNegative(strength), 1.0f);
+    }
+
     ase::Vector4f toVector(Color const& colour, float w)
     {
         return ase::Vector4f(colour.getRed(), colour.getGreen(),
@@ -79,7 +262,7 @@ namespace
 
     void requireNonNegative(float value, char const* name)
     {
-        if (value < 0.0f)
+        if (!(value >= 0.0f))
         {
             throw std::invalid_argument(std::string(name)
                     + " must not be negative");
@@ -88,18 +271,18 @@ namespace
 
     void requireStrength(float value, char const* name)
     {
-        if (value < 0.0f || value > 1.0f)
+        if (!(value >= 0.0f && value <= 1.0f))
         {
             throw std::invalid_argument(std::string(name)
                     + " must be within [0, 1]");
         }
     }
 
-    Pass regionPass(PassShader shader, std::vector<PassInput> inputs,
+    Pass regionPass(PassShader const& shader, std::vector<PassInput> inputs,
             Divisor divisor, int padding)
     {
         Pass pass;
-        pass.shader = std::move(shader);
+        pass.shader = shader;
         pass.inputs = std::move(inputs);
         pass.output = PassOutput{ divisor, ase::FORMAT_RGBA16F };
         pass.geometry = Geometry::Region;
@@ -107,11 +290,11 @@ namespace
         return pass;
     }
 
-    Pass shapePass(PassShader shader, std::vector<PassInput> inputs,
+    Pass shapePass(PassShader const& shader, std::vector<PassInput> inputs,
             int padding)
     {
         Pass pass;
-        pass.shader = std::move(shader);
+        pass.shader = shader;
         pass.inputs = std::move(inputs);
         pass.geometry = Geometry::Shape;
         pass.padding = padding;
@@ -121,18 +304,123 @@ namespace
     Pass blurPass(PassInput input, Divisor divisor, int tapRadius,
             float sigma, ase::Vector2f direction)
     {
-        PassShader shader = makePassShader(1, {
-                { "blur", ase::UniformType::Float4 },
-                }, blurBody);
+        PassShader const& shader = blurShader();
 
         ase::UniformValues values(shader.interface, "ParamBlock");
         values.set("blur", ase::Vector4f(direction.x(), direction.y(),
                     static_cast<float>(tapRadius), sigma));
 
-        Pass pass = regionPass(std::move(shader), { input }, divisor,
-                tapRadius);
+        Pass pass = regionPass(shader, { input }, divisor, tapRadius);
         pass.parameters = std::move(values);
         return pass;
+    }
+
+    Effect buildFrostedGlass(FrostedGlassOptions const& parameters)
+    {
+        FrostedGlassOptions const options = clampToValid(parameters);
+
+        Divisor const divisor = frostedGlassDivisor(options.radius);
+        float const passRadius = options.radius / static_cast<float>(
+                toInt(divisor));
+        int const tapRadius = static_cast<int>(std::ceil(passRadius));
+        float const sigma = std::max(passRadius / 2.0f, 0.5f);
+
+        PassShader const& glass = glassShader();
+
+        ase::UniformValues values(glass.interface, "ParamBlock");
+        values.set("tint", toVector(options.tint, options.tintStrength));
+        values.set("highlight", toVector(options.highlight,
+                    options.highlightStrength));
+        values.set("adjust", ase::Vector4f(options.saturation,
+                    options.highlightWidth, 0.0f, 0.0f));
+
+        // Bilinear upsampling reaches half a blurred texel past the shape.
+        Pass final = shapePass(glass, { PassInput::pass(2) },
+                toInt(divisor) / 2);
+        final.parameters = std::move(values);
+
+        std::vector<Pass> passes;
+        passes.push_back(regionPass(copyShader(), { PassInput::backdrop() },
+                    divisor, 0));
+        passes.push_back(blurPass(PassInput::pass(0), divisor, tapRadius,
+                    sigma, ase::Vector2f(1.0f, 0.0f)));
+        passes.push_back(blurPass(PassInput::pass(1), divisor, tapRadius,
+                    sigma, ase::Vector2f(0.0f, 1.0f)));
+        passes.push_back(std::move(final));
+
+        return makeEffect(std::move(passes),
+                makeRecipe(parameters, &buildFrostedGlass));
+    }
+
+    Effect buildTint(TintParameters const& parameters)
+    {
+        float const strength = clampStrength(parameters.strength);
+
+        PassShader const& shader = tintShader();
+
+        ase::UniformValues values(shader.interface, "ParamBlock");
+        values.set("tint", toVector(parameters.colour,
+                    strength * parameters.colour.getAlpha()));
+
+        Pass pass = shapePass(shader, { PassInput::backdrop() }, 0);
+        pass.parameters = std::move(values);
+
+        std::vector<Pass> passes;
+        passes.push_back(std::move(pass));
+
+        return makeEffect(std::move(passes),
+                makeRecipe(parameters, &buildTint));
+    }
+
+    ElementPass buildContentBlur(ContentBlurParameters const& parameters)
+    {
+        float const radius = clampNonNegative(parameters.radius);
+        Divisor const divisor = frostedGlassDivisor(radius);
+        float const passRadius = radius / static_cast<float>(toInt(divisor));
+        int const tapRadius = static_cast<int>(std::ceil(passRadius));
+        float const sigma = std::max(passRadius / 2.0f, 0.5f);
+
+        Pass pass;
+        std::optional<Vector2i> reach;
+        switch (parameters.stage)
+        {
+            case BlurStage::Downsample:
+                pass = regionPass(copyShader(), {}, divisor, 0);
+                break;
+            case BlurStage::Horizontal:
+                pass = blurPass(PassInput::backdrop(), divisor, tapRadius,
+                        sigma, ase::Vector2f(1.0f, 0.0f));
+                reach = Vector2i(tapRadius, 0);
+                break;
+            case BlurStage::Vertical:
+                pass = blurPass(PassInput::backdrop(), divisor, tapRadius,
+                        sigma, ase::Vector2f(0.0f, 1.0f));
+                reach = Vector2i(0, tapRadius);
+                break;
+            case BlurStage::Composite:
+                // Bilinear upsampling reaches half a blurred texel out.
+                pass = regionPass(copyShader(), {}, Divisor::One,
+                        toInt(divisor) / 2);
+                break;
+        }
+        pass.inputs.clear();
+
+        return makeElementPass(std::move(pass),
+                makeElementRecipe(parameters, &buildContentBlur), reach);
+    }
+
+    ElementPass opacityPass(float alpha)
+    {
+        PassShader const& shader = opacityShader();
+
+        ase::UniformValues values(shader.interface, "ParamBlock");
+        values.set("opacity", ase::Vector4f(alpha, 0.0f, 0.0f, 0.0f));
+
+        Pass pass = regionPass(shader, {}, Divisor::One, 0);
+        pass.output->format = ase::FORMAT_SRGBA;
+        pass.parameters = std::move(values);
+
+        return makeElementPass(std::move(pass));
     }
 } // anonymous namespace
 
@@ -170,6 +458,17 @@ FrostedGlassOptions lerp(FrostedGlassOptions const& a,
     return result;
 }
 
+FrostedGlassOptions clampToValid(FrostedGlassOptions options)
+{
+    options.radius = clampNonNegative(options.radius);
+    options.saturation = clampNonNegative(options.saturation);
+    options.highlightWidth = clampNonNegative(options.highlightWidth);
+    options.tintStrength = clampStrength(options.tintStrength);
+    options.highlightStrength = clampStrength(options.highlightStrength);
+
+    return options;
+}
+
 Divisor frostedGlassDivisor(float radius)
 {
     if (radius <= 2.0f * maxBlurPassRadius)
@@ -188,60 +487,76 @@ Effect frostedGlass(FrostedGlassOptions const& options)
     requireStrength(options.tintStrength, "tintStrength");
     requireStrength(options.highlightStrength, "highlightStrength");
 
-    Divisor const divisor = frostedGlassDivisor(options.radius);
-    float const passRadius = options.radius / static_cast<float>(
-            toInt(divisor));
-    int const tapRadius = static_cast<int>(std::ceil(passRadius));
-    float const sigma = std::max(passRadius / 2.0f, 0.5f);
-
-    PassShader glass = makePassShader(1, {
-            { "tint", ase::UniformType::Float4 },
-            { "highlight", ase::UniformType::Float4 },
-            { "adjust", ase::UniformType::Float4 },
-            }, glassBody);
-
-    ase::UniformValues values(glass.interface, "ParamBlock");
-    values.set("tint", toVector(options.tint, options.tintStrength));
-    values.set("highlight", toVector(options.highlight,
-                options.highlightStrength));
-    values.set("adjust", ase::Vector4f(options.saturation,
-                options.highlightWidth, 0.0f, 0.0f));
-
-    // Bilinear upsampling reaches half a blurred texel past the shape.
-    Pass final = shapePass(std::move(glass), { PassInput::pass(2) },
-            toInt(divisor) / 2);
-    final.parameters = std::move(values);
-
-    std::vector<Pass> passes;
-    passes.push_back(regionPass(makePassShader(1, {}, copyBody),
-            { PassInput::backdrop() }, divisor, 0));
-    passes.push_back(blurPass(PassInput::pass(0), divisor, tapRadius, sigma,
-            ase::Vector2f(1.0f, 0.0f)));
-    passes.push_back(blurPass(PassInput::pass(1), divisor, tapRadius, sigma,
-            ase::Vector2f(0.0f, 1.0f)));
-    passes.push_back(std::move(final));
-
-    return Effect(std::move(passes));
+    return buildFrostedGlass(options);
 }
 
 Effect tint(Color const& colour, float strength)
 {
     requireStrength(strength, "strength");
 
-    PassShader shader = makePassShader(1, {
-            { "tint", ase::UniformType::Float4 },
-            }, tintBody);
+    return buildTint(TintParameters{ colour, strength });
+}
 
-    ase::UniformValues values(shader.interface, "ParamBlock");
-    values.set("tint", toVector(colour, strength * colour.getAlpha()));
+Drawing groupOpacity(pmr::memory_resource* memory, Drawing content,
+        float alpha)
+{
+    requireStrength(alpha, "alpha");
 
-    Pass pass = shapePass(std::move(shader), { PassInput::backdrop() }, 0);
-    pass.parameters = std::move(values);
+    std::vector<std::optional<Drawing>> inputs;
+    inputs.push_back(std::move(content));
+    return Drawing::effect(memory, opacityPass(alpha), std::move(inputs));
+}
 
-    std::vector<Pass> passes;
-    passes.push_back(std::move(pass));
+Drawing contentBlur(pmr::memory_resource* memory, Drawing content,
+        float radius)
+{
+    requireNonNegative(radius, "radius");
 
-    return Effect(std::move(passes));
+    if (radius == 0.0f)
+        return content;
+
+    Drawing result = std::move(content);
+    for (BlurStage stage : { BlurStage::Downsample, BlurStage::Horizontal,
+            BlurStage::Vertical, BlurStage::Composite })
+    {
+        std::vector<std::optional<Drawing>> inputs;
+        inputs.push_back(std::move(result));
+        result = Drawing::effect(memory, buildContentBlur(
+                    ContentBlurParameters{ radius, stage }),
+                std::move(inputs));
+    }
+
+    return result;
+}
+
+Drawing shadowOf(pmr::memory_resource* memory, Outlines outlines,
+        Vector2f offset, float radius, Color const& colour)
+{
+    Drawing result(memory);
+    radius = clampNonNegative(radius);
+
+    if (outlines.isEmpty() || colour.getAlpha() <= 0.0f)
+        return result;
+
+    std::optional<Shape> casters;
+    for (Shape const& shape : outlines.getShapes())
+    {
+        if (casters)
+            casters = std::move(*casters).add(Shape(shape));
+        else
+            casters = shape;
+    }
+
+    result += Drawing::ShapeElement{
+        std::move(*casters).translate(offset),
+        Brush(colour),
+        std::nullopt
+    };
+
+    if (radius <= 0.0f)
+        return result;
+
+    return contentBlur(memory, std::move(result), radius);
 }
 
 } // namespace avg

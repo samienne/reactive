@@ -1,0 +1,622 @@
+# Design: effect brushes, effect elements and outline shadows
+
+> **Status: implemented except stage 8.** Stages 1-7 of the staged plan
+> are in, at `0666a8d5` (2026-11-14); the cost options of stage 8 are not.
+> The design records decisions taken with the owner on 2026-11-14,
+> including those from the owner's review of the first draft, and grounds
+> them in the code at the tip of the backdrop-effect stack (PRs
+> #172-#177), which this work started from. A brush is a colour or an
+> effect description; a `Drawing` has an effect element whose inputs are
+> sub-drawings or the enclosing scope's backdrop; the renderer lowers both
+> into one shared pass graph; shadows are produced by a shadow boundary
+> from outline shapes the drawing carries inside it. Builds on
+> `backdrop-effects.md` and `shader-interface.md`. "Where the code was"
+> and "Work implied by the code" describe `03314fc6` (2026-11-14), the
+> starting point, and every line number in this document points there;
+> decision 7 and "Open questions" are verified against `0666a8d5`,
+> decision 11 against `d8398ce4`.
+
+## Why
+
+The backdrop-effect stack made frosted glass work, and three limits of its
+shape show as soon as it is used:
+
+- **An effect is a property of one node kind.** Only `SurfaceNode`
+  (`src/avg/include/avg/rendertree/surfacenode.h`) can place an effect, and
+  it selects one through the closed variant `SurfaceEffect`
+  (`SurfaceFrostedGlass` or `SurfaceTint`), mirrored signal for signal in
+  `src/bqui/include/bqui/modifier/surface.h`. Glass cannot fill a stroke, a
+  text run or any shape that is not a surface, and a new effect means a new
+  variant alternative in two libraries.
+- **An effect can only read the backdrop.** `PassInput`
+  (`src/avg/include/avg/effect.h`) is the backdrop or an earlier pass of the
+  same effect. Nothing can blur, fade or mask a widget's own content, so
+  group opacity, content blur and a soft shadow have no place in the model.
+- **Shadows are painted geometry with no blur and no knowledge of each
+  other.** `SurfaceNode::draw` (`src/avg/src/rendertree/surfacenode.cpp`)
+  adds the shape translated by the offset as a pending shadow: one
+  `ShapeElement` filled with the shadow brush and, for a positive spread,
+  stroked with a pen of twice the spread in the same brush. Two defects
+  follow directly: overlapping shadows of two surfaces blend twice and
+  darken, and with a translucent brush the fill and the stroke of one
+  shadow overlap along the edge and blend twice there as well.
+
+A fourth limit is cost. Scratch targets are full-screen at a divisor
+(`src/avg/src/scratchpool.cpp`), a blur chain belongs to one effect element
+and is never shared, a snapshot is shared only inside one backdrop scope,
+and every pass reruns every frame. The owner measured the stack tip at
+800x600 with zero, one, two side-by-side and two overlapping glass panels
+(numbers from the design discussion, not re-measured for this document):
+
+| | 0 | 1 | 2 side by side | 2 overlapping |
+|---|---|---|---|---|
+| Passes | 2 | 7 | 11 | 12 |
+| Snapshots | 0 | 1 | 1 | 2 |
+| Scratch targets | 0 | 3 | 5 | 5 |
+
+## Goals
+
+- Glass, and any later effect, usable wherever a brush is accepted: fills,
+  strokes and text.
+- One effect model for backdrop effects and for effects over a widget's own
+  content, lowered into one pass graph.
+- Identical work done once: two panels with the same blur over the same
+  backdrop share one blur chain.
+- Soft shadows that do not darken where they overlap and do not blend
+  twice along their own edge.
+- Cost that follows the shapes on screen, reached in measured steps, with
+  the measurements in place before the first optimisation.
+
+## Non-goals
+
+- A stable, user-facing way to author effects. Effects stay built by
+  factory functions inside `avg`; public authoring comes later.
+- Damage tracking and reuse of results across frames. It is the last
+  staged cost option and a separate project.
+- Per-caster shadow parameters (elevation) and translucent casters. Both
+  are recorded as later routes, not designed here.
+- Changing PRs #172-#177. They land as they are.
+
+## Where the code was
+
+The code at `03314fc6`, before this work, verified then by reading the
+files named. Stages 1-7 replaced most of it; `src/avg/AGENTS.md`
+describes the code as it is now.
+
+- **Effect model.** `Effect` (`src/avg/include/avg/effect.h`) is a public,
+  validated list of `Pass` values in execution order. A pass names its
+  inputs (`PassInput`: backdrop or an earlier pass, at most
+  `maxPassInputs`), an optional `PassOutput` (a `Divisor` of the screen size
+  and a format), a `Geometry` (`Region` quad or the final `Shape`), a
+  padding and its parameter bytes. Only the last pass has `Shape` geometry
+  and it draws into the main target.
+- **Built-ins.** `src/avg/src/builtineffects.cpp` builds two effects:
+  `frostedGlass` (a backdrop copy, a horizontal and a vertical blur, a
+  Shape pass with tint, saturation and highlight) and `tint` (one Shape
+  pass reading the backdrop). There is no enum: the kind is the alternative
+  held by the `SurfaceEffect` variant, turned into an `Effect` each frame
+  by `makeEffect` in `surfacenode.cpp`.
+- **Drawing.** `Drawing` (`src/avg/include/avg/drawing.h`) already has an
+  `EffectElement` (shape, shared `Effect`, transform) and a `BackdropScope`.
+  It carries a second list, the pending shadows; `Drawing::over` and
+  `flush()` (`src/avg/src/drawing.cpp`) place them under content.
+- **Rendering.** `generateMeshesForElements` in `src/avg/src/rendering.cpp`
+  flattens the drawing into meshes, text quads, `ScopeEntry` and
+  `EffectDraw` items, deriving every effect's regions (`deriveRegions`,
+  `src/avg/src/effectplan.cpp`) and marking its scope used. `render` builds
+  a `ScratchTimeline`, `planScratch` allocates scratch by liveness, and
+  `drawItems` flushes the gathered meshes before each used scope entry
+  (`EffectEmitter::emitSnapshot`) and each effect (`emitEffect`,
+  `src/avg/src/effectemitter.cpp`).
+- **Brush.** `Brush` (`src/avg/include/avg/brush.h`) is a colour and nothing
+  else, with equality, ordering, hashing and `lerp`
+  (`src/avg/src/lerp.cpp`). `Pen` holds a `Brush`.
+- **Text.** `generateTextQuads` in `rendering.cpp` holds the rules for
+  drawing a `TextEntry` from the glyph atlas; an entry that fails one goes
+  through `Font::textToPath` and is tessellated like a shape.
+- **Shape union.** `Shape::add` (`src/avg/include/avg/shape.h`,
+  `src/avg/src/shape.cpp`) is a lazy boolean union evaluated when the shape
+  is filled to a `Region`; `Region::operator|`
+  (`src/avg/include/avg/region.h`) is the evaluated form. Both end in
+  Clipper's `ctUnion` (`operatePaths` in `src/avg/src/region.cpp`).
+  `Region::offset` grows a region, which is what a spread needs.
+
+## Decisions
+
+### 1. A brush is a colour or an effect description
+
+`Brush` becomes a value holding either a colour or an effect. Filling or
+stroking a shape with an effect brush does what an `EffectElement` with
+that shape does today: the effect's final pass paints the fill or the
+stroke geometry. Glass can therefore be used anywhere a brush is accepted,
+including a `Pen` and a `TextEntry`.
+
+"Behind" keeps the meaning the backdrop stack gave it: an effect brush
+reads the backdrop of the nearest backdrop boundary (`BackdropScope`), not
+the earlier siblings inside that boundary.
+
+An effect brush does not batch with colour draws; it is an effect draw
+with its own run, as an `EffectElement` is today.
+
+When a brush animates between two effects of the same kind, the parameters
+interpolate, as `SurfaceEffect` does member by member today. Any other
+pair (different effect kinds, or a colour and an effect) is a sharp
+transition with no crossfade: the brush switches to the new one at the
+start of the transition (the midpoint is the alternative). The result of
+an interpolation is therefore always a single `Brush`, which is what
+`Animated<Brush>` produces through `lerp`; no brush form holding two
+brushes and a weight is needed.
+
+### 2. Effects are opaque values built by internal factories
+
+An effect is an opaque value. The only way to make one is a factory
+function in `avg` (free functions, as `frostedGlass` and `tint` already
+are). A factory returns a pure description and needs no GPU context;
+pipelines are compiled and cached lazily by the renderer, as
+`PassPipelineCache` does now.
+
+Each factory assigns its passes a shader identity, a cheap value that
+stands for the shader source. Two passes are the same when their shader
+identities are equal and their parameter blocks, inputs and outputs
+compare equal byte for byte. This is what chain sharing (decision 4)
+compares, so the renderer never compares GLSL text.
+
+The closed selection goes away: the `SurfaceEffect` variants in `avg` and
+`bqui` are replaced by passing the effect value (inside a brush, or to an
+effect element). `Pass`, `PassInput` and `PassOutput` stop being the public
+way to describe an effect. A stable user-facing authoring model is out of
+scope.
+
+### 3. An effect element in the drawing
+
+The drawing gets an element that generalises today's `EffectElement`. It
+holds:
+
+- a list of inputs, each a sub-drawing or the symbolic backdrop of the
+  enclosing scope;
+- one pass with its parameters;
+- an optional shape;
+- an output scale and format.
+
+A multi-pass effect is nested elements: the inner element is the
+sub-drawing input of the outer one. A list of inputs is allowed from the
+start, because liquid glass needs the backdrop together with a blurred
+mask of its shape, whose gradient gives the edge direction and the bevel
+height.
+
+Uses beyond backdrop effects: group opacity (a sub-drawing composited at
+an alpha), content blur, and the blur of a shadow.
+
+An effect brush and an effect element lower into the same pass graph. The
+brush is the short form for "one backdrop effect painted through this
+geometry".
+
+**Rendering a sub-drawing.** A sub-drawing is rendered into a scratch
+target by the ordinary mesh path, which draws opaque elements first and
+relies on the depth test, so the target needs depth:
+
+- A scratch target gets a depth attachment only while it is the target of
+  a sub-drawing. Quad (`Region`) passes need none.
+- One pooled depth buffer per target size is reused by every sub-drawing
+  of that size. Depth is needed only while the sub-drawing is drawn and
+  is never read afterwards, so nothing has to outlive the draw.
+- The ordering rule that makes the reuse safe: a sub-drawing is
+  self-contained, and the sub-drawing inputs nested inside it are rendered
+  before the outer sub-drawing starts. No sub-drawing is ever interrupted
+  by another one that needs the same depth buffer. Backdrop inputs do not
+  disturb this, because the scope's snapshot already exists by then.
+- On entry each sub-drawing clears colour to transparent and clears
+  depth.
+
+**Alpha.** Sub-drawing results are premultiplied, with no extra step. The
+painter already premultiplies brush colours
+(`src/avg/src/rendering.cpp:171`, `:187`, `:219`) and blends One /
+OneMinusSrcAlpha (`src/avg/src/painter.cpp:155-156`), so content rendered
+into a layer cleared to transparent is correctly premultiplied. Two rules
+follow: the pass that composites a sub-drawing uses the same blend, and
+effect shaders treat every input as premultiplied (a backdrop sample is
+opaque, so it satisfies this already).
+
+### 4. The drawing stays a tree; the graph lives in the renderer
+
+A `Drawing` stays a tree of elements. The renderer lowers it into a
+directed acyclic graph of passes:
+
+- each backdrop input is bound to the content of its scope;
+- passes that are the same by decision 2 (shader identity, and byte-wise
+  equal parameter block, inputs and output) in that frame are merged, so
+  two panels with the same blur over the same backdrop share one chain.
+
+Two reasons put the graph in the renderer and not in the drawing. Widgets
+cannot see each other, so no widget can build the sharing. And the
+backdrop is expressed in the scope's coordinates: it is a free variable
+that the scope binds, so a widget's drawing cannot hold it as a value.
+
+Sharing is kept simple. Matching chains always share, and each shared
+pass covers one region: the bounding box of the panels that use it. There
+is no logic that splits a chain or decides against merging. Two small
+panels far apart therefore blur the box that spans them; drawing one pass
+over a set of rectangles is the recorded refinement (see "Later") if
+measurements show that case matters.
+
+Two limits are inherent, not defects:
+
+- Overlapping panels cannot share. Each later child of a stacked
+  container gets its own scope (`Drawing::over`,
+  `src/avg/src/drawing.cpp:496-506`), and the second panel's backdrop
+  contains the first, so their inputs differ by definition.
+- Sharing needs equal parameters in that frame. The blur divisor follows
+  the radius (`frostedGlassDivisor`), so two panels mid-animation with
+  different radii share nothing until they settle.
+
+### 5. Regions follow from the shape
+
+Each pass declares how far outside its output region it reads (today's
+`Pass::padding`). The renderer starts from the shape's bounds and
+propagates inward, growing by each pass's reach, so a backdrop or a
+sub-drawing is needed only in the final grown region. An element without
+a shape uses its input's bounds grown by its own reach. `deriveRegions`
+already does this for one effect over the backdrop; the rule extends to
+sub-drawing inputs and to shared nodes, whose region is the bounding box
+of what all their readers need (decision 4).
+
+This replaces "everything full-screen" as the route to lower cost. The
+options are staged, in this order, each adopted only when the counters
+(decision 10) show it pays:
+
+1. **Share blur chains** (decision 4).
+2. **Region- or panel-sized scratch targets** in place of full-screen ones.
+3. **Reuse results** while the backdrop under a panel is unchanged. This
+   needs damage tracking and is a separate project.
+
+Removing the snapshot copy is deferred to "Later"; the reasons are
+recorded there.
+
+### 6. Outlines travel inside the drawing
+
+*Revised 2026-11-14: outlines were first to travel next to the drawing
+through the render tree, with an outline node around every shape widget.*
+
+A `Drawing` carries, next to its element list, the outline shapes of the
+widgets that produced it. They are not elements; the renderer never reads
+them. They can be read, set, added to, cleared and taken on their own.
+
+- **Every drawing operation applies to both lists**, in the one place it
+  is implemented: transforms, scaling, clips (a shape fully inside is
+  kept, one outside dropped, the rest intersected with the clip, with the
+  drawing's own clip maths), `filterByRect`, concatenation and
+  `Drawing::over`. So outlines receive the same transforms as the drawing,
+  and no render tree node needs to know about them: `RenderTreeNode::draw`
+  keeps returning `std::pair<Drawing, bool>`.
+- **Outlines live only on the outermost drawing.** Whatever wraps a
+  drawing into an element that holds a sub-drawing (a backdrop scope, and
+  the effect element of decision 3 with sub-drawing inputs) lifts the inner
+  drawing's outlines onto the drawing that holds the element, with the
+  element's transform. A sub-drawing has no outline list, so nested
+  drawings never hold outlines, and one `Drawing` helper does the lifting
+  for every such element.
+- **Set in `bqui`, where a shape becomes a widget.** The draw function of
+  `fill`, `stroke` and `fillAndStroke`
+  (`src/bqui/include/bqui/shape/shape.h`) returns a drawing that already
+  carries its outline, built in the same call from the same animated
+  shape, brush and pen as the drawn element. `onDraw` is left alone, so a
+  user `onDraw` callback sets no outline unless it adds one to the drawing
+  it returns, or the user adds a modifier.
+- **Which shapes set one.** The automatic outline comes from opaque colour
+  fills only. A stroke-only shape's outline is the stroke geometry, not the
+  enclosed area, and only with an opaque colour pen; so is a translucent
+  fill's under an opaque pen. A shape with an opaque fill and a stroke has
+  an outline that includes the stroke width, so the outline matches what
+  is painted. A translucent fill sets none, so a hover highlight at 30%
+  alpha casts nothing, unless the user sets an outline by hand. An effect
+  brush sets none.
+- A modifier can override the outline, add to it, or set it to none. These
+  modifiers wrap the widget in a small `avg` outline node that edits its
+  child's drawing; the automatic case needs no node.
+- Text sets no outline by default.
+- Casting is opt-out: everything with an outline casts once the outline
+  reaches a shadow boundary.
+- **An outline that reaches no shadow boundary is dropped.** The root is
+  not an implicit boundary; `RenderTree::draw` drops the outlines, so no
+  boundary means no shadow.
+- A caster supplies no parameters for now; there is no elevation.
+- **Clips also clip outlines.** An item scrolled out of view must not
+  cast, so the caster is cut, not only its painted shadow.
+
+`Drawing` loses the pending-shadow list, and `Drawing::over` no longer
+interleaves shadows: it is the backdrop composition only.
+
+### 7. The shadow boundary
+
+A shadow boundary modifier takes the light: an offset, a blur radius and
+a colour whose alpha is the shadow's opacity; there is no spread. It takes
+the outlines of its content's drawing, which reach it already transformed
+and clipped, offsets them, unions them geometrically (`Shape::add`), and
+emits the union into the drawing as one fill wrapped in blur effect
+elements (decision 3), under all of the boundary's content.
+
+- Because the shadow is one unioned shape, overlapping shadows do not
+  darken twice, and there is no separate stroke to blend against the fill.
+- Casters inside one boundary do not shadow each other. That needs a
+  nested boundary.
+- Casters are treated as opaque.
+- Neither the shadow nor its casters are limited to the boundary's area,
+  since content may overflow it; only the renderer culls a shadow, against
+  the target.
+- Casting is opt-out. An opaquely filled surface or background casts like
+  any opaque fill; only the toolkit's window background opts out.
+- The per-surface shadow of the surface modifier is gone, and the demo
+  (`src/testapp1/main.cpp`) casts its cards' shadows through one boundary.
+
+A backdrop boundary is usually wanted at the same point. The nesting
+order decides what glass sees:
+
+- **Shadow boundary outside the backdrop boundary.** The shadow is
+  painted before the scope is entered, so it is part of the backdrop, and
+  glass shows the blurred shadows of its neighbours. The combined modifier
+  nests this way.
+- **Backdrop boundary outside the shadow boundary.** The shadow is painted
+  inside the scope, after its snapshot, so glass does not see the shadows;
+  they only lie over the backdrop.
+
+There is no standalone backdrop-boundary modifier: a stack already gives
+each later child its own scope, so a shadow boundary inside a stack's
+child gives the second order.
+
+### 8. Glass surfaces set their outline to none
+
+A frosted or glass surface sets its shadow outline to none. The effect's
+shape and the shadow outline are separate things, so no "subtract the
+casters from the shadow" step is needed now.
+
+Subtraction is recorded as the route to translucent casters later: clip
+the shadow stamp to the outside of the casters, applied after the blur.
+
+### 9. Text with a non-colour brush uses the outline path
+
+`generateTextQuads` gets one more fallback rule: a `TextEntry` whose brush
+is not a colour is not drawn from the atlas. It goes through `textToPath`
+and becomes the shape of an effect draw.
+
+The costs are those of the outline path: no antialiasing, and
+tessellation every frame. The later option is to combine the brush's
+shader with the atlas coverage.
+
+### 10. Instrumentation first, in two parts
+
+Instrumentation is the first step and guides the rest. It is split by
+what it costs to build.
+
+First, before any other stage:
+
+- **Per-frame counters**: passes, draws, snapshots, scratch targets,
+  scratch bytes and pixels shaded. They are exposed after a frame and
+  asserted in the headless test for fixed scenes. Pixels shaded is the
+  figure that shows the cost of a wide shared region (decision 4), which
+  the pass count hides.
+- **CPU time**: Tracy zones for tree update, drawing generation,
+  tessellation, shadow union, sort and submit.
+- **A fixed scene set**: zero, one, two and N panels; one large panel; 4K;
+  idle against one animating widget.
+
+Later, only when a choice between optimisations needs it:
+
+- **GPU time per pass**: timer queries. Draws execute from a command
+  buffer after recording, so this is a new `ase` interface, not a GL call
+  at record time, and it has to fit the Vulkan-ready design.
+
+### 11. Sizes are in logical units
+
+Softness, and every other size an effect or a light takes, is given in
+logical units. A shadow's offset is geometry and scales with the display;
+a softness in device pixels would be half as wide relative to it on a 2x
+display.
+
+The conversion to pixels happens where the scaling factor is first known:
+
+- **A shadow boundary's sizes are converted at the boundary**, which
+  knows the factor when it emits its blur.
+- **An effect brush's sizes are converted by the renderer when it lowers
+  the brush.** The brush is built before the factor is known; lowering is
+  the first place that has both the brush and the factor. It converts at
+  the factor times the scale of the brush's transform to the root, so the
+  sizes scale with the drawing, as an effect element's do.
+
+This resolves the open call in `backdrop-effects.md` ("Effect parameters
+in logical units"): an effect's divisor, paddings and parameter bytes are
+in device pixels today, fixed when the effect is built, before the
+scaling factor is known. They move to logical units and are converted at
+lowering.
+
+### 12. Sequencing
+
+This is not part of the current stack. The order after it lands is:
+counters and CPU zones; effect brush, effect element and lowering with
+chain sharing; outlines and the shadow boundary.
+
+## Staged plan
+
+Each stage lands on its own and leaves `master` working.
+
+1. **Counters and CPU zones.** Collect passes, draws, snapshots, scratch
+   targets, scratch bytes and pixels shaded per frame in `avg`, readable
+   after `render`.
+   Assert them in the headless test for the fixed scene set. Add Tracy CPU
+   zones where they are missing. No behaviour change.
+2. **Opaque effects.** Effects become opaque values from factories, each
+   pass carrying its shader identity; `SurfaceEffect` in `avg` and `bqui`
+   is replaced by the effect value; same-kind interpolation moves onto the
+   value. No rendering change; counters unchanged.
+3. **Effect brush.** `Brush` holds a colour or an effect; fill, stroke and
+   the text rule (decision 9) lower to effect draws; `lerp` interpolates
+   same-kind effects and switches sharply otherwise. `SurfaceNode`'s
+   effect member becomes a brush. Effect sizes are given in logical units
+   and converted to pixels at that lowering (decision 11). Counters
+   unchanged for the existing scenes at a scaling factor of one.
+4. **Lowering and chain sharing.** Replace the per-effect timeline with
+   the lowered pass graph; merge equal passes inside a scope, each shared
+   pass over the bounding box of its users. Counters drop for the
+   side-by-side scenes; their expected values change in the same PR.
+5. **Effect element with sub-drawing inputs.** Offscreen content
+   rendering with the pooled depth buffer and the entry clears of
+   decision 3, nested elements, multiple inputs; group opacity and content
+   blur as the first users. Each sub-drawing input is built through
+   `Drawing::liftSubDrawing`, so its outlines move onto the outer drawing.
+6. **Outlines.** The drawing carries outlines, transformed and clipped
+   with its elements and lifted out of sub-drawings; the root drops them;
+   `bqui` shapes set them by the rules of decision 6; the override, add and
+   none modifiers through a small outline node. Nothing consumes them yet,
+   so pending shadows still draw.
+7. **Shadow boundary.** The boundary modifier with light sizes in logical
+   units, the combined modifier (shadow boundary outside backdrop
+   boundary), glass outlines set to none, a boundary in the demo. The
+   pending-shadow list, `SurfaceShadow`, the surface modifier's shadow
+   argument and the shadow half of `Drawing::over` are removed in the same
+   PR, since the two mechanisms cannot both own shadow placement.
+   Implemented as `avg::ShadowBoundaryNode`, `bqui::modifier::shadowBoundary`
+   and `shadowAndBackdropBoundary`, as decision 7 now reads. The light's
+   sizes reach pixels through the content blur's recipe at lowering, so
+   the boundary itself converts nothing.
+8. **Cost options** from decision 5, one PR each, each justified by the
+   counters: region-sized scratch first. GPU timer queries (decision 10)
+   are added at this point if the counters cannot settle a choice.
+
+## Work implied by the code
+
+Each item is work a decision implied in the code at `03314fc6`, where
+the line numbers point; stages 1-7 did it, except the separate pen fix at
+the end, which is still open.
+
+- **Brush consumers assume a colour.** `Painter::getPipeline` picks the
+  pipeline from the brush's alpha (`src/avg/src/painter.cpp:288-302`);
+  mesh and text generation read `getColor()`
+  (`src/avg/src/rendering.cpp:187`, `:219`, `:364`); `lerp(Brush, Brush)`
+  interpolates the colour (`src/avg/src/lerp.cpp:51-53`); `Brush` has
+  `operator<`, hashing and a no-op `operator*(float)`
+  (`src/avg/include/avg/brush.h:26-48`). Each gets a meaning for an effect
+  brush in stage 3.
+- **Passes have no identity or equality.** `makeEffect`
+  (`src/avg/src/rendertree/surfacenode.cpp:117`) builds a fresh `Effect`
+  per surface per frame, and `Pass`
+  (`src/avg/include/avg/effect.h:122-130`) holds the fragment source as a
+  string and `ase::UniformValues`, neither comparable. Decision 2's
+  shader identity and byte-wise parameter block replace both.
+- **The planner is per effect, in sequence.** `ScratchTimeline`
+  (`src/avg/include/avg/effectplan.h:195-235`) is a list of snapshots and
+  whole effects, and `EffectRegions` is per effect. Liveness allocation
+  carries over, but the timeline, `planScratch`, `deriveRegions` and
+  `emitEffect`'s per-effect loop are rewritten around graph nodes, and
+  their tests (`src/avg/test/effectemittertest.cpp`,
+  `src/avg/test/effectrenderingtest.cpp`) pin today's exact command
+  sequences.
+- **Scratch targets have no depth and are never cleared.** Scratch
+  framebuffers have a colour attachment only
+  (`src/avg/src/scratchpool.cpp:43-44`), z is assigned over the whole
+  frame (`rendering.cpp:763-776`, `:846-849`), and no effect pass clears.
+  Decision 3 adds the pooled depth buffer, the entry clears and the
+  render order; this is the largest piece of new renderer work and the
+  reason sub-drawing inputs are their own stage.
+- **The outline list lives where the pending-shadow list does.** Carrying
+  outlines inside `Drawing` leaves `RenderTreeNode::draw`
+  (`src/avg/include/avg/rendertree/rendertreenode.h:49-52`) and every
+  node kind unchanged. The outline list needs the operations the
+  pending-shadow list has today (`+=`, `clip`, `transform`,
+  `filterByRect`), so the mechanism moves more than it disappears: it
+  holds geometry instead of painted elements and has one consumer.
+- **Counters are per render.** Stage 1 made `render` return a
+  `RenderCounters` (`src/avg/include/avg/rendercounters.h`) collected from
+  the frame's emitter and command buffer, which `paintToImage` and
+  `paintToWindow` pass on; `src/avg/test/rendercounterstest.cpp` pins
+  them for the fixed scene set. The headless test
+  (`src/bqui/test/headlessrendertest.cpp`) renders an empty widget and
+  asserts frame counts only.
+- **Opaque effects against the tests.** `Effect`'s constructor from passes
+  is public and exported (`effect.h:161-181`) and the `avg` tests build
+  effects from hand-written passes. Making effects opaque needs a
+  test-only or internal construction route.
+- **Naming.** `Drawing::EffectElement` already exists
+  (`src/avg/include/avg/drawing.h:78-83`) with a different shape from the
+  element of decision 3. The new element replaces it; it is not a second
+  kind.
+- **Text and strokes as an effect shape.** The effect visitor triangulates
+  `effect.shape` by filling it (`rendering.cpp:634-637`); strokes and text
+  outlines need the same route with `strokeToRegion` and `textToPath`
+  (`rendering.cpp:527-541`). The effect's final pass does not test depth,
+  so glass text is ordered by segment flushing only: every glass text run
+  is a run boundary for the content around it.
+
+A separate fix, not part of this design: the pen test at
+`src/avg/src/painter.cpp:298`, `std::abs(alpha) - 1.0f > 0.0001f`, is
+never true, so pens always take the blended pipeline; the intended test
+is `std::abs(alpha - 1.0f) < 0.0001f`.
+
+## Risks
+
+- **The union runs per frame through Clipper.** `Shape::add` is evaluated
+  at fill time at the frame's point size (`src/avg/src/shape.cpp:229-230`,
+  `src/avg/src/region.cpp:231-255`). A boundary with many casters (a list)
+  unions all of them every frame while anything animates. This is why
+  the union has its own CPU zone, "Shape operation fill", where Clipper
+  evaluates it; no cache is designed.
+- **A wide shared region can cost more than the sharing saves.** Pass
+  count drops when two far-apart panels share a chain, while the pixels
+  blurred grow to the box that spans them (decision 4). The pixels-shaded
+  counter of decision 10 measures this from the first stage, and it is
+  the figure for judging the rectangle-set refinement.
+
+## Open questions
+
+- **Per-caster parameters** such as elevation.
+- **A stable user-facing way to author effects.**
+
+Found during implementation:
+
+- **Stroke width in culling.** Stroke geometry reaches the full pen width
+  on each side of the path (`strokeElementToRegion` in
+  `src/avg/src/shape.cpp` passes the pen width as Clipper's offset
+  delta), while culling assumes half of it
+  (`Shape::getControlBb`, and `getElementRect` in
+  `src/avg/src/rendering.cpp`). The owner decides which is intended.
+- **Shadows pop.** Only opaque colour fills and pens set an outline, so a
+  caster whose fill fades through alpha 1 gains or loses its shadow at
+  once. A light whose radius crosses 0 switches between an unblurred fill
+  and the blur chain (`shadowOf`, `src/avg/src/builtineffects.cpp`).
+- **The light ignores the boundary's transform.** The offset and radius
+  are applied in the space the outlines reach the boundary in, the root's
+  logical units, so a scaled boundary scales its casters but not their
+  offset or blur.
+- **A backdrop effect inside a sub-drawing** reads the snapshot of the
+  scope that encloses the element, not a scope inside the sub-drawing,
+  which opens none.
+- **Sharing trades passes for pixels.** Two panels side by side went from
+  8 to 5 passes and from 338,660 to 375,080 pixels shaded
+  (`src/avg/test/rendercounterstest.cpp`). Sub-drawings also render into
+  full-size targets, which makes region-sized scratch the first stage 8
+  candidate.
+- **The shadow union runs through Clipper every frame**, with no cache
+  (see "Risks").
+
+## Later
+
+- A stable user-facing way to author effects.
+- Subtraction of casters from the blurred stamp, for translucent casters.
+- Brush shaders combined with atlas coverage for text.
+- Reuse of pass results under an unchanged backdrop, on top of damage
+  tracking.
+- Per-caster elevation.
+- Drawing one shared pass over a set of rectangles in place of their
+  bounding box, if measurements show far-apart panels matter.
+- GPU timer queries (decision 10).
+- **Removing the snapshot copy.** The snapshot is a full-resolution copy
+  of the main target taken at the scope's entry
+  (`src/avg/src/rendering.cpp:863-872`,
+  `src/avg/src/effectemitter.cpp:105-124`), and `frostedGlass` then copies
+  it again, downsampled (`src/avg/src/builtineffects.cpp:216-217`), so
+  frosted glass copies the backdrop twice today; look at this when
+  measuring. Removing the first copy needs every backdrop-reading Region
+  pass hoisted to the scope's entry, where the main target holds exactly
+  the backdrop; run where it runs today, such a pass would see the
+  scope's earlier siblings and break decision 1. It cannot apply to
+  `tint` (`builtineffects.cpp:238`), or to any effect whose final pass
+  reads the backdrop while drawing into the main target: that is a
+  feedback loop, so such a scope keeps its snapshot.

@@ -124,79 +124,120 @@ void EffectEmitter::emitSnapshot(ScratchSlot const& slot,
 }
 
 void EffectEmitter::emitEffect(Effect const& effect,
-        EffectRegions const& regions, EffectAllocation const& allocation,
-        std::vector<Vector2f> const& shapeTriangles)
+        EffectAllocation const& allocation,
+        std::vector<Vector2f> const& shapeTriangles,
+        std::optional<ScratchSlot> const& target)
 {
     std::vector<Pass> const& passes = effect.getPasses();
-    if (regions.passRegions.size() != passes.size()
-            || allocation.passes.size() != passes.size())
-    {
-        throw std::invalid_argument("regions or allocation do not match the"
-                " effect's " + std::to_string(passes.size()) + " passes");
-    }
 
-    if (regions.passRegions.back().isEmpty())
+    for (PassAllocation const& passAllocation : allocation.passes)
+    {
+        if (passAllocation.index >= passes.size())
+        {
+            throw std::invalid_argument("the allocation names pass "
+                    + std::to_string(passAllocation.index) + " of an effect"
+                    " with " + std::to_string(passes.size()) + " passes");
+        }
+
+        emitPass(passes[passAllocation.index], passAllocation, shapeTriangles,
+                target);
+    }
+}
+
+void EffectEmitter::emitElement(Pass const& pass,
+        EffectAllocation const& allocation,
+        std::vector<Vector2f> const& shapeTriangles,
+        std::optional<ScratchSlot> const& target)
+{
+    for (PassAllocation const& passAllocation : allocation.passes)
+    {
+        if (passAllocation.index != 0)
+        {
+            throw std::invalid_argument("the allocation names pass "
+                    + std::to_string(passAllocation.index)
+                    + " of an element");
+        }
+
+        emitPass(pass, passAllocation, shapeTriangles, target);
+    }
+}
+
+ase::Framebuffer EffectEmitter::beginSubDrawing(ScratchSlot const& slot)
+{
+    ScratchTarget target = scratch_.acquireWithDepth(slot);
+
+    pushBarrier();
+    commands_.pushClear(target.framebuffer, 0.0f, 0.0f, 0.0f, 0.0f, true,
+            true, true);
+
+    return target.framebuffer;
+}
+
+void EffectEmitter::emitPass(Pass const& pass,
+        PassAllocation const& passAllocation,
+        std::vector<Vector2f> const& shapeTriangles,
+        std::optional<ScratchSlot> const& target)
+{
+    size_t const i = passAllocation.index;
+    PixelRect const& region = passAllocation.region;
+
+    if (region.isEmpty())
         return;
 
-    ase::Format const mainFormat = mainTarget_.getTexture().getFormat();
+    if (passAllocation.inputs.size() != pass.inputs.size())
+    {
+        throw std::invalid_argument("pass " + std::to_string(i)
+                + " is allocated "
+                + std::to_string(passAllocation.inputs.size())
+                + " inputs for its " + std::to_string(pass.inputs.size()));
+    }
 
     pushBarrier();
 
-    for (size_t i = 0; i < passes.size(); ++i)
+    std::vector<Input> inputs;
+    inputs.reserve(pass.inputs.size());
+    for (ScratchSlot const& slot : passAllocation.inputs)
     {
-        Pass const& pass = passes[i];
-        PixelRect const& region = regions.passRegions[i];
-        PassAllocation const& passAllocation = allocation.passes[i];
-
-        if (region.isEmpty())
-            continue;
-
-        if (passAllocation.inputs.size() != pass.inputs.size())
-        {
-            throw std::invalid_argument("pass " + std::to_string(i)
-                    + " is allocated "
-                    + std::to_string(passAllocation.inputs.size())
-                    + " inputs for its " + std::to_string(pass.inputs.size()));
-        }
-
-        std::vector<Input> inputs;
-        inputs.reserve(pass.inputs.size());
-        for (ScratchSlot const& slot : passAllocation.inputs)
-        {
-            ScratchTarget source = scratch_.acquire(slot);
-            inputs.push_back(Input{ std::move(source.texture), source.size,
-                    slot.key.divisor });
-        }
-
-        if (pass.geometry == Geometry::Shape)
-        {
-            PassPipeline& pipeline = pipelines_.getPipeline(pass.shader,
-                    Geometry::Shape, mainFormat,
-                    mainTarget_.getFramebuffer().getDepthFormat());
-            draw(pipeline, mainTarget_.getFramebuffer(), mainTarget_.getSize(),
-                    Divisor::One, region, inputs, pass.parameters,
-                    triangleVertices(shapeTriangles));
-        }
-        else
-        {
-            if (!pass.output || !passAllocation.output)
-            {
-                throw std::invalid_argument("Region pass "
-                        + std::to_string(i) + " has no output");
-            }
-
-            PassPipeline& pipeline = pipelines_.getPipeline(pass.shader,
-                    Geometry::Region, pass.output->format, std::nullopt);
-            ScratchTarget target = scratch_.acquire(
-                    passAllocation.output->slot);
-            draw(pipeline, target.framebuffer, target.size,
-                    pass.output->divisor, region, inputs, pass.parameters,
-                    quadVertices(region));
-        }
-
-        ++passCount_;
-        pushBarrier();
+        ScratchTarget source = scratch_.acquire(slot);
+        inputs.push_back(Input{ std::move(source.texture), source.size,
+                slot.key.divisor });
     }
+
+    if (pass.geometry == Geometry::Shape)
+    {
+        ase::Framebuffer framebuffer = mainTarget_.getFramebuffer();
+        Vector2i size = mainTarget_.getSize();
+        if (target)
+        {
+            ScratchTarget scratch = scratch_.acquireWithDepth(*target);
+            framebuffer = std::move(scratch.framebuffer);
+            size = scratch.size;
+        }
+
+        PassPipeline& pipeline = pipelines_.getPipeline(pass.shader,
+                Geometry::Shape, framebuffer.getColorFormat(),
+                framebuffer.getDepthFormat());
+        draw(pipeline, framebuffer, size, Divisor::One, region, inputs,
+                pass.parameters, triangleVertices(shapeTriangles));
+    }
+    else
+    {
+        if (!pass.output || !passAllocation.output)
+        {
+            throw std::invalid_argument("Region pass "
+                    + std::to_string(i) + " has no output");
+        }
+
+        PassPipeline& pipeline = pipelines_.getPipeline(pass.shader,
+                Geometry::Region, pass.output->format, std::nullopt);
+        ScratchTarget output = scratch_.acquire(passAllocation.output->slot);
+        draw(pipeline, output.framebuffer, output.size,
+                pass.output->divisor, region, inputs, pass.parameters,
+                quadVertices(region));
+    }
+
+    ++passCount_;
+    pushBarrier();
 }
 
 size_t EffectEmitter::getPassCount() const
@@ -207,6 +248,11 @@ size_t EffectEmitter::getPassCount() const
 size_t EffectEmitter::getSnapshotCount() const
 {
     return snapshotCount_;
+}
+
+size_t EffectEmitter::getPixelsShaded() const
+{
+    return pixelsShaded_;
 }
 
 void EffectEmitter::draw(PassPipeline& pipeline, ase::Framebuffer const& target,
@@ -269,6 +315,9 @@ void EffectEmitter::draw(PassPipeline& pipeline, ase::Framebuffer const& target,
     commands_.push(target, pipeline.getPipeline(), std::move(uniformSet),
             std::move(vertexBuffer), std::nullopt, std::move(textures), 0.0f,
             scissorOf(region));
+
+    pixelsShaded_ += static_cast<size_t>(region.width)
+        * static_cast<size_t>(region.height);
 }
 
 void EffectEmitter::pushBarrier()

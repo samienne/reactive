@@ -2,6 +2,7 @@
 
 #include "traceresource.h"
 #include "debug.h"
+#include "effectfactory.h"
 #include "glyphatlas.h"
 
 #include <avg/softmesh.h>
@@ -18,6 +19,8 @@
 #include <ase/uniformbufferrange.h>
 #include <ase/uniformset.h>
 #include <ase/usage.h>
+#include <ase/format.h>
+#include <ase/rendercommand.h>
 #include <ase/buffer.h>
 #include <ase/matrix.h>
 #include <ase/pipeline.h>
@@ -83,14 +86,16 @@ struct TextQuads
     pmr::vector<uint32_t> indices;
 };
 
-// An effect element in device pixels: the regions its passes write and its
-// shape as a triangle list, reading the snapshot of scope.
+// An effect in device pixels: the bounds of its shape and the geometry it
+// paints as a triangle list, reading the snapshot of scope. index is its
+// place among the graph's effects.
 struct EffectDraw
 {
-    Effect const* effect;
+    Effect effect;
     size_t scope;
-    EffectRegions regions;
+    PixelRect bounds;
     std::vector<Vector2f> triangles;
+    size_t index = 0;
 };
 
 // Where a backdrop scope is entered in paint order.
@@ -99,7 +104,42 @@ struct ScopeEntry
     size_t scope;
 };
 
-using Item = std::variant<SoftMesh, TextQuads, EffectDraw, ScopeEntry>;
+struct ElementNode;
+
+// An effect element drawn into the target its items are drawn into.
+struct ElementDraw
+{
+    std::shared_ptr<ElementNode> node;
+};
+
+using Item = std::variant<SoftMesh, TextQuads, EffectDraw, ScopeEntry,
+      ElementDraw>;
+
+// One input of a lowered element: the backdrop, a sub-drawing's items in
+// the root space, or a nested element whose pass writes the input itself.
+// index is the sub-drawing's in the graph.
+struct ElementInput
+{
+    pmr::vector<Item> items;
+    std::shared_ptr<ElementNode> nested;
+    bool backdrop = false;
+    size_t index = 0;
+};
+
+// An element in device pixels. pass is lowered to pixels with its inputs,
+// geometry and output set: a Shape pass over bounds painting triangles
+// when it draws into a target, a Region pass when another element reads
+// it. index is its place among the graph's effects.
+struct ElementNode
+{
+    Pass pass;
+    size_t scope = 0;
+    PixelRect bounds;
+    std::vector<Vector2f> triangles;
+    std::vector<ElementInput> inputs;
+    std::vector<PassGraph::Source> sources;
+    size_t index = 0;
+};
 
 struct TextContext
 {
@@ -110,20 +150,35 @@ struct TextContext
 };
 
 // A backdrop scope of the frame: used once an effect directly inside it
-// reads its snapshot, whose region is the union of those reads.
+// reads its snapshot.
 struct Scope
 {
-    PixelRect backdropRegion;
     bool used = false;
     size_t snapshot = 0;
 };
 
+// subDrawingDepth counts the sub-drawings the walk is inside; a backdrop
+// scope there opens no scope of its own.
 struct EffectContext
 {
     float scalingFactor;
     Vector2i screenSize;
     std::vector<Scope> scopes;
+    size_t subDrawingDepth = 0;
 };
+
+std::vector<Vector2f> quadTriangles(PixelRect const& r)
+{
+    float const x0 = static_cast<float>(r.x);
+    float const y0 = static_cast<float>(r.y);
+    float const x1 = static_cast<float>(r.x + r.width);
+    float const y1 = static_cast<float>(r.y + r.height);
+
+    return {
+        Vector2f(x0, y0), Vector2f(x1, y0), Vector2f(x1, y1),
+        Vector2f(x0, y0), Vector2f(x1, y1), Vector2f(x0, y1)
+    };
+}
 
 bool isMesh(Item const& item)
 {
@@ -149,16 +204,14 @@ PixelRect toDevicePixels(Rect const& r, float scalingFactor)
     return PixelRect{ left, bottom, right - left, top - bottom };
 }
 
-// The filled shape as a triangle list in device pixels; toRoot maps the
-// shape's space to the root of the drawing.
+// The region as a triangle list in device pixels; toRoot maps the region's
+// space to the root of the drawing.
 std::vector<Vector2f> triangulateToDevice(pmr::memory_resource* memory,
-        Shape const& shape, Transform const& toRoot, Vector2f pointSize,
-        float scalingFactor)
+        Region const& region, Transform const& toRoot, float scalingFactor)
 {
     ZoneScoped;
     pmr::monotonic_buffer_resource mono(memory);
-    auto [vertices, indices] = shape.fillToRegion(&mono, pointSize)
-        .triangulate(&mono);
+    auto [vertices, indices] = region.triangulate(&mono);
 
     std::vector<Vector2f> result;
     result.reserve(indices.size());
@@ -166,6 +219,47 @@ std::vector<Vector2f> triangulateToDevice(pmr::memory_resource* memory,
         result.push_back(Vector2f((toRoot * vertices[index]) * scalingFactor));
 
     return result;
+}
+
+std::vector<Vector2f> fillToDevice(pmr::memory_resource* memory,
+        Shape const& shape, Transform const& toRoot, Vector2f pointSize,
+        float scalingFactor)
+{
+    pmr::monotonic_buffer_resource mono(memory);
+    return triangulateToDevice(memory, shape.fillToRegion(&mono, pointSize),
+            toRoot, scalingFactor);
+}
+
+// Turns an effect painting a region into an effect draw reading the
+// backdrop of scopeIndex. bounds are the region's, clipped, in the space
+// toRoot maps to the root; triangulate gives the region in device pixels.
+// The effect's sizes are lowered at the device pixels to a unit of that
+// space. Nothing is drawn when the bounds miss the target or the region has
+// no area.
+template <typename TTriangulate>
+std::optional<EffectDraw> lowerEffect(EffectContext& effects,
+        size_t scopeIndex, Effect const& effect, Rect const& bounds,
+        Transform const& toRoot, TTriangulate triangulate)
+{
+    PixelRect const deviceBounds = toDevicePixels(
+            (toRoot * Obb(bounds)).getBoundingRect(), effects.scalingFactor)
+        .clamped(effects.screenSize);
+
+    if (deviceBounds.isEmpty())
+        return std::nullopt;
+
+    std::vector<Vector2f> triangles = triangulate();
+    if (triangles.empty())
+        return std::nullopt;
+
+    effects.scopes[scopeIndex].used = true;
+
+    return EffectDraw{
+        toPixels(effect, effects.scalingFactor * toRoot.getScale()),
+        scopeIndex,
+        deviceBounds,
+        std::move(triangles)
+    };
 }
 
 Color premultiply(Color c)
@@ -244,9 +338,14 @@ SoftMesh generateMeshForPen(pmr::memory_resource* memory, Shape const& shape,
     return generateMeshForRegion(memory, region, pen.getBrush(), r, clip);
 }
 
-pmr::vector<Item> generateMeshesForShapeElement(
-        pmr::memory_resource* memory, Drawing::ShapeElement const& element,
-        ase::Vector2f pointSize, Rect const& r, bool clip)
+// The items of a fill and a stroke: a mesh for a colour brush and an effect
+// draw for an effect brush. toRoot maps the shape's space to the root of
+// the drawing and scopeIndex is the backdrop scope the shape is inside.
+pmr::vector<Item> generateItemsForShapeElement(
+        pmr::memory_resource* memory, EffectContext& effects,
+        size_t scopeIndex, Transform const& toRoot,
+        Drawing::ShapeElement const& element, ase::Vector2f pointSize,
+        Rect const& r, bool clip)
 {
     ZoneScoped;
     auto const& shape = element.shape;
@@ -255,14 +354,47 @@ pmr::vector<Item> generateMeshesForShapeElement(
 
     pmr::vector<Item> result(memory);
 
-    if (brush.has_value())
+    auto clipped = [&](Rect const& bounds)
+    {
+        return clip ? bounds.intersected(r) : bounds;
+    };
+
+    if (brush.has_value() && brush->getEffect())
+    {
+        auto draw = lowerEffect(effects, scopeIndex, *brush->getEffect(),
+                clipped(shape.getControlBb()), toRoot, [&]()
+                {
+                    return fillToDevice(memory, shape, toRoot, pointSize,
+                            effects.scalingFactor);
+                });
+
+        if (draw)
+            result.push_back(std::move(*draw));
+    }
+    else if (brush.has_value())
     {
         bool needClip = !shape.getControlBb().isFullyContainedIn(r);
         result.push_back(generateMeshForBrush(memory, shape, *brush, pointSize,
                     r, clip && needClip));
     }
 
-    if (pen.has_value())
+    if (pen.has_value() && pen->getBrush().getEffect())
+    {
+        pmr::monotonic_buffer_resource mono(memory);
+        Region const region = shape.strokeToRegion(&mono, *pen, pointSize);
+
+        auto draw = lowerEffect(effects, scopeIndex,
+                *pen->getBrush().getEffect(),
+                clipped(region.getBoundingBox()), toRoot, [&]()
+                {
+                    return triangulateToDevice(memory, region, toRoot,
+                            effects.scalingFactor);
+                });
+
+        if (draw)
+            result.push_back(std::move(*draw));
+    }
+    else if (pen.has_value())
     {
         Rect penRect = shape.getControlBb().enlarged(pen->getWidth());
         bool needClip = !penRect.isFullyContainedIn(r);
@@ -334,8 +466,11 @@ std::optional<TextQuads> generateTextQuads(
 {
     ZoneScopedN("Text quads");
 
-    if (!textEntry.getBrush().has_value() || textEntry.getPen().has_value())
+    if (!textEntry.getBrush().has_value() || textEntry.getPen().has_value()
+            || textEntry.getBrush()->getEffect())
+    {
         return std::nullopt;
+    }
 
     if (!isUnrotated(toRoot) || !isUnrotated(textEntry.getTransform()))
         return std::nullopt;
@@ -427,7 +562,43 @@ std::optional<TextQuads> generateTextQuads(
     return quads;
 }
 
-Rect getElementRect(Drawing::Element const& e)
+Rect getElementRect(Drawing::Element const& e, float pixelScale);
+
+// The element's bounds in its own space at pixelScale device pixels to the
+// unit: its shape, or its sub-drawing inputs' content grown by the reach of
+// its pass lowered at that scale.
+Rect getEffectRect(Drawing::EffectElement const& effect, float pixelScale)
+{
+    if (effect.shape)
+        return effect.shape->getControlBb();
+
+    std::optional<Rect> content;
+    for (auto const& input : effect.inputs)
+    {
+        if (!input.subDrawing)
+            continue;
+
+        for (auto const& e : (*input.subDrawing)->elements)
+        {
+            Rect const r = getElementRect(e, pixelScale);
+            content = content ? *content + r : r;
+        }
+    }
+
+    if (!content || pixelScale <= 0.0f)
+        return content.value_or(Rect());
+
+    ElementPass const lowered = toPixels(effect.pass, pixelScale);
+    Vector2f const reach = (lowered.getReach()
+            * toInt(lowered.getPass().output->divisor)).cast<float>()
+        / pixelScale;
+
+    return Rect(content->getBottomLeft() - reach,
+            content->getSize() + 2.0f * reach);
+}
+
+// pixelScale is the device pixels to a unit of the space holding e.
+Rect getElementRect(Drawing::Element const& e, float pixelScale)
 {
     ZoneScoped;
     return std::visit(Overloaded{
@@ -461,12 +632,140 @@ Rect getElementRect(Drawing::Element const& e)
                 return (scope.transform * Obb(scope.controlBb))
                     .getBoundingRect();
             },
-            [](Drawing::EffectElement const& effect) -> Rect
+            [pixelScale](Drawing::EffectElement const& effect) -> Rect
             {
-                return (effect.transform * Obb(effect.shape.getControlBb()))
+                return (effect.transform * Obb(getEffectRect(effect,
+                                pixelScale * effect.transform.getScale())))
                     .getBoundingRect();
             }
             }, e);
+}
+
+pmr::vector<Item> generateMeshesForElements(
+        pmr::memory_resource* memory,
+        Painter const& painter,
+        TextContext& text,
+        EffectContext& effects,
+        size_t scopeIndex,
+        Transform const& toRoot,
+        Transform const& transform,
+        pmr::vector<Drawing::Element> const& elements,
+        Vector2f pointSize,
+        Rect const& rect,
+        bool clip
+        );
+
+// The element alone in a sub-drawing input, when it has no shape: its pass
+// then writes the input directly.
+Drawing::EffectElement const* nestedElement(Drawing::SubDrawing const& input)
+{
+    if (input.elements.size() != 1)
+        return nullptr;
+
+    auto const* element = std::get_if<Drawing::EffectElement>(
+            &input.elements.front());
+    return element && !element->shape ? element : nullptr;
+}
+
+// Lowers element, whose space toRoot maps to the root, with its inputs.
+// pointSize and rect are in the space of the drawing holding the element.
+// A final element draws into the enclosing target over bounds, in the
+// drawing's space and already clipped; a nested one is a Region pass whose
+// region the graph derives. Returns null when a final element draws
+// nothing.
+std::shared_ptr<ElementNode> lowerElement(pmr::memory_resource* memory,
+        Painter const& painter, TextContext& text, EffectContext& effects,
+        size_t scopeIndex, Transform const& toRoot,
+        Drawing::EffectElement const& element, Vector2f pointSize,
+        Rect const& rect, bool clip, std::optional<Rect> const& bounds)
+{
+    Transform const toElementRoot = toRoot * element.transform;
+
+    float const pixelScale = effects.scalingFactor * toElementRoot.getScale();
+
+    auto node = std::make_shared<ElementNode>();
+    node->scope = scopeIndex;
+    node->pass = toPixels(element.pass, pixelScale).getPass();
+
+    // The inputs are drawn wherever the pass samples them, which reaches
+    // past rect, so content just outside a clip still blurs into it.
+    float const sampled = pixelScale > 0.0f
+        ? static_cast<float>(node->pass.padding
+                * toInt(node->pass.output->divisor)) / pixelScale
+        : 0.0f;
+
+    Vector2f const elementPointSize = pointSize
+        / element.transform.getScale();
+
+    if (bounds)
+    {
+        node->bounds = toDevicePixels(
+                (toRoot * Obb(*bounds)).getBoundingRect(),
+                effects.scalingFactor).clamped(effects.screenSize);
+
+        if (node->bounds.isEmpty())
+            return nullptr;
+
+        if (element.shape)
+        {
+            node->triangles = fillToDevice(memory, *element.shape,
+                    toElementRoot, elementPointSize, effects.scalingFactor);
+            if (node->triangles.empty())
+                return nullptr;
+        }
+        else
+            node->triangles = quadTriangles(node->bounds);
+
+        node->pass.geometry = Geometry::Shape;
+        node->pass.output.reset();
+    }
+
+    assert(!clip || isUnrotated(element.transform));
+    Rect const elementRect = (element.transform.inverse() * Obb(rect))
+        .getBoundingRect().enlarged(sampled);
+
+    for (size_t i = 0; i < element.inputs.size(); ++i)
+    {
+        Drawing::EffectInput const& input = element.inputs[i];
+        ElementInput lowered{ pmr::vector<Item>(memory), nullptr, false, 0 };
+
+        if (!input.subDrawing)
+        {
+            lowered.backdrop = true;
+            effects.scopes[scopeIndex].used = true;
+            node->pass.inputs.push_back(PassInput::backdrop());
+        }
+        else if (auto const* nested = nestedElement(**input.subDrawing))
+        {
+            lowered.nested = lowerElement(memory, painter, text, effects,
+                    scopeIndex, toElementRoot, *nested, elementPointSize,
+                    elementRect, clip, std::nullopt);
+            node->pass.inputs.push_back(PassInput::pass(i));
+        }
+        else
+        {
+            ++effects.subDrawingDepth;
+            pmr::vector<Item> items = generateMeshesForElements(memory,
+                    painter, text, effects, scopeIndex, toElementRoot,
+                    Transform(), (*input.subDrawing)->elements,
+                    elementPointSize, elementRect, clip);
+            --effects.subDrawingDepth;
+
+            for (auto&& item : items)
+            {
+                if (auto* mesh = std::get_if<SoftMesh>(&item))
+                    lowered.items.push_back(toElementRoot * std::move(*mesh));
+                else
+                    lowered.items.push_back(std::move(item));
+            }
+
+            node->pass.inputs.push_back(PassInput::pass(i));
+        }
+
+        node->inputs.push_back(std::move(lowered));
+    }
+
+    return node;
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
@@ -498,7 +797,8 @@ pmr::vector<Item> generateMeshesForElements(
 
     for (auto const& element : elements)
     {
-        Rect elementRect = getElementRect(element);
+        Rect elementRect = getElementRect(element,
+                effects.scalingFactor * toRoot.getScale());
         if (!elementRect.overlaps(rect))
             continue;
 
@@ -506,8 +806,9 @@ pmr::vector<Item> generateMeshesForElements(
                 [&](Drawing::ShapeElement const& shapeElement)
                 -> pmr::vector<Item>
                 {
-                    return generateMeshesForShapeElement(
-                            memory, shapeElement, newPointSize, rect, clip);
+                    return generateItemsForShapeElement(memory, effects,
+                            scopeIndex, toRoot, shapeElement, newPointSize,
+                            rect, clip);
                 },
                 [&](TextEntry const& textEntry) -> pmr::vector<Item>
                 {
@@ -537,8 +838,9 @@ pmr::vector<Item> generateMeshesForElements(
                         textEntry.getPen()
                         };
 
-                    return generateMeshesForShapeElement(memory, element,
-                            newPointSize, rect, clip);
+                    return generateItemsForShapeElement(memory, effects,
+                            scopeIndex, toRoot, element, newPointSize, rect,
+                            clip);
                 },
                 [&](Drawing::ClipElement const& clipElement)
                     -> pmr::vector<Item>
@@ -573,6 +875,24 @@ pmr::vector<Item> generateMeshesForElements(
                 {
                     pmr::vector<Item> result(memory);
 
+                    if (Effect const* effect = regionFill.brush.getEffect())
+                    {
+                        auto draw = lowerEffect(effects, scopeIndex, *effect,
+                                clip ? elementRect.intersected(rect)
+                                    : elementRect,
+                                toRoot, [&]()
+                                {
+                                    return triangulateToDevice(memory,
+                                            regionFill.region, toRoot,
+                                            effects.scalingFactor);
+                                });
+
+                        if (draw)
+                            result.push_back(std::move(*draw));
+
+                        return result;
+                    }
+
                     result.push_back(generateMeshForRegion(
                             memory,
                             regionFill.region,
@@ -589,11 +909,14 @@ pmr::vector<Item> generateMeshesForElements(
                     auto rectInScopeSpace = (scope.transform.inverse()
                             * Obb(rect)).getBoundingRect();
 
-                    size_t const index = effects.scopes.size();
-                    effects.scopes.push_back(Scope{});
-
                     pmr::vector<Item> result(memory);
-                    result.push_back(ScopeEntry{ index });
+                    size_t index = scopeIndex;
+                    if (effects.subDrawingDepth == 0)
+                    {
+                        index = effects.scopes.size();
+                        effects.scopes.push_back(Scope{});
+                        result.push_back(ScopeEntry{ index });
+                    }
 
                     auto inner = generateMeshesForElements(
                             memory,
@@ -616,43 +939,18 @@ pmr::vector<Item> generateMeshesForElements(
                 },
                 [&](Drawing::EffectElement const& effect) -> pmr::vector<Item>
                 {
-                    assert(effect.effect);
                     pmr::vector<Item> result(memory);
 
                     Rect const bounds = clip
                         ? elementRect.intersected(rect)
                         : elementRect;
 
-                    PixelRect const deviceBounds = toDevicePixels(
-                            (toRoot * Obb(bounds)).getBoundingRect(),
-                            effects.scalingFactor)
-                        .clamped(effects.screenSize);
+                    auto node = lowerElement(memory, painter, text, effects,
+                            scopeIndex, toRoot, effect, newPointSize, rect,
+                            clip, bounds);
 
-                    if (deviceBounds.isEmpty())
-                        return result;
-
-                    std::vector<Vector2f> triangles = triangulateToDevice(
-                            memory, effect.shape, toRoot * effect.transform,
-                            newPointSize / effect.transform.getScale(),
-                            effects.scalingFactor);
-
-                    if (triangles.empty())
-                        return result;
-
-                    EffectRegions regions = deriveRegions(*effect.effect,
-                            deviceBounds, effects.screenSize);
-
-                    Scope& owner = effects.scopes[scopeIndex];
-                    owner.used = true;
-                    owner.backdropRegion = owner.backdropRegion.unionWith(
-                            regions.backdropRegion);
-
-                    result.push_back(EffectDraw{
-                            effect.effect.get(),
-                            scopeIndex,
-                            std::move(regions),
-                            std::move(triangles)
-                            });
+                    if (node)
+                        result.push_back(ElementDraw{ std::move(node) });
 
                     return result;
                 }
@@ -679,12 +977,15 @@ void renderElements(ase::CommandBuffer& commandBuffer,
     // Opaque elements go first in any order, as the depth test settles
     // them; blended elements stay in paint order, batched only while the
     // pipeline and textures stay the same.
-    std::stable_sort(elements.begin(), elements.end(),
-            [](Element const& a, Element const& b)
-            {
-                return !a.pipeline.isBlendEnabled()
-                    && b.pipeline.isBlendEnabled();
-            });
+    {
+        ZoneScopedN("Sort elements");
+        std::stable_sort(elements.begin(), elements.end(),
+                [](Element const& a, Element const& b)
+                {
+                    return !a.pipeline.isBlendEnabled()
+                        && b.pipeline.isBlendEnabled();
+                });
+    }
 
     std::vector<float> resultVertices;
     std::vector<uint32_t> resultIndices;
@@ -809,6 +1110,11 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
                 [&](ScopeEntry const&) -> Element
                 {
                     throw std::logic_error("a scope entry is not an element");
+                },
+                [&](ElementDraw const&) -> Element
+                {
+                    throw std::logic_error("an effect element is not an"
+                            " element");
                 }
                 }, item));
         ++i;
@@ -817,75 +1123,270 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
     return elements;
 }
 
-// The meshes gathered so far must become draws before each snapshot and
-// each effect: the emitter's barriers order only what is already pushed.
-void drawItems(pmr::memory_resource* memory, ase::CommandBuffer& commandBuffer,
-        ase::RenderContext& context, ase::Framebuffer& framebuffer,
-        Painter const& painter, TextContext const& text,
-        std::vector<Scope> const& scopes, ScratchPlan const& plan,
-        EffectEmitter* emitter, pmr::vector<Item>&& items)
+// Adds a frame's items to the graph in the order FrameDrawer runs them. A
+// sub-drawing is self-contained: the inputs of the elements drawn into it
+// are added before it starts, so no sub-drawing interrupts another.
+class GraphBuilder
 {
-    ZoneScoped;
-
-    size_t total = 0;
-    for (auto const& item : items)
+public:
+    GraphBuilder(PassGraph& graph, std::vector<Scope>& scopes) :
+        graph_(graph),
+        scopes_(scopes)
     {
-        if (isMesh(item))
-            ++total;
     }
 
-    pmr::vector<Item> segment(memory);
-    size_t first = 0;
-    size_t gathered = 0;
-
-    auto flushSegment = [&]()
+    void addItems(pmr::vector<Item>& items, bool inSubDrawing)
     {
-        if (segment.empty())
-            return;
-
-        pmr::vector<Element> elements = generateElements(memory, painter,
-                text, std::move(segment), first, total);
-        segment.clear();
-        first = gathered;
-
-        renderElements(commandBuffer, context, framebuffer, painter,
-                std::move(elements));
-    };
-
-    size_t effectIndex = 0;
-    for (auto&& item : items)
-    {
-        if (isMesh(item))
+        for (auto& item : items)
         {
-            segment.push_back(std::move(item));
-            ++gathered;
-        }
-        else if (auto const* entry = std::get_if<ScopeEntry>(&item))
-        {
-            Scope const& scope = scopes[entry->scope];
-            if (!scope.used)
-                continue;
+            if (auto const* entry = std::get_if<ScopeEntry>(&item))
+            {
+                Scope& scope = scopes_[entry->scope];
+                if (scope.used)
+                    scope.snapshot = graph_.addSnapshot();
+            }
+            else if (auto* draw = std::get_if<EffectDraw>(&item))
+            {
+                draw->index = graph_.addEffect(draw->effect,
+                        scopes_[draw->scope].snapshot, draw->bounds);
+            }
+            else if (auto* element = std::get_if<ElementDraw>(&item))
+            {
+                ElementNode& node = *element->node;
+                if (!inSubDrawing)
+                    addInputs(node);
 
-            assert(emitter);
-            flushSegment();
-            emitter->emitSnapshot(plan.snapshots[scope.snapshot].slot,
-                    scope.backdropRegion);
-        }
-        else if (auto const* draw = std::get_if<EffectDraw>(&item))
-        {
-            assert(emitter);
-            flushSegment();
-            emitter->emitEffect(*draw->effect, draw->regions,
-                    plan.effects[effectIndex++], draw->triangles);
+                node.index = graph_.addElement(node.pass,
+                        scopes_[node.scope].snapshot, node.sources,
+                        node.bounds);
+            }
         }
     }
 
-    flushSegment();
+private:
+    void addInputs(ElementNode& node)
+    {
+        using Kind = PassGraph::Kind;
+        using Source = PassGraph::Source;
+
+        node.sources.clear();
+        for (ElementInput& input : node.inputs)
+        {
+            if (input.backdrop)
+                node.sources.push_back(Source{ Kind::Snapshot, 0 });
+            else if (input.nested)
+            {
+                ElementNode& nested = *input.nested;
+                addInputs(nested);
+                nested.index = graph_.addElement(nested.pass,
+                        scopes_[nested.scope].snapshot, nested.sources,
+                        PixelRect());
+                node.sources.push_back(Source{ Kind::Element,
+                        nested.index });
+            }
+            else
+            {
+                addSubDrawing(input);
+                node.sources.push_back(Source{ Kind::SubDrawing,
+                        input.index });
+            }
+        }
+    }
+
+    void addSubDrawing(ElementInput& input)
+    {
+        for (auto& item : input.items)
+        {
+            if (auto* element = std::get_if<ElementDraw>(&item))
+                addInputs(*element->node);
+        }
+
+        input.index = graph_.addSubDrawing();
+        addItems(input.items, true);
+    }
+
+    PassGraph& graph_;
+    std::vector<Scope>& scopes_;
+};
+
+// Draws a frame's items in the order GraphBuilder added them. The meshes
+// gathered so far must become draws before each snapshot, effect and
+// element: the emitter's barriers order only what is already pushed. Each
+// sub-drawing has its own segments and z range over its own depth buffer.
+class FrameDrawer
+{
+public:
+    FrameDrawer(pmr::memory_resource* memory,
+            ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
+            Painter const& painter, TextContext const& text,
+            std::vector<Scope> const& scopes, PassGraph const* graph,
+            ScratchPlan const& plan, EffectEmitter* emitter) :
+        memory_(memory),
+        commandBuffer_(commandBuffer),
+        context_(context),
+        painter_(painter),
+        text_(text),
+        scopes_(scopes),
+        graph_(graph),
+        plan_(plan),
+        emitter_(emitter)
+    {
+    }
+
+    void drawItems(pmr::vector<Item>&& items, ase::Framebuffer& framebuffer,
+            std::optional<ScratchSlot> const& target)
+    {
+        ZoneScoped;
+
+        size_t total = 0;
+        for (auto const& item : items)
+        {
+            if (isMesh(item))
+                ++total;
+        }
+
+        pmr::vector<Item> segment(memory_);
+        size_t first = 0;
+        size_t gathered = 0;
+
+        auto flushSegment = [&]()
+        {
+            if (segment.empty())
+                return;
+
+            pmr::vector<Element> elements = generateElements(memory_,
+                    painter_, text_, std::move(segment), first, total);
+            segment.clear();
+            first = gathered;
+
+            renderElements(commandBuffer_, context_, framebuffer, painter_,
+                    std::move(elements));
+        };
+
+        for (auto&& item : items)
+        {
+            if (isMesh(item))
+            {
+                segment.push_back(std::move(item));
+                ++gathered;
+            }
+            else if (auto const* entry = std::get_if<ScopeEntry>(&item))
+            {
+                Scope const& scope = scopes_[entry->scope];
+                if (!scope.used)
+                    continue;
+
+                assert(emitter_ && graph_);
+                flushSegment();
+                emitter_->emitSnapshot(plan_.snapshots[scope.snapshot].slot,
+                        graph_->getBackdropRegion(scope.snapshot));
+            }
+            else if (auto const* draw = std::get_if<EffectDraw>(&item))
+            {
+                assert(emitter_);
+                flushSegment();
+                emitter_->emitEffect(draw->effect, plan_.effects[draw->index],
+                        draw->triangles, target);
+            }
+            else if (auto const* element = std::get_if<ElementDraw>(&item))
+            {
+                assert(emitter_);
+                flushSegment();
+                ElementNode& node = *element->node;
+                if (!target)
+                    runInputs(node);
+
+                emitter_->emitElement(node.pass, plan_.effects[node.index],
+                        node.triangles, target);
+            }
+        }
+
+        flushSegment();
+    }
+
+private:
+    void runInputs(ElementNode& node)
+    {
+        for (ElementInput& input : node.inputs)
+        {
+            if (input.nested)
+            {
+                ElementNode& nested = *input.nested;
+                runInputs(nested);
+                emitter_->emitElement(nested.pass,
+                        plan_.effects[nested.index], {}, std::nullopt);
+            }
+            else if (!input.backdrop)
+                drawSubDrawing(input);
+        }
+    }
+
+    void drawSubDrawing(ElementInput& input)
+    {
+        for (auto& item : input.items)
+        {
+            if (auto* element = std::get_if<ElementDraw>(&item))
+                runInputs(*element->node);
+        }
+
+        ScratchSlot const& slot = plan_.subDrawings[input.index].slot;
+        ase::Framebuffer framebuffer = emitter_->beginSubDrawing(slot);
+        drawItems(std::move(input.items), framebuffer, slot);
+    }
+
+    pmr::memory_resource* memory_;
+    ase::CommandBuffer& commandBuffer_;
+    ase::RenderContext& context_;
+    Painter const& painter_;
+    TextContext const& text_;
+    std::vector<Scope> const& scopes_;
+    PassGraph const* graph_;
+    ScratchPlan const& plan_;
+    EffectEmitter* emitter_;
+};
+
+RenderCounters countRender(ase::CommandBuffer const& commandBuffer,
+        size_t firstCommand, Vector2i screenSize, ScratchPlan const& plan,
+        EffectEmitter const* emitter)
+{
+    RenderCounters counters;
+    counters.draws = static_cast<size_t>(std::count_if(
+                commandBuffer.begin() + static_cast<std::ptrdiff_t>(
+                    firstCommand),
+                commandBuffer.end(),
+                [](ase::RenderCommand const& command)
+                {
+                    return std::holds_alternative<ase::DrawCommand>(command);
+                }));
+
+    for (PoolSize const& pool : plan.pools)
+    {
+        Vector2i const size = targetSize(screenSize, pool.key.divisor);
+        counters.scratchTargets += pool.count;
+        counters.scratchBytes += pool.count * static_cast<size_t>(size[0])
+            * static_cast<size_t>(size[1]) * ase::getBytes(pool.key.format);
+    }
+
+    if (!plan.subDrawings.empty())
+    {
+        counters.scratchBytes += static_cast<size_t>(screenSize[0])
+            * static_cast<size_t>(screenSize[1])
+            * ase::getBytes(TargetImage::depthFormat);
+    }
+
+    if (emitter)
+    {
+        counters.passes = emitter->getPassCount();
+        counters.snapshots = emitter->getSnapshotCount();
+        counters.pixelsShaded = emitter->getPixelsShaded();
+    }
+
+    return counters;
 }
 
 } // anonymous namespace
 
-void render(pmr::memory_resource* memory,
+RenderCounters render(pmr::memory_resource* memory,
         ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         TargetImage& target,
         float scalingFactor,
@@ -893,7 +1394,8 @@ void render(pmr::memory_resource* memory,
         avg::Drawing const& drawing)
 {
     ZoneScoped;
-    assert(drawing.getPendingShadows().empty());
+
+    size_t const firstCommand = commandBuffer.size();
 
     ase::Vector2i const size = target.getSize();
 
@@ -933,35 +1435,27 @@ void render(pmr::memory_resource* memory,
     // draws still sample.
     atlas.endFrame(commandBuffer);
 
-    ScratchTimeline timeline;
-    for (auto const& item : items)
+    PassGraph graph(size);
+    GraphBuilder(graph, effects.scopes).addItems(items, false);
+
+    if (graph.getEffectCount() == 0)
     {
-        if (auto const* entry = std::get_if<ScopeEntry>(&item))
-        {
-            Scope& scope = effects.scopes[entry->scope];
-            if (scope.used)
-                scope.snapshot = timeline.addSnapshot();
-        }
-        else if (auto const* draw = std::get_if<EffectDraw>(&item))
-        {
-            timeline.addEffect(*draw->effect,
-                    effects.scopes[draw->scope].snapshot);
-        }
+        FrameDrawer(memory, commandBuffer, context, painter, text,
+                effects.scopes, nullptr, ScratchPlan(), nullptr)
+            .drawItems(std::move(items), target.getFramebuffer(),
+                    std::nullopt);
+        return countRender(commandBuffer, firstCommand, size, ScratchPlan(),
+                nullptr);
     }
 
-    if (timeline.getEffectCount() == 0)
-    {
-        drawItems(memory, commandBuffer, context, target.getFramebuffer(),
-                painter, text, effects.scopes, ScratchPlan(), nullptr,
-                std::move(items));
-        return;
-    }
-
-    ScratchPlan const plan = planScratch(timeline);
+    ScratchPlan const plan = planScratch(graph);
     EffectEmitter emitter = painter.makeEffectEmitter(commandBuffer, target);
 
-    drawItems(memory, commandBuffer, context, target.getFramebuffer(),
-            painter, text, effects.scopes, plan, &emitter, std::move(items));
+    FrameDrawer(memory, commandBuffer, context, painter, text, effects.scopes,
+            &graph, plan, &emitter)
+        .drawItems(std::move(items), target.getFramebuffer(), std::nullopt);
+
+    return countRender(commandBuffer, firstCommand, size, plan, &emitter);
 }
 
 } // namespace

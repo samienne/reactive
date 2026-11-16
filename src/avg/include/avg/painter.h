@@ -2,6 +2,7 @@
 
 #include "drawing.h"
 #include "passpipelinecache.h"
+#include "rendercounters.h"
 #include "scratchpool.h"
 #include "targetimage.h"
 
@@ -92,9 +93,11 @@ namespace avg
 
         /**
          * @brief Draw into an offscreen target of `FORMAT_SRGBA`, the
-         * format the painter's pipelines declare.
+         * format the painter's pipelines declare. Returns what the paint
+         * recorded.
          */
-        void paintToImage(TargetImage& target, float scalingFactor, Drawing const& drawing);
+        RenderCounters paintToImage(TargetImage& target, float scalingFactor,
+                Drawing const& drawing);
 
         /**
          * @brief Clear the window's offscreen target: colour to opaque
@@ -105,9 +108,11 @@ namespace avg
         void clearWindow(ase::Window& target);
 
         /**
-         * @brief Draw into the window's offscreen target.
+         * @brief Draw into the window's offscreen target. Returns what the
+         * paint recorded.
          */
-        void paintToWindow(ase::Window& target, Drawing const& drawing);
+        RenderCounters paintToWindow(ase::Window& target,
+                Drawing const& drawing);
 
         /**
          * @brief Copy the offscreen target onto the window with a

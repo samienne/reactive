@@ -4,6 +4,8 @@
 
 #include <bqui/modifier/ondraw.h>
 
+#include <bqui/bquivisibility.h>
+
 #include <bqui/widget/widget.h>
 
 #include <bq/signal/fromoptional.h>
@@ -11,12 +13,14 @@
 #include <avg/animated.h>
 #include <avg/brush.h>
 #include <avg/drawcontext.h>
+#include <avg/drawing.h>
 #include <avg/path.h>
 #include <avg/pen.h>
 #include <avg/shape.h>
 #include <avg/shapefunction.h>
 #include <avg/vector.h>
 
+#include <optional>
 #include <type_traits>
 
 namespace bqui::shape
@@ -27,6 +31,15 @@ namespace bqui::shape
     {
         template <typename T>
         auto makeShapeUncheckedFromSignal(bq::signal::Signal<T, avg::ShapeFunction> func);
+
+        /**
+         * @brief Fills and strokes the shape, with the outline the result
+         * casts: the shape grown by the stroke under an opaque colour fill,
+         * the stroke alone under an opaque colour pen, and none otherwise.
+         */
+        BQUI_EXPORT avg::Drawing drawShape(avg::Shape shape,
+                std::optional<avg::Brush> const& brush,
+                std::optional<avg::Pen> const& pen);
     }
 
     template <typename T>
@@ -47,11 +60,7 @@ namespace bqui::shape
                         std::optional<avg::Brush> const& brush,
                         std::optional<avg::Pen> const& pen)
                 {
-                    return func(context, size)
-                        .fillAndStroke(
-                                std::move(brush),
-                                std::move(pen)
-                                );
+                    return detail::drawShape(func(context, size), brush, pen);
                 },
                 std::move(func),
                 animate(std::move(brush)),

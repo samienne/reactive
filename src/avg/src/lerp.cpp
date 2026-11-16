@@ -50,6 +50,15 @@ Color lerp(Color const& a, Color const& b, float t)
 
 Brush lerp(Brush const& a, Brush const& b, float t)
 {
+    Effect const* effect = a.getEffect();
+    Effect const* other = b.getEffect();
+
+    if (effect && other)
+        return Brush(lerp(*effect, *other, t));
+
+    if (effect || other)
+        return b;
+
     return Brush(lerp(a.getColor(), b.getColor(), t));
 }
 
@@ -61,6 +70,17 @@ Pen lerp(Pen const& a, Pen const& b, float t)
             b.getJoinType(),
             b.getEndType()
             );
+}
+
+bool isInstantLerp(Brush const& a, Brush const& b)
+{
+    return !isSameKind(a, b);
+}
+
+bool isInstantLerp(Pen const& a, Pen const& b)
+{
+    return a.getWidth() == b.getWidth()
+        && isInstantLerp(a.getBrush(), b.getBrush());
 }
 
 class CurveLerp : public CurveBase

@@ -34,14 +34,14 @@ widget::label("Hi") | modifier::margin(10.0f) | modifier::frame()
 Modifiers cover framing, background, margins, clipping, transforms, sizing,
 gravity, input handlers (`onClick`, `onHover`, the pointer handlers), and theming.
 
-A **surface** puts a widget on a shape that can be filled, cast a shadow and
-show a backdrop effect such as frosted glass:
+A **surface** puts a widget on a shape that can be filled and show a
+backdrop effect such as frosted glass:
 
 ```cpp
 widget::label("Card") | modifier::margin(20.0f) | modifier::frostedGlass()
 ```
 
-`modifier::surface(shape, fill, shadow, effect)` is the general form;
+`modifier::surface(shape, fill, effect)` is the general form;
 `frostedGlass`, `tint` and `backdrop` are its shorthands. An effect shows
 what lies *below* the widget, so layer a surface over other content with
 `widget::stack({ background, card })`, which paints its children bottom to
@@ -55,6 +55,21 @@ Vector shapes scale to the space they are given and become widgets when styled:
 shape::circle().fill(avg::Color(0.85f, 0.2f, 0.2f));
 shape::rectangle().rotate(0.2f).stroke(pen);   // rectangle, circle, ellipse
 ```
+
+A styled shape also gives its drawing an *outline*, the shape it casts a shadow
+with: what it paints opaquely, so a translucent fill casts nothing. Outlines
+cast shadows only inside a *shadow boundary*: `widget |
+modifier::shadowBoundary()` paints the shadow of everything in the widget that
+has an outline, as one soft shape under it, so overlapping cards do not darken
+twice. `shadowAndBackdropBoundary()` also puts the widget in a backdrop scope
+over the shadow, so glass inside shows the shadows of its neighbours. Glass
+casts nothing; an opaque background casts like any opaque fill; only the
+window's own background opts out.
+
+`modifier::outline(shape)`, `addOutline(shape)` and `noOutline()` replace,
+add to or remove a widget's outline; `outline` and `addOutline` also take a
+signal of `avg::ShapeFunction`s (optional for `outline`, where none
+removes it).
 
 ## Application
 

@@ -1,11 +1,15 @@
+#include "effectfactory.h"
+
 #include <avg/builtineffects.h>
 #include <avg/effect.h>
 #include <avg/effectplan.h>
 #include <avg/effectshader.h>
+#include <avg/lerp.h>
 
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -17,12 +21,12 @@ using avg::EffectRegions;
 using avg::FrostedGlassOptions;
 using avg::Geometry;
 using avg::Pass;
+using avg::PassGraph;
 using avg::PassInput;
 using avg::PassShader;
 using avg::PixelRect;
 using avg::ScratchKey;
 using avg::ScratchPlan;
-using avg::ScratchTimeline;
 using avg::Vector2i;
 
 namespace
@@ -365,27 +369,68 @@ TEST(BuiltinEffects, frostedGlassRegionsGrowByEachPadding)
     EXPECT_EQ(rect(50, 30, 300, 140), regions.backdropRegion);
 }
 
-TEST(BuiltinEffects, twoGlassesInOneScopeShareTwoBlurTextures)
+TEST(BuiltinEffects, twoGlassesAtOneDivisorShareTheCopyPass)
 {
     Effect first = avg::frostedGlass(glassWithRadius(24.0f));
     Effect second = avg::frostedGlass(glassWithRadius(16.0f));
 
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(first, snapshot);
-    timeline.addEffect(second, snapshot);
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(first, snapshot, rect(20, 20, 100, 100));
+    graph.addEffect(second, snapshot, rect(200, 20, 100, 100));
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
+    EXPECT_EQ(7u, graph.getNodes().size());
     EXPECT_EQ(1u, plan.getPoolSize(key(Divisor::One, ase::FORMAT_SRGBA)));
-    EXPECT_EQ(2u, plan.getPoolSize(key(Divisor::Two, ase::FORMAT_RGBA16F)));
+    EXPECT_EQ(3u, plan.getPoolSize(key(Divisor::Two, ase::FORMAT_RGBA16F)));
     EXPECT_EQ(0u, plan.getPoolSize(key(Divisor::Four, ase::FORMAT_RGBA16F)));
 
-    // The snapshot is read only by the two copy passes, so it is released
-    // once the second effect's first pass has run.
+    // The snapshot is read only by the shared copy pass, so it is released
+    // once that has run; the copy lives until the second effect's blur.
     ASSERT_EQ(1u, plan.snapshots.size());
     ASSERT_EQ(2u, plan.effects.size());
-    EXPECT_EQ(plan.effects[1].passes[0].step, plan.snapshots[0].lastUse);
+    ASSERT_EQ(3u, plan.effects[1].passes.size());
+    EXPECT_EQ(1u, plan.effects[1].passes[0].index);
+    EXPECT_EQ(plan.effects[0].passes[0].step, plan.snapshots[0].lastUse);
+    EXPECT_EQ(plan.effects[1].passes[0].step,
+            plan.effects[0].passes[0].output->lastUse);
+    EXPECT_EQ(plan.effects[0].passes[0].output->slot,
+            plan.effects[1].passes[0].inputs[0]);
+}
+
+TEST(BuiltinEffects, twoEqualGlassesShareEverythingButTheShapePass)
+{
+    FrostedGlassOptions options = glassWithRadius(24.0f);
+    Effect first = avg::frostedGlass(options);
+    options.tintStrength = 0.5f;
+    Effect tinted = avg::frostedGlass(options);
+
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(first, snapshot, rect(20, 20, 100, 100));
+    graph.addEffect(tinted, snapshot, rect(200, 20, 100, 100));
+
+    ScratchPlan plan = avg::planScratch(graph);
+
+    EXPECT_EQ(5u, graph.getNodes().size());
+    ASSERT_EQ(1u, plan.effects[1].passes.size());
+    EXPECT_EQ(3u, plan.effects[1].passes[0].index);
+    EXPECT_EQ(plan.effects[0].passes[3].inputs[0],
+            plan.effects[1].passes[0].inputs[0]);
+}
+
+TEST(BuiltinEffects, glassesAtDifferentDivisorsShareNothing)
+{
+    Effect first = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect second = avg::frostedGlass(glassWithRadius(48.0f));
+
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(first, snapshot, rect(20, 20, 100, 100));
+    graph.addEffect(second, snapshot, rect(200, 20, 100, 100));
+
+    EXPECT_EQ(8u, graph.getNodes().size());
 }
 
 TEST(BuiltinEffects, frostedGlassRejectsBadOptions)
@@ -408,6 +453,64 @@ TEST(BuiltinEffects, frostedGlassRejectsBadOptions)
     FrostedGlassOptions thin;
     thin.highlightWidth = -1.0f;
     EXPECT_THROW(avg::frostedGlass(thin), std::invalid_argument);
+}
+
+TEST(BuiltinEffects, clampToValidMovesOptionsIntoTheAcceptedRange)
+{
+    FrostedGlassOptions options;
+    options.radius = -1.0f;
+    options.saturation = -2.0f;
+    options.highlightWidth = -3.0f;
+    options.tintStrength = 1.5f;
+    options.highlightStrength = -0.5f;
+
+    FrostedGlassOptions const clamped = avg::clampToValid(options);
+
+    EXPECT_EQ(0.0f, clamped.radius);
+    EXPECT_EQ(0.0f, clamped.saturation);
+    EXPECT_EQ(0.0f, clamped.highlightWidth);
+    EXPECT_EQ(1.0f, clamped.tintStrength);
+    EXPECT_EQ(0.0f, clamped.highlightStrength);
+    EXPECT_NO_THROW(avg::frostedGlass(clamped));
+
+    FrostedGlassOptions const valid;
+    EXPECT_EQ(valid, avg::clampToValid(valid));
+}
+
+TEST(BuiltinEffects, clampToValidMovesNaNIntoTheAcceptedRange)
+{
+    float const nan = std::numeric_limits<float>::quiet_NaN();
+
+    FrostedGlassOptions options;
+    options.radius = nan;
+    options.saturation = nan;
+    options.highlightWidth = nan;
+    options.tintStrength = nan;
+    options.highlightStrength = nan;
+
+    FrostedGlassOptions const clamped = avg::clampToValid(options);
+
+    EXPECT_EQ(0.0f, clamped.radius);
+    EXPECT_EQ(0.0f, clamped.saturation);
+    EXPECT_EQ(0.0f, clamped.highlightWidth);
+    EXPECT_EQ(0.0f, clamped.tintStrength);
+    EXPECT_EQ(0.0f, clamped.highlightStrength);
+    EXPECT_NO_THROW(avg::frostedGlass(clamped));
+}
+
+TEST(BuiltinEffects, frostedGlassAndTintRejectNaN)
+{
+    float const nan = std::numeric_limits<float>::quiet_NaN();
+
+    FrostedGlassOptions blurred;
+    blurred.radius = nan;
+    EXPECT_THROW(avg::frostedGlass(blurred), std::invalid_argument);
+
+    FrostedGlassOptions tinted;
+    tinted.tintStrength = nan;
+    EXPECT_THROW(avg::frostedGlass(tinted), std::invalid_argument);
+
+    EXPECT_THROW(avg::tint(Color(), nan), std::invalid_argument);
 }
 
 TEST(BuiltinEffects, tintIsOneShapePassReadingTheBackdrop)
@@ -435,13 +538,134 @@ TEST(BuiltinEffects, tintAloneNeedsOnlyTheSnapshot)
 {
     Effect dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
 
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(dim, snapshot);
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(dim, snapshot, rect(20, 20, 100, 100));
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     ASSERT_EQ(1u, plan.pools.size());
     EXPECT_EQ(key(Divisor::One, ase::FORMAT_SRGBA), plan.pools[0].key);
     EXPECT_EQ(1u, plan.pools[0].count);
+}
+
+TEST(BuiltinEffects, aFactoryKeepsItsShaderIdentities)
+{
+    Effect first = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect second = avg::frostedGlass(glassWithRadius(24.0f));
+
+    ASSERT_EQ(first.getPasses().size(), second.getPasses().size());
+    for (size_t i = 0; i < first.getPasses().size(); ++i)
+    {
+        EXPECT_EQ(first.getPasses()[i].shader.id,
+                second.getPasses()[i].shader.id) << "pass " << i;
+    }
+
+    EXPECT_EQ(first, second);
+    EXPECT_NE(first, avg::frostedGlass(glassWithRadius(16.0f)));
+
+    // Both blurs run one shader with different directions.
+    EXPECT_EQ(first.getPasses()[1].shader.id, first.getPasses()[2].shader.id);
+    EXPECT_NE(first.getPasses()[1], first.getPasses()[2]);
+
+    EXPECT_EQ(avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f),
+            avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f));
+    EXPECT_NE(avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f),
+            avg::tint(Color(0.0f, 0.0f, 0.0f), 0.25f));
+}
+
+TEST(BuiltinEffects, effectsOfOneFactoryAreOfOneKind)
+{
+    Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
+
+    EXPECT_TRUE(avg::isSameKind(glass,
+                avg::frostedGlass(glassWithRadius(8.0f))));
+    EXPECT_TRUE(avg::isSameKind(dim, avg::tint(Color(1.0f, 1.0f, 1.0f), 1.0f)));
+    EXPECT_FALSE(avg::isSameKind(glass, dim));
+    EXPECT_FALSE(avg::isSameKind(dim, glass));
+}
+
+TEST(BuiltinEffects, frostedGlassInterpolatesItsOptions)
+{
+    FrostedGlassOptions a = glassWithRadius(8.0f);
+    a.tintStrength = 0.0f;
+    FrostedGlassOptions b = glassWithRadius(40.0f);
+    b.tintStrength = 1.0f;
+    b.tint = Color(0.0f, 0.0f, 0.0f);
+
+    Effect const from = avg::frostedGlass(a);
+    Effect const to = avg::frostedGlass(b);
+
+    EXPECT_EQ(avg::frostedGlass(avg::lerp(a, b, 0.5f)),
+            avg::lerp(from, to, 0.5f));
+    EXPECT_EQ(from, avg::lerp(from, to, 0.0f));
+    EXPECT_EQ(to, avg::lerp(from, to, 1.0f));
+
+    // A radius of 24 blurs at half size, 40 at a quarter.
+    expectDivisor(avg::lerp(from, to, 0.5f), Divisor::Two);
+}
+
+TEST(BuiltinEffects, tintInterpolatesColourAndStrength)
+{
+    Color const black(0.0f, 0.0f, 0.0f);
+    Color const white(1.0f, 1.0f, 1.0f);
+
+    EXPECT_EQ(avg::tint(avg::lerp(black, white, 0.25f), 0.5f),
+            avg::lerp(avg::tint(black, 0.5f), avg::tint(white, 0.5f),
+                0.25f));
+    EXPECT_EQ(avg::tint(black, 0.25f),
+            avg::lerp(avg::tint(black, 0.0f), avg::tint(black, 1.0f),
+                0.25f));
+}
+
+TEST(BuiltinEffects, overshootingInterpolationIsClampedToValidParameters)
+{
+    Color const black(0.0f, 0.0f, 0.0f);
+
+    EXPECT_EQ(avg::tint(black, 1.0f),
+            avg::lerp(avg::tint(black, 0.0f), avg::tint(black, 1.0f), 1.5f));
+    EXPECT_EQ(avg::tint(black, 0.0f),
+            avg::lerp(avg::tint(black, 0.0f), avg::tint(black, 1.0f), -0.5f));
+    EXPECT_EQ(avg::frostedGlass(glassWithRadius(0.0f)),
+            avg::lerp(avg::frostedGlass(glassWithRadius(0.0f)),
+                avg::frostedGlass(glassWithRadius(8.0f)), -0.5f));
+}
+
+TEST(BuiltinEffects, interpolatingAcrossKindsSwitchesAtOnce)
+{
+    Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
+
+    EXPECT_EQ(dim, avg::lerp(glass, dim, 0.0f));
+    EXPECT_EQ(dim, avg::lerp(glass, dim, 0.5f));
+    EXPECT_EQ(glass, avg::lerp(dim, glass, 0.5f));
+}
+
+TEST(BuiltinEffects, toPixelsScalesTheSizesByTheScalingFactor)
+{
+    FrostedGlassOptions options = glassWithRadius(12.0f);
+    options.highlightStrength = 0.5f;
+    options.highlightWidth = 1.5f;
+
+    FrostedGlassOptions doubled = options;
+    doubled.radius = 24.0f;
+    doubled.highlightWidth = 3.0f;
+
+    EXPECT_EQ(avg::frostedGlass(doubled),
+            avg::toPixels(avg::frostedGlass(options), 2.0f));
+
+    Effect const glass = avg::frostedGlass(options);
+    EXPECT_EQ(glass, avg::toPixels(glass, 1.0f));
+
+    Effect const dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
+    EXPECT_EQ(dim, avg::toPixels(dim, 2.0f));
+}
+
+TEST(BuiltinEffects, toPixelsKeepsAnEffectWithoutARecipe)
+{
+    Effect const handWritten = avg::makeEffect(
+            avg::frostedGlass(glassWithRadius(12.0f)).getPasses());
+
+    EXPECT_EQ(handWritten, avg::toPixels(handWritten, 2.0f));
 }

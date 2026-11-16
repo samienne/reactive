@@ -108,36 +108,7 @@ UpdateResult ClipNode::update(
     //auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
     //auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
 
-    std::optional<std::chrono::milliseconds> nextUpdate;
-
-    if (oldClip.childNode_->getId() != newClip.childNode_->getId())
-    {
-        auto [newChild, nextNewUpdate] = newNode->update(
-                oldTree,
-                newTree,
-                nullptr,
-                newClip.childNode_,
-                animationOptions,
-                time
-                );
-
-        //nextUpdate = earlier(nextOldUpdate, nextNewUpdate);
-        nextUpdate = nextNewUpdate;
-
-        return {
-            std::make_shared<ClipNode>(
-                    oldClip.getObb().updated(
-                        newClip.getObb(),
-                        animationOptions,
-                        time
-                        ),
-                    std::move(newChild)
-                    ),
-            nextUpdate
-        };
-    }
-
-    auto [newChild, nextChildUpdate] = oldClip.childNode_->update(
+    auto [newChild, nextChildUpdate] = updateNode(
             oldTree,
             newTree,
             oldClip.childNode_,
@@ -152,7 +123,7 @@ UpdateResult ClipNode::update(
                     animationOptions, time),
                 std::move(newChild)
                 ),
-        earlier(nextUpdate, nextChildUpdate)
+        nextChildUpdate
     };
 }
 

@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace avg
 {
@@ -223,48 +225,248 @@ size_t ScratchPlan::getPoolSize(ScratchKey const& key) const
     return 0;
 }
 
-ScratchTimeline::ScratchTimeline()
+PassGraph::PassGraph(Vector2i screenSize) :
+    screenSize_(screenSize)
 {
 }
 
-ScratchTimeline::~ScratchTimeline()
+PassGraph::~PassGraph()
 {
 }
 
-size_t ScratchTimeline::addSnapshot()
+size_t PassGraph::addSnapshot()
 {
     Item item;
-    item.snapshot = snapshotCount_++;
+    item.snapshot = backdropRegions_.size();
     items_.push_back(item);
+    backdropRegions_.push_back(PixelRect());
     return item.snapshot;
 }
 
-size_t ScratchTimeline::addEffect(Effect const& effect, size_t snapshot)
+size_t PassGraph::addEffect(Effect const& effect, size_t snapshot,
+        PixelRect shapeBounds)
 {
-    if (snapshot >= snapshotCount_)
+    if (snapshot >= backdropRegions_.size())
     {
         throw std::invalid_argument("effect reads snapshot "
                 + std::to_string(snapshot) + ", which has not been taken");
     }
 
+    size_t const effectIndex = effectCount_++;
+    EffectRegions const regions = deriveRegions(effect, shapeBounds,
+            screenSize_);
+    backdropRegions_[snapshot] = backdropRegions_[snapshot].unionWith(
+            regions.backdropRegion);
+
+    std::vector<Pass> const& passes = effect.getPasses();
+
+    elementNodes_.push_back(std::nullopt);
+
     Item item;
+    item.kind = Kind::Effect;
     item.effect = &effect;
     item.snapshot = snapshot;
-    items_.push_back(item);
-    return effectCount_++;
+
+    for (size_t i = 0; i < passes.size(); ++i)
+    {
+        Pass const& pass = passes[i];
+
+        Node node;
+        node.pass = &pass;
+        node.snapshot = snapshot;
+        node.region = regions.passRegions[i];
+        node.effect = effectIndex;
+        node.index = i;
+        for (PassInput const& input : pass.inputs)
+        {
+            node.inputs.push_back(input.isBackdrop()
+                    ? std::nullopt
+                    : std::optional<size_t>(item.nodes[input.getPass()]));
+        }
+
+        size_t const same = findMergeable(node);
+        if (same == nodes_.size())
+            nodes_.push_back(std::move(node));
+        else
+            nodes_[same].region = nodes_[same].region.unionWith(node.region);
+
+        item.nodes.push_back(same);
+    }
+
+    items_.push_back(std::move(item));
+    return effectIndex;
 }
 
-size_t ScratchTimeline::getSnapshotCount() const
+size_t PassGraph::addSubDrawing()
 {
-    return snapshotCount_;
+    size_t const index = subDrawingNodes_.size();
+
+    Node node;
+    node.index = index;
+    node.subDrawing = true;
+
+    Item item;
+    item.kind = Kind::SubDrawing;
+    item.nodes.push_back(nodes_.size());
+    items_.push_back(std::move(item));
+
+    subDrawingNodes_.push_back(nodes_.size());
+    nodes_.push_back(std::move(node));
+    return index;
 }
 
-size_t ScratchTimeline::getEffectCount() const
+size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
+        std::vector<Source> const& inputs, PixelRect region)
+{
+    Node node;
+    node.pass = &pass;
+    node.snapshot = snapshot;
+    node.effect = effectCount_;
+    node.index = 0;
+
+    for (Source const& source : inputs)
+    {
+        switch (source.kind)
+        {
+            case Kind::Snapshot:
+                if (snapshot >= backdropRegions_.size())
+                {
+                    throw std::invalid_argument("element reads snapshot "
+                            + std::to_string(snapshot)
+                            + ", which has not been taken");
+                }
+                node.inputs.push_back(std::nullopt);
+                break;
+            case Kind::SubDrawing:
+                if (source.index >= subDrawingNodes_.size())
+                {
+                    throw std::invalid_argument("element reads sub-drawing "
+                            + std::to_string(source.index)
+                            + ", which has not been added");
+                }
+                node.inputs.push_back(subDrawingNodes_[source.index]);
+                break;
+            case Kind::Element:
+                if (source.index >= elementNodes_.size()
+                        || !elementNodes_[source.index])
+                {
+                    throw std::invalid_argument("element reads element "
+                            + std::to_string(source.index)
+                            + ", which has not been added");
+                }
+                node.inputs.push_back(*elementNodes_[source.index]);
+                break;
+            case Kind::Effect:
+                throw std::invalid_argument("element reads an effect");
+        }
+    }
+
+    Divisor const divisor = divisorOf(pass);
+    node.region = region.clamped(targetSize(screenSize_, divisor));
+
+    size_t const effectIndex = effectCount_++;
+
+    size_t const n = findMergeable(node);
+    PixelRect const added = node.region;
+    if (n == nodes_.size())
+    {
+        node.region = PixelRect();
+        nodes_.push_back(std::move(node));
+    }
+
+    grow(n, added, divisor);
+
+    elementNodes_.push_back(n);
+
+    Item item;
+    item.kind = Kind::Element;
+    item.snapshot = snapshot;
+    item.nodes.push_back(n);
+    items_.push_back(std::move(item));
+
+    return effectIndex;
+}
+
+size_t PassGraph::findMergeable(Node const& node) const
+{
+    auto same = std::find_if(nodes_.begin(), nodes_.end(),
+            [&](Node const& other)
+            {
+                return node.pass->output
+                    && !other.subDrawing
+                    && other.snapshot == node.snapshot
+                    && other.inputs == node.inputs
+                    && *other.pass == *node.pass;
+            });
+
+    return static_cast<size_t>(same - nodes_.begin());
+}
+
+void PassGraph::grow(size_t nodeIndex, PixelRect region, Divisor divisor)
+{
+    Node& node = nodes_[nodeIndex];
+    Divisor const own = node.pass ? divisorOf(*node.pass) : Divisor::One;
+    PixelRect const added = region.rescaled(divisor, own)
+        .clamped(targetSize(screenSize_, own));
+
+    if (added.isEmpty() || node.region.unionWith(added) == node.region)
+        return;
+
+    node.region = node.region.unionWith(added);
+
+    if (!node.pass)
+        return;
+
+    PixelRect const sampled = added.grown(node.pass->padding);
+    std::vector<std::optional<size_t>> const inputs = node.inputs;
+    size_t const snapshot = node.snapshot;
+    for (std::optional<size_t> const& input : inputs)
+    {
+        if (input)
+            grow(*input, sampled, own);
+        else
+            growBackdrop(snapshot, sampled, own);
+    }
+}
+
+void PassGraph::growBackdrop(size_t snapshot, PixelRect region,
+        Divisor divisor)
+{
+    backdropRegions_[snapshot] = backdropRegions_[snapshot].unionWith(
+            region.rescaled(divisor, Divisor::One).clamped(screenSize_));
+}
+
+PixelRect PassGraph::getBackdropRegion(size_t snapshot) const
+{
+    return backdropRegions_.at(snapshot);
+}
+
+Vector2i PassGraph::getScreenSize() const
+{
+    return screenSize_;
+}
+
+size_t PassGraph::getSnapshotCount() const
+{
+    return backdropRegions_.size();
+}
+
+size_t PassGraph::getEffectCount() const
 {
     return effectCount_;
 }
 
-std::vector<ScratchTimeline::Item> const& ScratchTimeline::getItems() const
+size_t PassGraph::getSubDrawingCount() const
+{
+    return subDrawingNodes_.size();
+}
+
+std::vector<PassGraph::Node> const& PassGraph::getNodes() const
+{
+    return nodes_;
+}
+
+std::vector<PassGraph::Item> const& PassGraph::getItems() const
 {
     return items_;
 }
@@ -274,6 +476,11 @@ namespace
     ScratchKey snapshotKey()
     {
         return ScratchKey();
+    }
+
+    ScratchKey subDrawingKey()
+    {
+        return ScratchKey{ Divisor::One, ase::FORMAT_SRGBA };
     }
 
     class Pools
@@ -357,19 +564,33 @@ namespace
     };
 } // anonymous namespace
 
-ScratchPlan planScratch(ScratchTimeline const& timeline)
+ScratchPlan planScratch(PassGraph const& graph)
 {
-    std::vector<ScratchTimeline::Item> const& items = timeline.getItems();
+    std::vector<PassGraph::Item> const& items = graph.getItems();
+    std::vector<PassGraph::Node> const& nodes = graph.getNodes();
 
     std::vector<Value> values;
-    std::vector<size_t> snapshotValues(timeline.getSnapshotCount());
-    // Per effect, per pass: the value index of its output, or SIZE_MAX.
-    std::vector<std::vector<size_t>> passValues;
+    std::vector<size_t> snapshotValues(graph.getSnapshotCount());
+    std::vector<size_t> nodeValues(nodes.size(), SIZE_MAX);
+    std::vector<size_t> nodeSteps(nodes.size());
+
+    auto runs = [&](PassGraph::Item const& item, size_t i, size_t effect)
+    {
+        PassGraph::Node const& node = nodes[item.nodes[i]];
+        return node.effect == effect && node.index == i;
+    };
+
+    auto valueOf = [&](PassGraph::Node const& node, size_t input)
+    {
+        std::optional<size_t> const& source = node.inputs[input];
+        return source ? nodeValues[*source] : snapshotValues[node.snapshot];
+    };
 
     size_t step = 0;
-    for (ScratchTimeline::Item const& item : items)
+    size_t effect = 0;
+    for (PassGraph::Item const& item : items)
     {
-        if (!item.effect)
+        if (item.kind == PassGraph::Kind::Snapshot)
         {
             Value value;
             value.key = snapshotKey();
@@ -381,35 +602,49 @@ ScratchPlan planScratch(ScratchTimeline const& timeline)
             continue;
         }
 
-        std::vector<Pass> const& passes = item.effect->getPasses();
-        std::vector<size_t> outputs(passes.size(), SIZE_MAX);
-
-        for (size_t i = 0; i < passes.size(); ++i)
+        if (item.kind == PassGraph::Kind::SubDrawing)
         {
-            Pass const& pass = passes[i];
+            size_t const n = item.nodes.front();
+            Value value;
+            value.key = subDrawingKey();
+            value.definedAt = step;
+            value.lastUse = step;
+            nodeValues[n] = values.size();
+            values.push_back(value);
+            nodeSteps[n] = step;
+            ++step;
+            continue;
+        }
 
-            for (PassInput const& input : pass.inputs)
+        for (size_t i = 0; i < item.nodes.size(); ++i)
+        {
+            if (!runs(item, i, effect))
+                continue;
+
+            size_t const n = item.nodes[i];
+            PassGraph::Node const& node = nodes[n];
+
+            for (size_t input = 0; input < node.inputs.size(); ++input)
             {
-                size_t const v = input.isBackdrop()
-                    ? snapshotValues[item.snapshot]
-                    : outputs[input.getPass()];
-                values[v].lastUse = std::max(values[v].lastUse, step);
+                Value& read = values[valueOf(node, input)];
+                read.lastUse = std::max(read.lastUse, step);
             }
 
-            if (pass.output)
+            if (node.pass->output)
             {
                 Value value;
-                value.key = keyOf(*pass.output);
+                value.key = keyOf(*node.pass->output);
                 value.definedAt = step;
                 value.lastUse = step;
-                outputs[i] = values.size();
+                nodeValues[n] = values.size();
                 values.push_back(value);
             }
 
+            nodeSteps[n] = step;
             ++step;
         }
 
-        passValues.push_back(std::move(outputs));
+        ++effect;
     }
 
     std::vector<std::vector<size_t>> releaseAt(step);
@@ -418,7 +653,7 @@ ScratchPlan planScratch(ScratchTimeline const& timeline)
 
     Pools pools;
     ScratchPlan plan;
-    plan.snapshots.resize(timeline.getSnapshotCount());
+    plan.snapshots.resize(graph.getSnapshotCount());
 
     auto allocationOf = [&](size_t v)
     {
@@ -435,55 +670,60 @@ ScratchPlan planScratch(ScratchTimeline const& timeline)
             pools.release(values[v].slot);
     };
 
-    step = 0;
-    size_t effectIndex = 0;
-    for (ScratchTimeline::Item const& item : items)
+    effect = 0;
+    for (PassGraph::Item const& item : items)
     {
-        if (!item.effect)
+        if (item.kind == PassGraph::Kind::Snapshot)
         {
             size_t const v = snapshotValues[item.snapshot];
             values[v].slot = pools.allocate(values[v].key);
             plan.snapshots[item.snapshot] = allocationOf(v);
-            releaseAfter(step);
-            ++step;
+            releaseAfter(values[v].definedAt);
             continue;
         }
 
-        std::vector<Pass> const& passes = item.effect->getPasses();
-        std::vector<size_t> const& outputs = passValues[effectIndex++];
-
-        EffectAllocation effect;
-        for (size_t i = 0; i < passes.size(); ++i)
+        if (item.kind == PassGraph::Kind::SubDrawing)
         {
-            Pass const& pass = passes[i];
+            size_t const v = nodeValues[item.nodes.front()];
+            values[v].slot = pools.allocate(values[v].key);
+            plan.subDrawings.push_back(allocationOf(v));
+            releaseAfter(values[v].definedAt);
+            continue;
+        }
 
-            PassAllocation allocation;
-            allocation.step = step;
+        EffectAllocation allocation;
+        for (size_t i = 0; i < item.nodes.size(); ++i)
+        {
+            if (!runs(item, i, effect))
+                continue;
+
+            size_t const n = item.nodes[i];
+            PassGraph::Node const& node = nodes[n];
+
+            PassAllocation pass;
+            pass.index = i;
+            pass.step = nodeSteps[n];
+            pass.region = node.region;
 
             // The output takes its texture while every input still holds
             // its own, so the two never alias.
-            if (outputs[i] != SIZE_MAX)
+            if (nodeValues[n] != SIZE_MAX)
             {
-                Value& value = values[outputs[i]];
+                Value& value = values[nodeValues[n]];
                 value.slot = pools.allocate(value.key);
-                allocation.output = allocationOf(outputs[i]);
+                pass.output = allocationOf(nodeValues[n]);
             }
 
-            for (PassInput const& input : pass.inputs)
-            {
-                size_t const v = input.isBackdrop()
-                    ? snapshotValues[item.snapshot]
-                    : outputs[input.getPass()];
-                allocation.inputs.push_back(values[v].slot);
-            }
+            for (size_t input = 0; input < node.inputs.size(); ++input)
+                pass.inputs.push_back(values[valueOf(node, input)].slot);
 
-            releaseAfter(step);
-            ++step;
+            releaseAfter(pass.step);
 
-            effect.passes.push_back(std::move(allocation));
+            allocation.passes.push_back(std::move(pass));
         }
 
-        plan.effects.push_back(std::move(effect));
+        plan.effects.push_back(std::move(allocation));
+        ++effect;
     }
 
     plan.pools = pools.sizes();

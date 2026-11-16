@@ -2,20 +2,16 @@
 
 #include "rendertree/updateresult.h"
 
-#include "builtineffects.h"
-#include "effect.h"
+#include "brush.h"
 #include "obb.h"
-#include "pen.h"
 #include "shape.h"
 
-#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <memory>
 #include <optional>
 #include <typeindex>
 #include <utility>
-#include <variant>
 
 namespace avg
 {
@@ -28,133 +24,29 @@ SurfaceNode const& asSurface(std::shared_ptr<RenderTreeNode> const& node)
     return reinterpret_cast<SurfaceNode const&>(*node);
 }
 
-std::optional<SurfaceShadow> updatedShadow(
-        std::optional<SurfaceShadow> const& oldShadow,
-        std::optional<SurfaceShadow> const& newShadow,
+std::optional<Animated<Brush>> updatedBrush(
+        std::optional<Animated<Brush>> const& oldBrush,
+        std::optional<Animated<Brush>> const& newBrush,
         std::optional<AnimationOptions> const& options,
         std::chrono::milliseconds time
         )
 {
-    if (!oldShadow || !newShadow)
-        return newShadow;
+    if (!oldBrush || !newBrush)
+        return newBrush;
 
-    return SurfaceShadow{
-        oldShadow->offset.updated(newShadow->offset, options, time),
-        oldShadow->spread.updated(newShadow->spread, options, time),
-        oldShadow->brush.updated(newShadow->brush, options, time)
-    };
+    return oldBrush->updated(*newBrush, options, time);
 }
 
-bool hasShadowAnimationEnded(std::optional<SurfaceShadow> const& shadow,
+bool isOpaqueColour(std::optional<Brush> const& brush)
+{
+    return brush && !brush->getEffect()
+        && brush->getColor().getAlpha() >= 1.0f;
+}
+
+bool hasBrushAnimationEnded(std::optional<Animated<Brush>> const& brush,
         std::chrono::milliseconds time)
 {
-    return !shadow
-        || (shadow->offset.hasAnimationEnded(time)
-                && shadow->spread.hasAnimationEnded(time)
-                && shadow->brush.hasAnimationEnded(time));
-}
-
-std::optional<SurfaceEffect> updatedEffect(
-        std::optional<SurfaceEffect> const& oldEffect,
-        std::optional<SurfaceEffect> const& newEffect,
-        std::optional<AnimationOptions> const& options,
-        std::chrono::milliseconds time
-        )
-{
-    if (!oldEffect || !newEffect || oldEffect->index() != newEffect->index())
-        return newEffect;
-
-    if (auto const* glass = std::get_if<SurfaceFrostedGlass>(&*newEffect))
-    {
-        return SurfaceFrostedGlass{
-            std::get<SurfaceFrostedGlass>(*oldEffect).options.updated(
-                    glass->options, options, time)
-        };
-    }
-
-    auto const& oldTint = std::get<SurfaceTint>(*oldEffect);
-    auto const& newTint = std::get<SurfaceTint>(*newEffect);
-
-    return SurfaceTint{
-        oldTint.colour.updated(newTint.colour, options, time),
-        oldTint.strength.updated(newTint.strength, options, time)
-    };
-}
-
-bool hasEffectAnimationEnded(std::optional<SurfaceEffect> const& effect,
-        std::chrono::milliseconds time)
-{
-    if (!effect)
-        return true;
-
-    if (auto const* glass = std::get_if<SurfaceFrostedGlass>(&*effect))
-        return glass->options.hasAnimationEnded(time);
-
-    auto const& tinted = std::get<SurfaceTint>(*effect);
-
-    return tinted.colour.hasAnimationEnded(time)
-        && tinted.strength.hasAnimationEnded(time);
-}
-
-float clampStrength(float strength)
-{
-    return std::clamp(strength, 0.0f, 1.0f);
-}
-
-// An overshooting curve interpolates past either end of an animation, to
-// values the built-in effects reject.
-FrostedGlassOptions clampToValid(FrostedGlassOptions options)
-{
-    options.radius = std::max(options.radius, 0.0f);
-    options.saturation = std::max(options.saturation, 0.0f);
-    options.highlightWidth = std::max(options.highlightWidth, 0.0f);
-    options.tintStrength = clampStrength(options.tintStrength);
-    options.highlightStrength = clampStrength(options.highlightStrength);
-
-    return options;
-}
-
-std::shared_ptr<Effect const> makeEffect(SurfaceEffect const& effect,
-        std::chrono::milliseconds time)
-{
-    if (auto const* glass = std::get_if<SurfaceFrostedGlass>(&effect))
-    {
-        return std::make_shared<Effect const>(frostedGlass(
-                    clampToValid(glass->options.getValue(time))));
-    }
-
-    auto const& tinted = std::get<SurfaceTint>(effect);
-
-    return std::make_shared<Effect const>(tint(tinted.colour.getValue(time),
-                clampStrength(tinted.strength.getValue(time))));
-}
-
-UpdateResult updatedChild(
-        RenderTree const& oldTree,
-        RenderTree const& newTree,
-        std::shared_ptr<RenderTreeNode> const& oldChild,
-        std::shared_ptr<RenderTreeNode> const& newChild,
-        std::optional<AnimationOptions> const& options,
-        std::chrono::milliseconds time
-        )
-{
-    if (!oldChild && !newChild)
-        return { nullptr, std::nullopt };
-
-    if (!oldChild)
-        return newChild->update(oldTree, newTree, nullptr, newChild, options,
-                time);
-
-    if (!newChild)
-        return oldChild->update(oldTree, newTree, oldChild, nullptr, options,
-                time);
-
-    if (oldChild->getId() != newChild->getId())
-        return newChild->update(oldTree, newTree, nullptr, newChild, options,
-                time);
-
-    return newChild->update(oldTree, newTree, oldChild, newChild, options,
-            time);
+    return !brush || brush->hasAnimationEnded(time);
 }
 
 } // anonymous namespace
@@ -164,16 +56,14 @@ SurfaceNode::SurfaceNode(
         std::optional<AnimationOptions> animationOptions,
         ShapeFunction shape,
         Animated<std::optional<Brush>> fill,
-        std::optional<SurfaceShadow> shadow,
-        std::optional<SurfaceEffect> effect,
+        std::optional<Animated<Brush>> brush,
         std::shared_ptr<RenderTreeNode> childNode
         ) :
     RenderTreeNode(std::nullopt, std::move(obb)),
     animationOptions_(std::move(animationOptions)),
     shape_(std::move(shape)),
     fill_(std::move(fill)),
-    shadow_(std::move(shadow)),
-    effect_(std::move(effect)),
+    brush_(std::move(brush)),
     childNode_(std::move(childNode))
 {
 }
@@ -195,7 +85,7 @@ UpdateResult SurfaceNode::update(
         // Appear
         auto const& surface = asSurface(newNode);
 
-        auto [child, nextUpdate] = updatedChild(oldTree, newTree, nullptr,
+        auto [child, nextUpdate] = updateNode(oldTree, newTree, nullptr,
                 surface.childNode_, animationOptions, time);
 
         if (!child)
@@ -207,8 +97,7 @@ UpdateResult SurfaceNode::update(
                     surface.animationOptions_,
                     surface.shape_,
                     surface.fill_,
-                    surface.shadow_,
-                    surface.effect_,
+                    surface.brush_,
                     std::move(child)
                     ),
             nextUpdate
@@ -220,7 +109,7 @@ UpdateResult SurfaceNode::update(
         // Disappear
         auto const& surface = asSurface(oldNode);
 
-        auto [child, nextUpdate] = updatedChild(oldTree, newTree,
+        auto [child, nextUpdate] = updateNode(oldTree, newTree,
                 surface.childNode_, nullptr, animationOptions, time);
 
         if (!child)
@@ -232,8 +121,7 @@ UpdateResult SurfaceNode::update(
                     surface.animationOptions_,
                     surface.shape_,
                     surface.fill_,
-                    surface.shadow_,
-                    surface.effect_,
+                    surface.brush_,
                     std::move(child)
                     ),
             nextUpdate
@@ -250,7 +138,7 @@ UpdateResult SurfaceNode::update(
         : animationOptions
         ;
 
-    auto [child, nextUpdate] = updatedChild(oldTree, newTree,
+    auto [child, nextUpdate] = updateNode(oldTree, newTree,
             oldSurface.childNode_, newSurface.childNode_, animationOptions,
             time);
 
@@ -261,9 +149,7 @@ UpdateResult SurfaceNode::update(
                 newSurface.animationOptions_,
                 oldSurface.shape_.updated(newSurface.shape_, options, time),
                 oldSurface.fill_.updated(newSurface.fill_, options, time),
-                updatedShadow(oldSurface.shadow_, newSurface.shadow_,
-                    options, time),
-                updatedEffect(oldSurface.effect_, newSurface.effect_,
+                updatedBrush(oldSurface.brush_, newSurface.brush_,
                     options, time),
                 std::move(child)
                 ),
@@ -282,27 +168,17 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
     Shape shape = shape_(time, context, local.getSize());
     Drawing result = context.drawing();
 
-    if (shadow_)
+    if (brush_)
     {
-        float spread = shadow_->spread.getValue(time);
-        Brush brush = shadow_->brush.getValue(time);
-
-        result.addShadow(Drawing::ShapeElement{
-                Shape(shape).translate(shadow_->offset.getValue(time)),
-                brush,
-                spread > 0.0f
-                    ? std::make_optional(Pen(brush, 2.0f * spread))
-                    : std::nullopt
-                });
+        result += Drawing::ShapeElement{ shape, brush_->getValue(time),
+            std::nullopt };
     }
 
-    if (effect_)
-    {
-        result += Drawing::EffectElement{ shape, makeEffect(*effect_, time),
-            Transform() };
-    }
+    auto fill = fill_.getValue(time);
+    if (!brush_ && isOpaqueColour(fill))
+        result.addOutline(shape);
 
-    if (auto fill = fill_.getValue(time))
+    if (fill)
         result += Drawing::ShapeElement{ std::move(shape), std::move(fill),
             std::nullopt };
 
@@ -311,14 +187,13 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
     bool cont = !getObb().hasAnimationEnded(time)
         || !shape_.hasAnimationEnded(time)
         || !fill_.hasAnimationEnded(time)
-        || !hasShadowAnimationEnded(shadow_, time)
-        || !hasEffectAnimationEnded(effect_, time)
+        || !hasBrushAnimationEnded(brush_, time)
         ;
 
     if (childNode_)
     {
         auto [childDrawing, childCont] = childNode_->draw(context, obb, time);
-        result += childDrawing;
+        result += std::move(childDrawing);
         cont = cont || childCont;
     }
 
@@ -364,14 +239,9 @@ Animated<std::optional<Brush>> const& SurfaceNode::getFill() const
     return fill_;
 }
 
-std::optional<SurfaceShadow> const& SurfaceNode::getShadow() const
+std::optional<Animated<Brush>> const& SurfaceNode::getBrush() const
 {
-    return shadow_;
-}
-
-std::optional<SurfaceEffect> const& SurfaceNode::getEffect() const
-{
-    return effect_;
+    return brush_;
 }
 
 std::shared_ptr<RenderTreeNode> const& SurfaceNode::getChild() const

@@ -30,6 +30,8 @@ std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::upda
         std::chrono::milliseconds time
         ) &&
 {
+    ZoneScopedN("RenderTree::update");
+
     if (!root_)
     {
         return {
@@ -46,7 +48,7 @@ std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::upda
                 );
     }
 
-    auto [updatedNode, nextUpdate] = tree.root_->update(
+    auto [updatedNode, nextUpdate] = updateNode(
             *this,
             tree,
             root_,
@@ -75,7 +77,7 @@ std::pair<Drawing, bool> RenderTree::draw(
 
     auto [drawing, cont] = root_->draw(context, obb, time);
 
-    return std::make_pair(std::move(drawing).flush(), cont);
+    return std::make_pair(std::move(drawing).clearOutlines(), cont);
 }
 
 Snapshot RenderTree::snapshot(

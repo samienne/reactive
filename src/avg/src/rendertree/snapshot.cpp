@@ -49,6 +49,21 @@ void collectText(
                     result
                     );
         }
+        else if (auto const* effect =
+                std::get_if<Drawing::EffectElement>(&element))
+        {
+            for (auto const& input : effect->inputs)
+            {
+                if (input.subDrawing)
+                {
+                    collectText(
+                            (**input.subDrawing).elements,
+                            transform * effect->transform,
+                            result
+                            );
+                }
+            }
+        }
     }
 }
 

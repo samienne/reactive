@@ -16,29 +16,34 @@ are composed rather than drawn imperatively.
 Geometry becomes a **`Drawing`** — the flat, immutable description that gets
 rasterised — by styling it:
 
-- a **`Brush`** (from a `Color`) fills a shape,
+- a **`Brush`** (a `Color`, or an effect such as frosted glass) fills a
+  shape,
 - a **`Pen`** strokes its outline.
 
-Text is drawn through a `Font` (`Drawing` also carries text entries). Layout
-— extents, hit-testing — reads the font's unhinted, fractional metrics, so
-text measures the same at every size and scale. Drawing it is separate:
-ordinary filled, unrotated text is rasterised glyph by glyph into a
-**glyph atlas** (one anti-aliased coverage texture per painter, so per window,
-filled on demand and recycled least-recently-used) and drawn as textured
-quads snapped to device pixels. Anything the atlas does not serve — stroked or
-rotated text, very large sizes, a frame that overflows the atlas — falls back
-to the glyph outlines, filled like any other shape.
+Text is drawn through a `Font` (`Drawing` also carries text entries). Layout —
+extents, hit-testing — reads the font's unhinted, fractional metrics, so text
+measures the same at every size and scale. Drawing it is separate: ordinary
+filled, unrotated text is rasterised glyph by glyph into a **glyph atlas** (one
+anti-aliased coverage texture per painter, so per window, filled on demand and
+recycled least-recently-used) and drawn as textured quads snapped to device
+pixels. Anything the atlas does not serve — stroked or rotated text, text
+painted with an effect, very large sizes, a frame that overflows the atlas —
+falls back to the glyph outlines, filled like any other shape.
 
 ## Ordering
 
-A drawing paints its elements in order; there are no layers or z values. Two
-additions shape what a frame can do beyond flat painting:
+A drawing paints its elements in order; there are no layers or z values.
+Three additions shape what a frame can do beyond flat painting:
 
-- **Pending shadows.** A surface's shadow belongs under the content of the
-  container that holds the surface, not under the surface alone. A drawing
-  therefore carries its shadows separately as *pending*; they travel with it
-  through concatenation, clipping and transforms, and whoever renders the
-  drawing first flushes them ahead of everything else.
+- **Outlines and shadows.** A drawing also carries the outline shapes its
+  content casts shadows with. They are never painted; they are transformed
+  and clipped with the drawing, and wrapping a drawing into a scope moves
+  them onto the drawing that holds the scope, so they always sit on the
+  outermost drawing. A *shadow boundary* (`ShadowBoundaryNode`) consumes
+  the outlines of everything under it: their union, moved by the light's
+  offset, is filled once with the shadow colour, blurred and painted
+  under the boundary's content, so overlapping casters do not darken
+  twice. Outlines that reach no boundary are dropped.
 - **Backdrop scopes.** A *scope* encloses part of a drawing and fixes what
   counts as lying behind it: the frame as it was when the scope was entered,
   never the scope's own content or its siblings. Effects that sample what
@@ -46,21 +51,24 @@ additions shape what a frame can do beyond flat painting:
   child over another composes the two with `Drawing::over`, which scopes the
   upper child; a scope without effects only groups its content and costs
   nothing, so stacks use it unconditionally.
-- **Effect elements.** A backdrop effect (`frostedGlass`, `tint`) is one
-  element of the drawing, drawn through a shape: the effect's final pass
-  paints the shape and the passes before it sample the scope's backdrop
-  around it. When a frame is rendered, each scope that holds an effect has
-  the region those effects read copied out of the frame as it stands at the
-  scope's entry, the effect's passes run over that copy, and its final pass
-  is painted into the frame in the element's place in the paint order.
+- **Effects.** A backdrop effect (`frostedGlass`, `tint`) reaches a
+  drawing as a brush: a shape filled or stroked with an effect brush, or
+  text painted with one, paints the effect through that geometry. When a
+  frame is rendered, each scope that holds an effect has the region its
+  effects read copied out of the frame as it stands at the scope's entry,
+  the effects' passes run over that copy, and each final pass is painted
+  into the frame in the element's place in the paint order. Effects that do
+  the same work over the same backdrop share it. An *effect element* runs
+  one pass over the backdrop or over parts of the drawing rendered
+  offscreen; the shadow's blur is made of them. Effect sizes are in logical
+  units, like the geometry.
 
 In the render tree, a `SurfaceNode` (a filled shape under a child, with an
-optional effect such as frosted glass behind the fill, animated like its
-shadow) casts its shadow as a pending shadow and never opens a scope; a
-`ContainerNode` built with `Stacking::stacked` is the stack that paints its
-children over one another through `over`, while a flat container (vbox, hbox,
-grid) only concatenates. `RenderTree::draw` is the root: it flushes the
-drawing it returns.
+optional effect such as frosted glass behind the fill) never opens a scope;
+a `ContainerNode` built with `Stacking::stacked` is the stack that paints
+its children over one another through `over`, while a flat container (vbox,
+hbox, grid) only concatenates. `RenderTree::draw` is the root: it drops the
+outlines of the drawing it returns.
 
 ## Animation
 
@@ -76,7 +84,9 @@ texture with a depth buffer, remade when the window is resized), then copies
 that image onto the window with one textured quad. Every frame takes this one
 path whether or not it uses effects, and the offscreen image is what later
 backdrop effects such as frosted glass sample from. The design behind the
-scopes, the effects and this target is `docs/design/backdrop-effects.md`.
+scopes, the effects and this target is `docs/design/backdrop-effects.md`;
+effect brushes, effect elements and shadows are in
+`docs/design/effect-brushes-and-shadows.md`.
 
 ## The render tree
 

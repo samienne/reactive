@@ -99,7 +99,10 @@ namespace avg
 
     /**
      * @brief A PassShader whose source is the prelude followed by body,
-     * with the interface the prelude declares.
+     * with the interface the prelude declares and a new identity.
+     *
+     * A factory makes each of its shaders once and reuses it, so that its
+     * passes keep their identity from one effect to the next.
      *
      *     PassShader copy = makePassShader(1, {},
      *             "void main()\n"

@@ -166,7 +166,7 @@ UpdateResult ContainerNode::update(
 
             if (j->node->getId().has_value() && k != oldContainer.children_.end())
             {
-                auto [newChild, nextChildUpdate] = j->node->update(
+                auto [newChild, nextChildUpdate] = updateNode(
                         oldTree,
                         newTree,
                         k->node,
@@ -184,6 +184,45 @@ UpdateResult ContainerNode::update(
                 ++j;
                 continue;
             }
+        }
+
+        if (i != oldContainer.children_.end()
+                && j != newContainer.children_.end()
+                && !canUpdate(*i->node, *j->node))
+        {
+            auto [oldChild, nextOldUpdate] = i->node->update(
+                    oldTree,
+                    newTree,
+                    i->node,
+                    nullptr,
+                    animationOptions,
+                    time
+                    );
+
+            if (oldChild)
+            {
+                nextUpdate = earlier(nextUpdate, nextOldUpdate);
+                nodes.emplace_back(std::move(oldChild), false);
+            }
+
+            auto [newChild, nextNewUpdate] = j->node->update(
+                    oldTree,
+                    newTree,
+                    nullptr,
+                    j->node,
+                    animationOptions,
+                    time
+                    );
+
+            if (newChild)
+            {
+                nextUpdate = earlier(nextUpdate, nextNewUpdate);
+                nodes.emplace_back(std::move(newChild), true);
+            }
+
+            ++i;
+            ++j;
+            continue;
         }
 
         if (i != oldContainer.children_.end() && j != newContainer.children_.end())
