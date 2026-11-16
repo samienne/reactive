@@ -2095,6 +2095,45 @@ TEST(session, widgetMissingFromTheCapturedFrameIsInvalidParams)
     EXPECT_EQ(kInvalidParams, errorCodeOf(reply)) << reply.dump();
 }
 
+TEST(session, pauseRendersNoFrameForAScreenshotWhoseFrameHasRendered)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "pauseafter");
+    SessionFixture s("shotpauseafter", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    EXPECT_TRUE(s.call("app.pause").contains("result"));
+    EXPECT_EQ(1, s.steps.load());
+
+    armed.front()(syntheticFrame(2, 2, 1));
+    EXPECT_TRUE(awaitResponse(*s.client, id).contains("result"));
+}
+
+TEST(session, pauseRendersAFrameForAScreenshotArmedWhileRunning)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "pauserunning");
+    window.serveWith(syntheticFrame(2, 2, 1));
+    int steps = 0;
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "app.run")
+        + request(2, "window.screenshot", screenshotParams(window))
+        + request(3, "app.pause");
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }, {},
+                [&](std::chrono::microseconds)
+                {
+                    ++steps;
+                    return true;
+                }));
+
+    EXPECT_EQ(1, steps);
+    EXPECT_EQ((std::vector<int>{ 1, 3, 2 }), replyIds(transport.wire));
+}
+
 TEST(session, screenshotRejectsBadParamsAndUnknownWindows)
 {
     CapturableFakeWindow window(btl::makeUniqueId(), "params");

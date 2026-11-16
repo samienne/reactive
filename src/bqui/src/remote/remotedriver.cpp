@@ -17,6 +17,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -770,14 +771,13 @@ private:
     {
         state_ = State::Paused;
 
-        for (auto const& entry : screenshots_)
-        {
-            if (!entry.second.framed)
-            {
-                renderZeroFrame();
-                break;
-            }
-        }
+        bool const unrendered = std::any_of(screenshots_.begin(),
+                screenshots_.end(), [](auto const& entry)
+                {
+                    return !entry.second.geometry && !entry.second.framed;
+                });
+        if (unrendered)
+            renderZeroFrame();
 
         return { { "state", "paused" }, { "frame", frame_ } };
     }
