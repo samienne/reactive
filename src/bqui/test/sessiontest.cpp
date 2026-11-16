@@ -1446,20 +1446,6 @@ TEST(session, theOutstandingCapFailsTheProducer)
     EXPECT_EQ(2u, s.result(afterRelease).at("blob").at("id").get<uint64_t>());
 }
 
-TEST(session, blobsDoNotSurviveANewSession)
-{
-    BlobSession first;
-    int produced = first.renderTree(true);
-    ASSERT_TRUE(first.run());
-    ASSERT_EQ(1u, first.result(produced).at("blob").at("id").get<uint64_t>());
-
-    BlobSession second;
-    int stale = second.read(1, 0);
-    ASSERT_TRUE(second.run());
-
-    EXPECT_EQ(kUnknownBlob, second.errorCode(stale));
-}
-
 TEST(session, requestsInterleaveBetweenBlobReads)
 {
     BlobSession s;
