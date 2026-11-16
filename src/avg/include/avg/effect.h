@@ -219,6 +219,9 @@ namespace avg
         std::shared_ptr<Content const> content_;
     };
 
+    AVG_EXPORT std::ostream& operator<<(std::ostream& stream,
+            Effect const& effect);
+
     /**
      * @brief True when a and b come from the same factory, so lerp()
      * interpolates their parameters.

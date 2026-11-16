@@ -2,6 +2,7 @@
 
 #include "traceresource.h"
 #include "debug.h"
+#include "effectfactory.h"
 #include "glyphatlas.h"
 
 #include <avg/softmesh.h>
@@ -85,11 +86,11 @@ struct TextQuads
     pmr::vector<uint32_t> indices;
 };
 
-// An effect element in device pixels: the regions its passes write and its
-// shape as a triangle list, reading the snapshot of scope.
+// An effect in device pixels: the regions its passes write and the
+// geometry it paints as a triangle list, reading the snapshot of scope.
 struct EffectDraw
 {
-    Effect const* effect;
+    Effect effect;
     size_t scope;
     EffectRegions regions;
     std::vector<Vector2f> triangles;
@@ -151,16 +152,14 @@ PixelRect toDevicePixels(Rect const& r, float scalingFactor)
     return PixelRect{ left, bottom, right - left, top - bottom };
 }
 
-// The filled shape as a triangle list in device pixels; toRoot maps the
-// shape's space to the root of the drawing.
+// The region as a triangle list in device pixels; toRoot maps the region's
+// space to the root of the drawing.
 std::vector<Vector2f> triangulateToDevice(pmr::memory_resource* memory,
-        Shape const& shape, Transform const& toRoot, Vector2f pointSize,
-        float scalingFactor)
+        Region const& region, Transform const& toRoot, float scalingFactor)
 {
     ZoneScoped;
     pmr::monotonic_buffer_resource mono(memory);
-    auto [vertices, indices] = shape.fillToRegion(&mono, pointSize)
-        .triangulate(&mono);
+    auto [vertices, indices] = region.triangulate(&mono);
 
     std::vector<Vector2f> result;
     result.reserve(indices.size());
@@ -168,6 +167,54 @@ std::vector<Vector2f> triangulateToDevice(pmr::memory_resource* memory,
         result.push_back(Vector2f((toRoot * vertices[index]) * scalingFactor));
 
     return result;
+}
+
+std::vector<Vector2f> fillToDevice(pmr::memory_resource* memory,
+        Shape const& shape, Transform const& toRoot, Vector2f pointSize,
+        float scalingFactor)
+{
+    pmr::monotonic_buffer_resource mono(memory);
+    return triangulateToDevice(memory, shape.fillToRegion(&mono, pointSize),
+            toRoot, scalingFactor);
+}
+
+// Turns an effect painting a region into an effect draw reading the
+// backdrop of scopeIndex. bounds are the region's, clipped, in the space
+// toRoot maps to the root; triangulate gives the region in device pixels.
+// The effect's sizes are lowered at the device pixels to a unit of that
+// space. Nothing is drawn when the bounds miss the target or the region has
+// no area.
+template <typename TTriangulate>
+std::optional<EffectDraw> lowerEffect(EffectContext& effects,
+        size_t scopeIndex, Effect const& effect, Rect const& bounds,
+        Transform const& toRoot, TTriangulate triangulate)
+{
+    PixelRect const deviceBounds = toDevicePixels(
+            (toRoot * Obb(bounds)).getBoundingRect(), effects.scalingFactor)
+        .clamped(effects.screenSize);
+
+    if (deviceBounds.isEmpty())
+        return std::nullopt;
+
+    std::vector<Vector2f> triangles = triangulate();
+    if (triangles.empty())
+        return std::nullopt;
+
+    Effect pixelEffect = toPixels(effect, effects.scalingFactor);
+    EffectRegions regions = deriveRegions(pixelEffect, deviceBounds,
+            effects.screenSize);
+
+    Scope& owner = effects.scopes[scopeIndex];
+    owner.used = true;
+    owner.backdropRegion = owner.backdropRegion.unionWith(
+            regions.backdropRegion);
+
+    return EffectDraw{
+        std::move(pixelEffect),
+        scopeIndex,
+        std::move(regions),
+        std::move(triangles)
+    };
 }
 
 Color premultiply(Color c)
@@ -246,9 +293,14 @@ SoftMesh generateMeshForPen(pmr::memory_resource* memory, Shape const& shape,
     return generateMeshForRegion(memory, region, pen.getBrush(), r, clip);
 }
 
-pmr::vector<Item> generateMeshesForShapeElement(
-        pmr::memory_resource* memory, Drawing::ShapeElement const& element,
-        ase::Vector2f pointSize, Rect const& r, bool clip)
+// The items of a fill and a stroke: a mesh for a colour brush and an effect
+// draw for an effect brush. toRoot maps the shape's space to the root of
+// the drawing and scopeIndex is the backdrop scope the shape is inside.
+pmr::vector<Item> generateItemsForShapeElement(
+        pmr::memory_resource* memory, EffectContext& effects,
+        size_t scopeIndex, Transform const& toRoot,
+        Drawing::ShapeElement const& element, ase::Vector2f pointSize,
+        Rect const& r, bool clip)
 {
     ZoneScoped;
     auto const& shape = element.shape;
@@ -257,14 +309,47 @@ pmr::vector<Item> generateMeshesForShapeElement(
 
     pmr::vector<Item> result(memory);
 
-    if (brush.has_value())
+    auto clipped = [&](Rect const& bounds)
+    {
+        return clip ? bounds.intersected(r) : bounds;
+    };
+
+    if (brush.has_value() && brush->getEffect())
+    {
+        auto draw = lowerEffect(effects, scopeIndex, *brush->getEffect(),
+                clipped(shape.getControlBb()), toRoot, [&]()
+                {
+                    return fillToDevice(memory, shape, toRoot, pointSize,
+                            effects.scalingFactor);
+                });
+
+        if (draw)
+            result.push_back(std::move(*draw));
+    }
+    else if (brush.has_value())
     {
         bool needClip = !shape.getControlBb().isFullyContainedIn(r);
         result.push_back(generateMeshForBrush(memory, shape, *brush, pointSize,
                     r, clip && needClip));
     }
 
-    if (pen.has_value())
+    if (pen.has_value() && pen->getBrush().getEffect())
+    {
+        pmr::monotonic_buffer_resource mono(memory);
+        Region const region = shape.strokeToRegion(&mono, *pen, pointSize);
+
+        auto draw = lowerEffect(effects, scopeIndex,
+                *pen->getBrush().getEffect(),
+                clipped(region.getBoundingBox()), toRoot, [&]()
+                {
+                    return triangulateToDevice(memory, region, toRoot,
+                            effects.scalingFactor);
+                });
+
+        if (draw)
+            result.push_back(std::move(*draw));
+    }
+    else if (pen.has_value())
     {
         Rect penRect = shape.getControlBb().enlarged(pen->getWidth());
         bool needClip = !penRect.isFullyContainedIn(r);
@@ -336,8 +421,11 @@ std::optional<TextQuads> generateTextQuads(
 {
     ZoneScopedN("Text quads");
 
-    if (!textEntry.getBrush().has_value() || textEntry.getPen().has_value())
+    if (!textEntry.getBrush().has_value() || textEntry.getPen().has_value()
+            || textEntry.getBrush()->getEffect())
+    {
         return std::nullopt;
+    }
 
     if (!isUnrotated(toRoot) || !isUnrotated(textEntry.getTransform()))
         return std::nullopt;
@@ -508,8 +596,9 @@ pmr::vector<Item> generateMeshesForElements(
                 [&](Drawing::ShapeElement const& shapeElement)
                 -> pmr::vector<Item>
                 {
-                    return generateMeshesForShapeElement(
-                            memory, shapeElement, newPointSize, rect, clip);
+                    return generateItemsForShapeElement(memory, effects,
+                            scopeIndex, toRoot, shapeElement, newPointSize,
+                            rect, clip);
                 },
                 [&](TextEntry const& textEntry) -> pmr::vector<Item>
                 {
@@ -539,8 +628,9 @@ pmr::vector<Item> generateMeshesForElements(
                         textEntry.getPen()
                         };
 
-                    return generateMeshesForShapeElement(memory, element,
-                            newPointSize, rect, clip);
+                    return generateItemsForShapeElement(memory, effects,
+                            scopeIndex, toRoot, element, newPointSize, rect,
+                            clip);
                 },
                 [&](Drawing::ClipElement const& clipElement)
                     -> pmr::vector<Item>
@@ -574,6 +664,24 @@ pmr::vector<Item> generateMeshesForElements(
                 [&](Drawing::RegionFill const& regionFill) -> pmr::vector<Item>
                 {
                     pmr::vector<Item> result(memory);
+
+                    if (Effect const* effect = regionFill.brush.getEffect())
+                    {
+                        auto draw = lowerEffect(effects, scopeIndex, *effect,
+                                clip ? elementRect.intersected(rect)
+                                    : elementRect,
+                                toRoot, [&]()
+                                {
+                                    return triangulateToDevice(memory,
+                                            regionFill.region, toRoot,
+                                            effects.scalingFactor);
+                                });
+
+                        if (draw)
+                            result.push_back(std::move(*draw));
+
+                        return result;
+                    }
 
                     result.push_back(generateMeshForRegion(
                             memory,
@@ -625,36 +733,18 @@ pmr::vector<Item> generateMeshesForElements(
                         ? elementRect.intersected(rect)
                         : elementRect;
 
-                    PixelRect const deviceBounds = toDevicePixels(
-                            (toRoot * Obb(bounds)).getBoundingRect(),
-                            effects.scalingFactor)
-                        .clamped(effects.screenSize);
-
-                    if (deviceBounds.isEmpty())
-                        return result;
-
-                    std::vector<Vector2f> triangles = triangulateToDevice(
-                            memory, effect.shape, toRoot * effect.transform,
-                            newPointSize / effect.transform.getScale(),
-                            effects.scalingFactor);
-
-                    if (triangles.empty())
-                        return result;
-
-                    EffectRegions regions = deriveRegions(*effect.effect,
-                            deviceBounds, effects.screenSize);
-
-                    Scope& owner = effects.scopes[scopeIndex];
-                    owner.used = true;
-                    owner.backdropRegion = owner.backdropRegion.unionWith(
-                            regions.backdropRegion);
-
-                    result.push_back(EffectDraw{
-                            effect.effect.get(),
-                            scopeIndex,
-                            std::move(regions),
-                            std::move(triangles)
+                    auto draw = lowerEffect(effects, scopeIndex,
+                            *effect.effect, bounds, toRoot, [&]()
+                            {
+                                return fillToDevice(memory, effect.shape,
+                                        toRoot * effect.transform,
+                                        newPointSize
+                                            / effect.transform.getScale(),
+                                        effects.scalingFactor);
                             });
+
+                    if (draw)
+                        result.push_back(std::move(*draw));
 
                     return result;
                 }
@@ -880,7 +970,7 @@ void drawItems(pmr::memory_resource* memory, ase::CommandBuffer& commandBuffer,
         {
             assert(emitter);
             flushSegment();
-            emitter->emitEffect(*draw->effect, draw->regions,
+            emitter->emitEffect(draw->effect, draw->regions,
                     plan.effects[effectIndex++], draw->triangles);
         }
     }
@@ -983,7 +1073,7 @@ RenderCounters render(pmr::memory_resource* memory,
         }
         else if (auto const* draw = std::get_if<EffectDraw>(&item))
         {
-            timeline.addEffect(*draw->effect,
+            timeline.addEffect(draw->effect,
                     effects.scopes[draw->scope].snapshot);
         }
     }

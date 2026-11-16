@@ -9,6 +9,7 @@
 #include <avg/glyphbitmap.h>
 #include <avg/positionedglyph.h>
 #include <avg/brush.h>
+#include <avg/builtineffects.h>
 #include <avg/pen.h>
 #include <avg/pathbuilder.h>
 #include <avg/shape.h>
@@ -521,6 +522,26 @@ TEST(rendering, strokedTextDrawsOutlines)
     ASSERT_FALSE(f.draws(commands).empty());
     for (auto const& draw : f.draws(commands))
         EXPECT_TRUE(draw.command->getTextures().empty());
+}
+
+TEST(rendering, textWithAnEffectBrushDrawsOutlinesThroughTheEffect)
+{
+    Fixture f;
+
+    avg::TextEntry entry(f.font, avg::Transform().scale(height)
+            .translate(offset), "Hi",
+            avg::Brush(avg::tint(avg::Color(0.0f, 0.0f, 1.0f, 1.0f), 0.5f)));
+    auto commands = f.render(f.drawing(std::move(entry)));
+
+    EXPECT_TRUE(f.textDraws(commands).empty());
+    EXPECT_FALSE(hasSubUpload(commands));
+
+    // The snapshot of the target and the final pass of the tint
+    auto draws = f.draws(commands);
+    ASSERT_EQ(2u, draws.size());
+    EXPECT_EQ(f.target.getTexture(), draws[0].command->getTextures().at(0));
+    EXPECT_EQ(f.target.getFramebuffer(), draws[1].command->getFramebuffer());
+    EXPECT_FALSE(draws[1].vertices.empty());
 }
 
 TEST(rendering, hugeTextDrawsOutlines)

@@ -73,6 +73,18 @@ outgrows one file.
   passes sample no further than they need. The renderer turns the element
   into an effect draw in device pixels (*Effects*); the snapshot text
   collector ignores it.
+- **A `Brush` is a colour or an `Effect`** (`brush.h`, `src/brush.cpp`),
+  held in a variant; `getColor` is only valid for a colour brush. A
+  `ShapeElement` fill or pen, a `RegionFill` or a `TextEntry` with an
+  effect brush paints like an `EffectElement` with that geometry: the
+  renderer lowers it to an effect draw (*Effects*), so it reads the
+  enclosing scope's backdrop and never batches with colour meshes. `lerp`
+  interpolates colour to colour and effect to effect of one kind
+  (`isSameKind(Brush, Brush)`), and any other pair returns the second
+  brush at every t. `operator<` orders colours among themselves and before
+  every effect, with all effect brushes equivalent, which is a valid
+  strict weak ordering; the hash of an effect brush covers only its pass
+  count, so equal brushes hash equally but effect brushes collide often.
 - `btl/optional.h` prints `std::optional` through an `operator<<` at
   global scope, which unqualified lookup only reaches when no
   `avg::operator<<` is declared first. `effect.h` declares several, so
@@ -108,26 +120,26 @@ outgrows one file.
 - **`SurfaceNode`** (`rendertree/surfacenode.h`) holds a `ShapeFunction`
   (the shape for the node's size, animated like a `ShapeNode`'s parameters),
   an `Animated<std::optional<Brush>>` fill, an optional `SurfaceShadow`
-  (animated offset, spread and brush), an optional `Animated<Effect>` and a
-  child. `draw` adds the shadow as a **pending shadow** (the shape translated
+  (animated offset, spread and brush), an optional `Animated<Brush>`
+  effect and a child. `draw` adds the shadow as a **pending shadow** (the shape translated
   by the offset, filled with the shadow brush and, for a positive spread,
   stroked with a pen of width `2 * spread` in the same brush), then the
-  effect element, the fill and the child's drawing in the main list, in that
-  order. The node's own animation options drive its obb, shape, fill, shadow
+  shape filled with the effect brush, the fill and the child's drawing in
+  the main list, in that order. The node's own animation options drive its obb, shape, fill, shadow
   and effect only; like every other node it hands the inherited options to
   its child. It never adds a scope: that would give every card in a vbox a
   private backdrop.
-- **The surface's effect is an `Animated<Effect>`**, so effect parameters
-  animate as values and never change the drawing's structure. `draw` takes
-  the value at the frame's time and wraps it in a fresh `shared_ptr` for
-  the `EffectElement`; a static effect is built once, an animating one is
-  rebuilt by its factory every frame. `update` animates
-  when the old final value and the new value are of the same kind
-  (`isSameKind`) and takes the new value at once otherwise, so a change of
-  kind asks for no frames. `lerp(Effect, Effect, t)` interpolates through
-  the factory's recipe (see *Effects*). Like
-  `Animated<std::optional<Brush>>`, `Animated<Effect>` is instantiated
-  implicitly, not in `animated.cpp`.
+- **The surface's effect is an `Animated<Brush>`**, normally an effect
+  brush, so effect parameters animate as values and never change the
+  drawing's structure. `draw` takes the value at the frame's time as the
+  brush of a `ShapeElement`; a static effect is built once, an animating
+  one is rebuilt by its factory every frame. `update` animates when the
+  old final value and the new value are of the same kind (`isSameKind`)
+  and takes the new value at once otherwise, so a change of kind asks for
+  no frames. `lerp(Effect, Effect, t)` interpolates through the factory's
+  recipe (see *Effects*). The fill is also an `Animated` brush but has no
+  such check: a fill changing kind returns the new brush at once yet
+  still asks for frames for the animation's length.
 
 ## Render tree snapshots
 
@@ -164,9 +176,9 @@ written against and `builtineffects.h` the effects avg ships; none of them
 touches `ase` beyond naming a `Format`, a `ShaderInterface` and
 `UniformValues`. `scratchpool.h`, `passpipelinecache.h` and
 `effectemitter.h` are the GPU-facing half: they turn a planned effect into
-`ase` commands. A `Drawing::EffectElement` places an effect in a frame
-(see *Shapes and drawings*) and `SurfaceNode` animates one (see *Render
-tree*); `rendering.cpp` runs the scope pre-pass that snapshots backdrops
+`ase` commands. A `Drawing::EffectElement` or an effect brush places an
+effect in a frame (see *Shapes and drawings*) and `SurfaceNode` animates
+one (see *Render tree*); `rendering.cpp` runs the scope pre-pass that snapshots backdrops
 and drives the emitter, with the pool and the cache owned by the `Painter`
 (the last bullets below). `docs/design/backdrop-effects.md` is the design,
 with the rejected alternatives and the places the code departed from it;
@@ -348,15 +360,18 @@ with the rejected alternatives and the places the code departed from it;
   implicit one every effect outside a `BackdropScope` reads) and puts its
   entry first; the `BackdropScope` visitor appends a scope record, emits
   its entry and recurses with that scope as the current one, while a
-  `ClipElement` keeps its parent's. The `EffectElement` visitor maps the
-  element's bounds (intersected with the clip rect when inside a clip)
+  `ClipElement` keeps its parent's. Every effect is lowered by
+  `lowerEffect`: the `EffectElement` visitor, and a fill, pen or
+  `RegionFill` with an effect brush (a fill's bounds are the shape's
+  control bounds, a pen's the stroked region's bounding box). It maps the
+  bounds (intersected with the clip rect when inside a clip)
   through `toRoot` and the scaling factor to a `PixelRect`, clamps it to
   the target and drops the element when nothing is left; otherwise it
-  fills the shape to a region at the element's point size, triangulates
-  it into a device-pixel triangle list and drops the element when the
+  triangulates the geometry at the element's point size into a
+  device-pixel triangle list and drops the element when the
   list is empty (a shape without area), so such an effect costs no
-  snapshot. Only then does it derive the regions, mark the current scope
-  used and union the effect's `backdropRegion` into the scope's. Culling
+  snapshot. Only then does it convert the effect to pixels (`toPixels`,
+  below), derive the regions, mark the current scope used and union the effect's `backdropRegion` into the scope's. Culling
   applies to scopes and effects as to any element, so a culled scope has
   no record and a culled effect uses none. The culling rect is the target
   in logical units (its pixel size over the scaling factor); the effect
@@ -368,10 +383,15 @@ with the rejected alternatives and the places the code departed from it;
   whole pixels, so a clip with a fractional edge lets the effect through
   by up to a pixel, and a clip inside a rotated `BackdropScope` lets it
   fill the corners of the clip's bounding box.
-- **Effect parameters are device pixels.** An `Effect` is built before any
-  scaling factor is known and its divisor, paddings and parameter bytes
-  are fixed at construction, so the renderer scales the shape and the
-  regions but not a blur radius or highlight width.
+- **Effect sizes are logical units.** A factory's sizes (frostedGlass's
+  radius and highlight width) are in logical units, but an `Effect`'s
+  divisor, paddings and parameter bytes are fixed when it is built, before
+  the scaling factor is known. The renderer converts at lowering:
+  `toPixels` (`src/effectfactory.h`) rebuilds the effect from its recipe's
+  parameters with every size multiplied by the factor, so the `EffectDraw`
+  owns an effect in device pixels. At a factor of one, and for an effect
+  without a recipe (the tests' hand-written passes), it is the same effect.
+  A frame at another factor therefore rebuilds every effect it draws.
 - **Timeline, plan and emission.** After the walk, `render` builds the
   `ScratchTimeline` from the items in order (a snapshot per *used* scope
   entry, an effect per draw naming its scope's snapshot), and when it holds
@@ -406,8 +426,10 @@ with the rejected alternatives and the places the code departed from it;
   effects on the dummy backend (clear, content, barrier, snapshot, passes,
   final pass, content; one snapshot per used scope, none for an unused
   one; the innermost scope's snapshot; the root snapshot; a clipped
-  effect's regions; a `SurfaceNode` in a stack end to end), and that a
-  drawing with unused scopes renders byte-for-byte like one without.
+  effect's regions; a `SurfaceNode` in a stack end to end; an effect-brush
+  fill drawing like the equivalent `EffectElement`, an effect-brush stroke
+  and a brush at a scaling factor of two), and that a drawing with unused
+  scopes renders byte-for-byte like one without.
 - Shader compilation and the look are the one thing these tests cannot
   reach: the dummy backend compiles nothing, so the GLSL is only checked
   textually (version line, declared names present, no binding qualifiers)
@@ -559,14 +581,15 @@ shader).
   There are no y bins: `generateTextQuads` rounds the pen's y to the device
   pixel.
 - **Fallback rules** live in `generateTextQuads`. A `TextEntry` is drawn as
-  atlas quads only when it has a brush and no pen, neither it nor any
-  enclosing transform rotates (which also covers a rotated clip, since the
-  clip rectangle is taken in the enclosing space), and its rounded device
-  pixel size is within 1..`maxAtlasPixelSize` (128). Any other entry, and an
-  entry whose glyph the atlas cannot place this frame, goes through
-  `textToPath` and the outline tessellation like a shape; nothing is ever
-  rasterised through a transform. Each quad is clipped against the enclosing
-  clip rectangle in device space.
+  atlas quads only when it has a colour brush and no pen, neither it nor any
+  enclosing transform rotates (which also covers a rotated clip, since the clip
+  rectangle is taken in the enclosing space), and its rounded device pixel size
+  is within 1..`maxAtlasPixelSize` (128). Any other entry, and an entry whose
+  glyph the atlas cannot place this frame, goes through `textToPath` and the
+  outline tessellation like a shape (an effect brush then lowers to an effect
+  draw, so glass text costs a tessellation per frame and is not antialiased);
+  nothing is ever rasterised through a transform. Each quad is clipped against
+  the enclosing clip rectangle in device space.
 - The text pipeline (`painter.cpp`) samples the atlas as coverage and raises
   it to `1 / textGamma` (1.45) before it scales the premultiplied colour.
   The value is tuned by eye; see `docs/decisions.md`.

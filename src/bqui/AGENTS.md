@@ -64,7 +64,10 @@ flag:
   is a signal of `avg::Effect`, made by the avg factories; `backdrop`,
   `frostedGlass` and `tint` are shorthands for an effect alone, the last
   two mapping their option signals through `avg::frostedGlass` and
-  `avg::tint`, which throw on out-of-range values. A surface
+  `avg::tint` after clamping the values into the range those accept
+  (`avg::clampToValid`, and [0, 1] for the strength), since the factories
+  throw and a throw inside a signal map has no caller to catch it. The
+  node holds the effect as an effect brush. A surface
   adds no scope of its own: it is layered by the `stack` or `background`
   it sits in.
 - The window root is `widget | background()` (`src/windowbridge.cpp`), so a

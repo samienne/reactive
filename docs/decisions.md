@@ -11,6 +11,33 @@ Vulkan work; the five backdrop-effect entries against `4d8e996e`
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Effect sizes are logical units, converted at lowering
+
+An effect's sizes (a blur radius, a highlight width, a pass's reach) are
+given in logical units and converted to device pixels when the renderer
+lowers it (`toPixels`), at the scaling factor times the scale of its
+transform to the root. An effect brush and an effect element convert
+alike, so an effect's sizes scale with the drawing it is in.
+
+**Why:** an effect is built before the scaling factor is known, and a
+size in device pixels would blur half as wide, relative to the content, on
+a 2x display. Lowering is the first place that has both the effect and the
+factor.
+
+## A brush is a colour or an effect
+
+`avg::Brush` holds a colour or an opaque `Effect`, so glass fills,
+strokes and text wherever a brush is accepted. Two effects of the same kind
+interpolate their parameters; any other pair (two kinds, or a colour and
+an effect) switches sharply to the new brush at the start of the
+transition.
+
+**Why:** an effect placed by one node kind (the surface's closed effect
+variant) could not fill a stroke or a text run, and a new effect meant a
+new variant in two libraries. A sharp switch keeps the result of `lerp` a
+single `Brush`; a crossfade would need a brush holding two brushes and a
+weight.
+
 ## `avg` selects its shader language through one seam
 
 `avg` walks a preference list - SPIR-V first, then GLSL 330 - against

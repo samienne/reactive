@@ -16,18 +16,19 @@ are composed rather than drawn imperatively.
 Geometry becomes a **`Drawing`** — the flat, immutable description that gets
 rasterised — by styling it:
 
-- a **`Brush`** (from a `Color`) fills a shape,
+- a **`Brush`** (a `Color`, or an effect such as frosted glass) fills a
+  shape,
 - a **`Pen`** strokes its outline.
 
-Text is drawn through a `Font` (`Drawing` also carries text entries). Layout
-— extents, hit-testing — reads the font's unhinted, fractional metrics, so
-text measures the same at every size and scale. Drawing it is separate:
-ordinary filled, unrotated text is rasterised glyph by glyph into a
-**glyph atlas** (one anti-aliased coverage texture per painter, so per window,
-filled on demand and recycled least-recently-used) and drawn as textured
-quads snapped to device pixels. Anything the atlas does not serve — stroked or
-rotated text, very large sizes, a frame that overflows the atlas — falls back
-to the glyph outlines, filled like any other shape.
+Text is drawn through a `Font` (`Drawing` also carries text entries). Layout —
+extents, hit-testing — reads the font's unhinted, fractional metrics, so text
+measures the same at every size and scale. Drawing it is separate: ordinary
+filled, unrotated text is rasterised glyph by glyph into a **glyph atlas** (one
+anti-aliased coverage texture per painter, so per window, filled on demand and
+recycled least-recently-used) and drawn as textured quads snapped to device
+pixels. Anything the atlas does not serve — stroked or rotated text, text
+painted with an effect, very large sizes, a frame that overflows the atlas —
+falls back to the glyph outlines, filled like any other shape.
 
 ## Ordering
 
@@ -46,13 +47,17 @@ additions shape what a frame can do beyond flat painting:
   child over another composes the two with `Drawing::over`, which scopes the
   upper child; a scope without effects only groups its content and costs
   nothing, so stacks use it unconditionally.
-- **Effect elements.** A backdrop effect (`frostedGlass`, `tint`) is one
-  element of the drawing, drawn through a shape: the effect's final pass
-  paints the shape and the passes before it sample the scope's backdrop
-  around it. When a frame is rendered, each scope that holds an effect has
-  the region those effects read copied out of the frame as it stands at the
-  scope's entry, the effect's passes run over that copy, and its final pass
-  is painted into the frame in the element's place in the paint order.
+- **Effects.** A backdrop effect (`frostedGlass`, `tint`) reaches a
+  drawing as a brush: a shape filled or stroked with an effect brush, or
+  text painted with one, paints the effect through that geometry. When a
+  frame is rendered, each scope that holds an effect has the region its
+  effects read copied out of the frame as it stands at the scope's entry,
+  the effects' passes run over that copy, and each final pass is painted
+  into the frame in the element's place in the paint order. Effects that do
+  the same work over the same backdrop share it. An *effect element* runs
+  one pass over the backdrop or over parts of the drawing rendered
+  offscreen; the shadow's blur is made of them. Effect sizes are in logical
+  units, like the geometry.
 
 In the render tree, a `SurfaceNode` (a filled shape under a child, with an
 optional effect such as frosted glass behind the fill, animated like its

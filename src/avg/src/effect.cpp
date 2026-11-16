@@ -359,12 +359,26 @@ bool Effect::operator!=(Effect const& rhs) const
     return !(*this == rhs);
 }
 
+std::ostream& operator<<(std::ostream& stream, Effect const& effect)
+{
+    return stream << "Effect{" << effect.getPasses().size() << " passes}";
+}
+
 bool isSameKind(Effect const& a, Effect const& b)
 {
     EffectRecipe const* recipe = EffectAccess::getRecipe(a);
     EffectRecipe const* other = EffectAccess::getRecipe(b);
 
     return recipe && other && recipe->isSameKind(*other);
+}
+
+Effect toPixels(Effect const& effect, float scalingFactor)
+{
+    EffectRecipe const* recipe = EffectAccess::getRecipe(effect);
+    if (!recipe || scalingFactor == 1.0f)
+        return effect;
+
+    return recipe->scaled(scalingFactor);
 }
 
 Effect lerp(Effect const& a, Effect const& b, float t)

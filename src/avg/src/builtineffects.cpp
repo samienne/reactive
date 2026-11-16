@@ -120,6 +120,18 @@ namespace
         };
     }
 
+    TintParameters scaleSizes(TintParameters const& parameters, float)
+    {
+        return parameters;
+    }
+
+    FrostedGlassOptions scaleSizes(FrostedGlassOptions options, float factor)
+    {
+        options.radius *= factor;
+        options.highlightWidth *= factor;
+        return options;
+    }
+
     template <typename TParameters>
     class ParameterRecipe final : public EffectRecipe
     {
@@ -144,6 +156,11 @@ namespace
             return build_(lerp(parameters_, other.parameters_, t));
         }
 
+        Effect scaled(float factor) const override
+        {
+            return build_(scaleSizes(parameters_, factor));
+        }
+
     private:
         TParameters parameters_;
         Build build_;
@@ -157,22 +174,14 @@ namespace
                 std::move(parameters), build);
     }
 
-    float clampStrength(float strength)
+    float clampNonNegative(float value)
     {
-        return std::clamp(strength, 0.0f, 1.0f);
+        return value >= 0.0f ? value : 0.0f;
     }
 
-    // An overshooting curve interpolates past either end of an animation,
-    // to values the factories reject.
-    FrostedGlassOptions clampToValid(FrostedGlassOptions options)
+    float clampStrength(float strength)
     {
-        options.radius = std::max(options.radius, 0.0f);
-        options.saturation = std::max(options.saturation, 0.0f);
-        options.highlightWidth = std::max(options.highlightWidth, 0.0f);
-        options.tintStrength = clampStrength(options.tintStrength);
-        options.highlightStrength = clampStrength(options.highlightStrength);
-
-        return options;
+        return std::min(clampNonNegative(strength), 1.0f);
     }
 
     ase::Vector4f toVector(Color const& colour, float w)
@@ -183,7 +192,7 @@ namespace
 
     void requireNonNegative(float value, char const* name)
     {
-        if (value < 0.0f)
+        if (!(value >= 0.0f))
         {
             throw std::invalid_argument(std::string(name)
                     + " must not be negative");
@@ -192,7 +201,7 @@ namespace
 
     void requireStrength(float value, char const* name)
     {
-        if (value < 0.0f || value > 1.0f)
+        if (!(value >= 0.0f && value <= 1.0f))
         {
             throw std::invalid_argument(std::string(name)
                     + " must be within [0, 1]");
@@ -326,6 +335,17 @@ FrostedGlassOptions lerp(FrostedGlassOptions const& a,
             b.highlightStrength, t);
     result.highlightWidth = lerp(a.highlightWidth, b.highlightWidth, t);
     return result;
+}
+
+FrostedGlassOptions clampToValid(FrostedGlassOptions options)
+{
+    options.radius = clampNonNegative(options.radius);
+    options.saturation = clampNonNegative(options.saturation);
+    options.highlightWidth = clampNonNegative(options.highlightWidth);
+    options.tintStrength = clampStrength(options.tintStrength);
+    options.highlightStrength = clampStrength(options.highlightStrength);
+
+    return options;
 }
 
 Divisor frostedGlassDivisor(float radius)

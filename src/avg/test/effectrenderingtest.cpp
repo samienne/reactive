@@ -1,3 +1,5 @@
+#include "effectfactory.h"
+
 #include <avg/rendering.h>
 #include <avg/painter.h>
 #include <avg/drawing.h>
@@ -9,6 +11,7 @@
 #include <avg/brush.h>
 #include <avg/color.h>
 #include <avg/obb.h>
+#include <avg/pen.h>
 #include <avg/pathbuilder.h>
 #include <avg/rect.h>
 #include <avg/rendertree.h>
@@ -22,6 +25,7 @@
 #include <ase/drawcommand.h>
 #include <ase/dummyplatform.h>
 #include <ase/dummyrenderqueue.h>
+#include <ase/dummyuniformset.h>
 #include <ase/platform.h>
 #include <ase/rendercontext.h>
 #include <ase/renderqueue.h>
@@ -37,6 +41,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -96,6 +101,18 @@ namespace
                     static_cast<float>(bounds.height)),
             std::move(effect),
             avg::Transform()
+        };
+    }
+
+    avg::Drawing::Element brushFill(PixelRect const& bounds,
+            avg::Effect const& effect)
+    {
+        return avg::Drawing::ShapeElement{
+            box(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
+                    static_cast<float>(bounds.width),
+                    static_cast<float>(bounds.height)),
+            avg::Brush(effect),
+            std::nullopt
         };
     }
 
@@ -274,6 +291,82 @@ namespace
         EXPECT_EQ(expected.y, draw.getScissor()->y);
         EXPECT_EQ(expected.width, draw.getScissor()->width);
         EXPECT_EQ(expected.height, draw.getScissor()->height);
+    }
+
+    // The bytes of each uniform block bound to draw, by binding. frame is
+    // a submission of f's queue; its uniforms are uploaded in a submission
+    // before it.
+    std::map<int, std::vector<char>> uniformsOf(Fixture& f,
+            ase::CommandBuffer const& frame, ase::DrawCommand const& draw)
+    {
+        auto const& submissions = f.context.getMainRenderQueue()
+            .getImpl<ase::DummyRenderQueue>().getSubmissions();
+        auto const current = std::find_if(submissions.begin(),
+                submissions.end(),
+                [&](ase::CommandBuffer const& c) { return &c == &frame; });
+
+        std::map<int, std::vector<char>> result;
+        auto const& bindings = draw.getUniforms()
+            .getImpl<ase::DummyUniformSet>().getBindings();
+        for (auto const& [binding, range] : bindings)
+        {
+            ase::Buffer const* data = nullptr;
+            for (auto i = submissions.begin(); i != current; ++i)
+            {
+                for (auto const& command : *i)
+                {
+                    auto const* upload = std::get_if<ase::BufferUploadCommand>(
+                            &command);
+                    auto const* buffer = upload
+                        ? std::get_if<ase::UniformBuffer>(&upload->target)
+                        : nullptr;
+                    if (buffer && &buffer->getImpl<ase::UniformBufferImpl>()
+                            == &range.buffer.getImpl<ase::UniformBufferImpl>())
+                    {
+                        data = &upload->data;
+                    }
+                }
+            }
+
+            if (!data || range.offset + range.size > data->getSize())
+            {
+                ADD_FAILURE() << "no upload holds binding " << binding;
+                continue;
+            }
+
+            char const* bytes = static_cast<char const*>(data->data())
+                + range.offset;
+            result[binding].assign(bytes, bytes + range.size);
+        }
+
+        return result;
+    }
+
+    // Expects the snapshot, pass and final draws of two frames to match in
+    // scissor, vertices and uniforms, which hold each pass's divisor and
+    // parameters
+    void expectSameEffectDraws(Fixture& f, ase::CommandBuffer const& expected,
+            Fixture& g, ase::CommandBuffer const& actual)
+    {
+        EXPECT_EQ(f.picture(expected), g.picture(actual));
+
+        auto expectedDraws = f.draws(expected, "SPF");
+        auto actualDraws = g.draws(actual, "SPF");
+        ASSERT_EQ(expectedDraws.size(), actualDraws.size());
+        for (size_t i = 0; i < expectedDraws.size(); ++i)
+        {
+            ASSERT_TRUE(expectedDraws[i]->getScissor().has_value());
+            expectScissor(PixelRect{
+                    expectedDraws[i]->getScissor()->x,
+                    expectedDraws[i]->getScissor()->y,
+                    expectedDraws[i]->getScissor()->width,
+                    expectedDraws[i]->getScissor()->height
+                    }, *actualDraws[i]);
+            EXPECT_EQ(verticesOf(expected, *expectedDraws[i]),
+                    verticesOf(actual, *actualDraws[i]));
+            EXPECT_EQ(uniformsOf(f, expected, *expectedDraws[i]),
+                    uniformsOf(g, actual, *actualDraws[i]));
+        }
     }
 
     bool hasBarrier(ase::CommandBuffer const& commands)
@@ -508,7 +601,8 @@ TEST(EffectRendering, aScaledFramePlacesTheEffectInTargetPixels)
     auto const& frame = f.frame(d, 2.0f);
     EXPECT_EQ("C|S|P|P|P|F|", f.picture(frame));
 
-    avg::EffectRegions regions = regionsOf(*glassEffect, glassBounds);
+    // The radius of 24 units is 48 target pixels
+    avg::EffectRegions regions = regionsOf(*glass(48.0f), glassBounds);
     auto snapshots = f.draws(frame, "S");
     ASSERT_EQ(1u, snapshots.size());
     expectScissor(regions.backdropRegion, *snapshots[0]);
@@ -589,8 +683,8 @@ TEST(EffectRendering, aGlassSurfaceInAStackDrawsOverTheChildrenBelowIt)
                 std::make_optional(avg::Brush(white)),
                 std::make_optional(avg::SurfaceShadow{
                         avg::Vector2f(2.0f, -2.0f), 0.0f, avg::Brush(black) }),
-                std::make_optional(avg::Animated<avg::Effect>(
-                        avg::frostedGlass(options))),
+                std::make_optional(avg::Animated<avg::Brush>(
+                        avg::Brush(avg::frostedGlass(options)))),
                 std::make_shared<avg::RectNode>(
                     avg::Obb(avg::Vector2f(20.0f, 20.0f)),
                     std::nullopt,
@@ -621,4 +715,123 @@ TEST(EffectRendering, aGlassSurfaceInAStackDrawsOverTheChildrenBelowIt)
             xRange(verticesOf(frame, *content[0]), 7, 0));
     EXPECT_EQ(std::make_pair(1.0f, 1.0f),
             xRange(verticesOf(frame, *content[1]), 7, 0));
+}
+
+TEST(EffectRendering, anEffectBrushFillDrawsLikeAnEffectElement)
+{
+    Fixture f;
+    Fixture g;
+    auto glassEffect = glass();
+    auto element = drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f),
+            scope({ fill(10.0f, 0.0f, 50.0f, 50.0f),
+                    effect(glassBounds, glassEffect),
+                    fill(300.0f, 0.0f, 50.0f, 50.0f) }) });
+    auto brushed = drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f),
+            scope({ fill(10.0f, 0.0f, 50.0f, 50.0f),
+                    brushFill(glassBounds, *glassEffect),
+                    fill(300.0f, 0.0f, 50.0f, 50.0f) }) });
+
+    auto const& expected = f.frame(element);
+    auto const& actual = g.frame(brushed);
+
+    // The snapshot is of the content before the scope, not of the fill
+    // inside it, and the effect is a run of its own between the fills
+    EXPECT_EQ("CD|S|D|P|P|P|F|D", g.picture(actual));
+    expectSameEffectDraws(f, expected, g, actual);
+}
+
+TEST(EffectRendering, anEffectBrushStrokeDrawsTheStrokeThroughTheEffect)
+{
+    Fixture f;
+    avg::Drawing d(pmr::new_delete_resource(), avg::Drawing::ShapeElement{
+            box(100.0f, 80.0f, 200.0f, 40.0f),
+            std::nullopt,
+            avg::Pen(avg::Brush(*glass()), 4.0f)
+            });
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("C|S|P|P|P|F|", f.picture(frame));
+
+    auto finals = f.draws(frame, "F");
+    ASSERT_EQ(1u, finals.size());
+    // The pen's width reaches that far out of the box on each side
+    expectScissor(PixelRect{ 96, 76, 208, 48 }, *finals[0]);
+    auto triangles = verticesOf(frame, *finals[0]);
+    EXPECT_EQ(std::make_pair(96.0f, 304.0f), xRange(triangles, 2, 0));
+    EXPECT_EQ(std::make_pair(76.0f, 124.0f), xRange(triangles, 2, 1));
+}
+
+TEST(EffectRendering, aScaledFrameConvertsAnEffectBrushToTargetPixels)
+{
+    Fixture f;
+    Fixture g;
+    PixelRect const bounds{ 50, 40, 100, 20 };
+
+    // An effect without a recipe is drawn with its sizes as given
+    avg::FrostedGlassOptions pixels;
+    pixels.radius = 48.0f;
+    pixels.highlightWidth *= 2.0f;
+    avg::Effect const inPixels = avg::makeEffect(
+            avg::frostedGlass(pixels).getPasses());
+
+    auto const& expected = f.frame(drawing({ brushFill(bounds, inPixels) }),
+            2.0f);
+    auto const& actual = g.frame(drawing({ brushFill(bounds, *glass()) }),
+            2.0f);
+
+    EXPECT_EQ("C|S|P|P|P|F|", g.picture(actual));
+    expectSameEffectDraws(f, expected, g, actual);
+}
+
+TEST(EffectRendering, anEffectBrushLowersItsSizesAtItsOwnScale)
+{
+    Fixture f;
+    Fixture g;
+
+    avg::FrostedGlassOptions doubled;
+    doubled.radius = 48.0f;
+    doubled.highlightWidth *= 2.0f;
+
+    auto scaled = drawing({ brushFill(PixelRect{ 25, 20, 50, 10 },
+                *glass()) }) * 2.0f;
+    auto built = drawing({ brushFill(PixelRect{ 50, 40, 100, 20 },
+                avg::frostedGlass(doubled)) });
+
+    auto const& expected = g.frame(built);
+    auto const& actual = f.frame(scaled);
+
+    EXPECT_EQ("C|S|P|P|P|F|", f.picture(actual));
+    expectSameEffectDraws(g, expected, f, actual);
+}
+
+TEST(EffectRendering, textWithAnEffectBrushLowersItsSizesAtItsOwnScale)
+{
+    avg::Font font("data/fonts/OpenSans-Regular.ttf", 0);
+
+    avg::FrostedGlassOptions doubled;
+    doubled.radius = 48.0f;
+    doubled.highlightWidth *= 2.0f;
+
+    avg::TextEntry const entry(font,
+            avg::Transform(avg::Vector2f(50.0f, 60.0f), 40.0f), "Glass",
+            avg::Brush(*glass()), std::nullopt);
+    auto built = drawing({ avg::TextEntry(font,
+                avg::Transform(avg::Vector2f(100.0f, 120.0f), 80.0f),
+                "Glass", avg::Brush(avg::frostedGlass(doubled)),
+                std::nullopt) });
+
+    Fixture f;
+    Fixture g;
+    auto const& expected = g.frame(built);
+    auto const& actual = f.frame(drawing({ entry }) * 2.0f);
+
+    EXPECT_EQ("C|S|P|P|P|F|", f.picture(actual));
+    expectSameEffectDraws(g, expected, f, actual);
+
+    Fixture h;
+    Fixture k;
+    auto const& expectedTransformed = k.frame(built);
+    auto const& actualTransformed = h.frame(
+            avg::scale(2.0f) * drawing({ entry }));
+    expectSameEffectDraws(k, expectedTransformed, h, actualTransformed);
 }

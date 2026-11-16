@@ -41,8 +41,8 @@ TextEntry TextEntry::operator+(Vector2f offset) const
 
 TextEntry TextEntry::operator*(float scale) const
 {
-    TextEntry t(font_, transform_, text_);
-    t.transform_ = std::move(t.transform_).scale(scale);
+    TextEntry t(*this);
+    t *= scale;
     return t;
 }
 
@@ -55,6 +55,12 @@ TextEntry& TextEntry::operator+=(Vector2f offset)
 TextEntry& TextEntry::operator*=(float scale)
 {
     transform_ = std::move(transform_).scale(scale);
+    if (brush_)
+        brush_ = *brush_ * scale;
+
+    if (pen_)
+        pen_ = *pen_ * scale;
+
     return *this;
 }
 
@@ -104,8 +110,8 @@ TextEntry TextEntry::transformR(avg::Transform const& t) const
 
 TextEntry operator*(Transform const& t, TextEntry const& text)
 {
-    return TextEntry(text.font_, t * text.transform_, text.text_, text.brush_,
-            text.pen_);
+    return TextEntry(text.font_, t * text.transform_, text.text_,
+            t * text.brush_, t * text.pen_);
 }
 
 } // namespace

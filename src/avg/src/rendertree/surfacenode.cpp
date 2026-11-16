@@ -2,7 +2,7 @@
 
 #include "rendertree/updateresult.h"
 
-#include "effect.h"
+#include "brush.h"
 #include "obb.h"
 #include "pen.h"
 #include "shape.h"
@@ -51,29 +51,29 @@ bool hasShadowAnimationEnded(std::optional<SurfaceShadow> const& shadow,
                 && shadow->brush.hasAnimationEnded(time));
 }
 
-// A change of kind is not an animation: the surface shows the new effect
+// A change of kind is not an animation: the surface shows the new brush
 // at once and asks for no further frames.
-std::optional<Animated<Effect>> updatedEffect(
-        std::optional<Animated<Effect>> const& oldEffect,
-        std::optional<Animated<Effect>> const& newEffect,
+std::optional<Animated<Brush>> updatedBrush(
+        std::optional<Animated<Brush>> const& oldBrush,
+        std::optional<Animated<Brush>> const& newBrush,
         std::optional<AnimationOptions> const& options,
         std::chrono::milliseconds time
         )
 {
-    if (!oldEffect || !newEffect
-            || !isSameKind(oldEffect->getFinalValue(),
-                newEffect->getInitialValue()))
+    if (!oldBrush || !newBrush
+            || !isSameKind(oldBrush->getFinalValue(),
+                newBrush->getInitialValue()))
     {
-        return newEffect;
+        return newBrush;
     }
 
-    return oldEffect->updated(*newEffect, options, time);
+    return oldBrush->updated(*newBrush, options, time);
 }
 
-bool hasEffectAnimationEnded(std::optional<Animated<Effect>> const& effect,
+bool hasBrushAnimationEnded(std::optional<Animated<Brush>> const& brush,
         std::chrono::milliseconds time)
 {
-    return !effect || effect->hasAnimationEnded(time);
+    return !brush || brush->hasAnimationEnded(time);
 }
 
 UpdateResult updatedChild(
@@ -112,7 +112,7 @@ SurfaceNode::SurfaceNode(
         ShapeFunction shape,
         Animated<std::optional<Brush>> fill,
         std::optional<SurfaceShadow> shadow,
-        std::optional<Animated<Effect>> effect,
+        std::optional<Animated<Brush>> brush,
         std::shared_ptr<RenderTreeNode> childNode
         ) :
     RenderTreeNode(std::nullopt, std::move(obb)),
@@ -120,7 +120,7 @@ SurfaceNode::SurfaceNode(
     shape_(std::move(shape)),
     fill_(std::move(fill)),
     shadow_(std::move(shadow)),
-    effect_(std::move(effect)),
+    brush_(std::move(brush)),
     childNode_(std::move(childNode))
 {
 }
@@ -155,7 +155,7 @@ UpdateResult SurfaceNode::update(
                     surface.shape_,
                     surface.fill_,
                     surface.shadow_,
-                    surface.effect_,
+                    surface.brush_,
                     std::move(child)
                     ),
             nextUpdate
@@ -180,7 +180,7 @@ UpdateResult SurfaceNode::update(
                     surface.shape_,
                     surface.fill_,
                     surface.shadow_,
-                    surface.effect_,
+                    surface.brush_,
                     std::move(child)
                     ),
             nextUpdate
@@ -210,7 +210,7 @@ UpdateResult SurfaceNode::update(
                 oldSurface.fill_.updated(newSurface.fill_, options, time),
                 updatedShadow(oldSurface.shadow_, newSurface.shadow_,
                     options, time),
-                updatedEffect(oldSurface.effect_, newSurface.effect_,
+                updatedBrush(oldSurface.brush_, newSurface.brush_,
                     options, time),
                 std::move(child)
                 ),
@@ -243,11 +243,10 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
                 });
     }
 
-    if (effect_)
+    if (brush_)
     {
-        result += Drawing::EffectElement{ shape,
-            std::make_shared<Effect const>(effect_->getValue(time)),
-            Transform() };
+        result += Drawing::ShapeElement{ shape, brush_->getValue(time),
+            std::nullopt };
     }
 
     if (auto fill = fill_.getValue(time))
@@ -260,7 +259,7 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
         || !shape_.hasAnimationEnded(time)
         || !fill_.hasAnimationEnded(time)
         || !hasShadowAnimationEnded(shadow_, time)
-        || !hasEffectAnimationEnded(effect_, time)
+        || !hasBrushAnimationEnded(brush_, time)
         ;
 
     if (childNode_)
@@ -317,9 +316,9 @@ std::optional<SurfaceShadow> const& SurfaceNode::getShadow() const
     return shadow_;
 }
 
-std::optional<Animated<Effect>> const& SurfaceNode::getEffect() const
+std::optional<Animated<Brush>> const& SurfaceNode::getBrush() const
 {
-    return effect_;
+    return brush_;
 }
 
 std::shared_ptr<RenderTreeNode> const& SurfaceNode::getChild() const

@@ -24,8 +24,8 @@ namespace avg
         Pen& operator=(Pen const&) = default;
         Pen& operator=(Pen&&) = default;
 
-        Pen operator*(float scale) const noexcept;
-        Pen& operator*=(float scale) noexcept;
+        Pen operator*(float scale) const;
+        Pen& operator*=(float scale);
 
         Brush const& getBrush() const noexcept;
         float getWidth() const noexcept;
@@ -43,9 +43,10 @@ namespace avg
                 << "width: " << p.width_ << "}";
         }
 
-        friend Pen operator*(Transform const& t, Pen const& p) noexcept
+        friend Pen operator*(Transform const& t, Pen const& p)
         {
-            return Pen(t * p.brush_, t.getScale() * p.width_);
+            return Pen(t * p.brush_, t.getScale() * p.width_, p.join_,
+                    p.end_);
         }
 
         template <class THash>

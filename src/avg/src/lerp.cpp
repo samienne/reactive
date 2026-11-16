@@ -50,6 +50,15 @@ Color lerp(Color const& a, Color const& b, float t)
 
 Brush lerp(Brush const& a, Brush const& b, float t)
 {
+    Effect const* effect = a.getEffect();
+    Effect const* other = b.getEffect();
+
+    if (effect && other)
+        return Brush(lerp(*effect, *other, t));
+
+    if (effect || other)
+        return b;
+
     return Brush(lerp(a.getColor(), b.getColor(), t));
 }
 

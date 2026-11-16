@@ -1,3 +1,5 @@
+#include "effectfactory.h"
+
 #include <avg/builtineffects.h>
 #include <avg/effect.h>
 #include <avg/effectplan.h>
@@ -7,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -411,6 +414,64 @@ TEST(BuiltinEffects, frostedGlassRejectsBadOptions)
     EXPECT_THROW(avg::frostedGlass(thin), std::invalid_argument);
 }
 
+TEST(BuiltinEffects, clampToValidMovesOptionsIntoTheAcceptedRange)
+{
+    FrostedGlassOptions options;
+    options.radius = -1.0f;
+    options.saturation = -2.0f;
+    options.highlightWidth = -3.0f;
+    options.tintStrength = 1.5f;
+    options.highlightStrength = -0.5f;
+
+    FrostedGlassOptions const clamped = avg::clampToValid(options);
+
+    EXPECT_EQ(0.0f, clamped.radius);
+    EXPECT_EQ(0.0f, clamped.saturation);
+    EXPECT_EQ(0.0f, clamped.highlightWidth);
+    EXPECT_EQ(1.0f, clamped.tintStrength);
+    EXPECT_EQ(0.0f, clamped.highlightStrength);
+    EXPECT_NO_THROW(avg::frostedGlass(clamped));
+
+    FrostedGlassOptions const valid;
+    EXPECT_EQ(valid, avg::clampToValid(valid));
+}
+
+TEST(BuiltinEffects, clampToValidMovesNaNIntoTheAcceptedRange)
+{
+    float const nan = std::numeric_limits<float>::quiet_NaN();
+
+    FrostedGlassOptions options;
+    options.radius = nan;
+    options.saturation = nan;
+    options.highlightWidth = nan;
+    options.tintStrength = nan;
+    options.highlightStrength = nan;
+
+    FrostedGlassOptions const clamped = avg::clampToValid(options);
+
+    EXPECT_EQ(0.0f, clamped.radius);
+    EXPECT_EQ(0.0f, clamped.saturation);
+    EXPECT_EQ(0.0f, clamped.highlightWidth);
+    EXPECT_EQ(0.0f, clamped.tintStrength);
+    EXPECT_EQ(0.0f, clamped.highlightStrength);
+    EXPECT_NO_THROW(avg::frostedGlass(clamped));
+}
+
+TEST(BuiltinEffects, frostedGlassAndTintRejectNaN)
+{
+    float const nan = std::numeric_limits<float>::quiet_NaN();
+
+    FrostedGlassOptions blurred;
+    blurred.radius = nan;
+    EXPECT_THROW(avg::frostedGlass(blurred), std::invalid_argument);
+
+    FrostedGlassOptions tinted;
+    tinted.tintStrength = nan;
+    EXPECT_THROW(avg::frostedGlass(tinted), std::invalid_argument);
+
+    EXPECT_THROW(avg::tint(Color(), nan), std::invalid_argument);
+}
+
 TEST(BuiltinEffects, tintIsOneShapePassReadingTheBackdrop)
 {
     Effect dim = avg::tint(Color(0.0f, 0.0f, 0.0f, 0.5f), 0.5f);
@@ -538,4 +599,32 @@ TEST(BuiltinEffects, interpolatingAcrossKindsSwitchesAtOnce)
     EXPECT_EQ(dim, avg::lerp(glass, dim, 0.0f));
     EXPECT_EQ(dim, avg::lerp(glass, dim, 0.5f));
     EXPECT_EQ(glass, avg::lerp(dim, glass, 0.5f));
+}
+
+TEST(BuiltinEffects, toPixelsScalesTheSizesByTheScalingFactor)
+{
+    FrostedGlassOptions options = glassWithRadius(12.0f);
+    options.highlightStrength = 0.5f;
+    options.highlightWidth = 1.5f;
+
+    FrostedGlassOptions doubled = options;
+    doubled.radius = 24.0f;
+    doubled.highlightWidth = 3.0f;
+
+    EXPECT_EQ(avg::frostedGlass(doubled),
+            avg::toPixels(avg::frostedGlass(options), 2.0f));
+
+    Effect const glass = avg::frostedGlass(options);
+    EXPECT_EQ(glass, avg::toPixels(glass, 1.0f));
+
+    Effect const dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
+    EXPECT_EQ(dim, avg::toPixels(dim, 2.0f));
+}
+
+TEST(BuiltinEffects, toPixelsKeepsAnEffectWithoutARecipe)
+{
+    Effect const handWritten = avg::makeEffect(
+            avg::frostedGlass(glassWithRadius(12.0f)).getPasses());
+
+    EXPECT_EQ(handWritten, avg::toPixels(handWritten, 2.0f));
 }

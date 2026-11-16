@@ -17,9 +17,8 @@ namespace avg
      * default strength of 0 draws none. Only the strengths weigh tint and
      * highlight: the alpha of either colour is ignored.
      *
-     * radius and highlightWidth are in pixels of the target, not in
-     * logical units: the scaling factor of the display does not apply to
-     * them.
+     * radius and highlightWidth are in logical units, like the shape the
+     * effect paints, so they scale with the display.
      */
     struct AVG_EXPORT FrostedGlassOptions
     {
@@ -45,8 +44,15 @@ namespace avg
             FrostedGlassOptions const& b, float t);
 
     /**
-     * @brief The divisor frostedGlass blurs at for a radius in screen
-     * pixels: the smallest of 2, 4 and 8 at which the radius is at most
+     * @brief The options moved into the range frostedGlass accepts: a
+     * negative or NaN radius, saturation or highlightWidth becomes 0 and
+     * each strength is clamped to [0, 1], with NaN becoming 0.
+     */
+    AVG_EXPORT FrostedGlassOptions clampToValid(FrostedGlassOptions options);
+
+    /**
+     * @brief The divisor frostedGlass blurs at for a radius in pixels of
+     * the target: the smallest of 2, 4 and 8 at which the radius is at most
      * 16 pixels of the blurred target, and 8 for any larger radius.
      */
     AVG_EXPORT Divisor frostedGlassDivisor(float radius);
@@ -58,8 +64,8 @@ namespace avg
      *     options.radius = 32.0f;
      *     Effect glass = frostedGlass(options);
      *
-     * Throws std::invalid_argument for a negative radius, saturation or
-     * highlightWidth, or a strength outside [0, 1].
+     * Throws std::invalid_argument for a negative or NaN radius,
+     * saturation or highlightWidth, or a strength outside [0, 1].
      */
     AVG_EXPORT Effect frostedGlass(
             FrostedGlassOptions const& options = FrostedGlassOptions());

@@ -20,6 +20,7 @@
 #include <avg/rendertree/surfacenode.h>
 #include <avg/shapefunction.h>
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -65,13 +66,13 @@ namespace
         };
     }
 
-    std::optional<avg::Animated<avg::Effect>> toNodeEffect(
+    std::optional<avg::Animated<avg::Brush>> toNodeEffect(
             std::optional<avg::Effect> const& effect)
     {
         if (!effect)
             return std::nullopt;
 
-        return avg::Animated<avg::Effect>(*effect);
+        return avg::Animated<avg::Brush>(avg::Brush(*effect));
     }
 
     widget::Instance makeSurfaceInstance(widget::Instance instance,
@@ -141,7 +142,7 @@ AnyWidgetModifier frostedGlass(
     return backdrop(std::move(shape), std::move(options).map(
                 [](avg::FrostedGlassOptions const& value)
                 {
-                    return avg::frostedGlass(value);
+                    return avg::frostedGlass(avg::clampToValid(value));
                 }));
 }
 
@@ -164,7 +165,8 @@ AnyWidgetModifier tint(
                 std::move(strength)
                 ).map([](avg::Color const& value, float amount)
                 {
-                    return avg::tint(value, amount);
+                    return avg::tint(value, amount >= 0.0f
+                            ? std::min(amount, 1.0f) : 0.0f);
                 }));
 }
 

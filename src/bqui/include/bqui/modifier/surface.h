@@ -69,6 +69,9 @@ namespace bqui::modifier
      * @code
      * label("Hi") | frostedGlass(shape::circle(), constant(options))
      * @endcode
+     *
+     * Options outside the range avg::frostedGlass accepts are clamped into
+     * it (avg::clampToValid).
      */
     BQUI_EXPORT AnyWidgetModifier frostedGlass(
             shape::AnyShape shape,
@@ -89,6 +92,8 @@ namespace bqui::modifier
 
     /**
      * @brief Tints the backdrop behind the widget, through the shape.
+     *
+     * A strength outside [0, 1] is clamped into it.
      */
     BQUI_EXPORT AnyWidgetModifier tint(
             shape::AnyShape shape,
