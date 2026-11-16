@@ -31,6 +31,16 @@ using nlohmann::json;
 
 RemoteWindow::~RemoteWindow() = default;
 
+bool RemoteWindow::canCapture() const
+{
+    return false;
+}
+
+void RemoteWindow::captureNextFrame(ase::CaptureCallback callback)
+{
+    callback(ase::ReadbackError::Unsupported);
+}
+
 namespace
 {
 
