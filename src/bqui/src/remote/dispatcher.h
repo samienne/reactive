@@ -24,7 +24,7 @@ namespace bqui::remote
      *
      * A handler throws one, or passes one to `Responder::reject`.
      */
-    struct RpcError
+    struct BQUI_EXPORT RpcError
     {
         int code;
         std::string message;
