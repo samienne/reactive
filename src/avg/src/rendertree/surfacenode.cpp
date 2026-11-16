@@ -51,8 +51,6 @@ bool hasShadowAnimationEnded(std::optional<SurfaceShadow> const& shadow,
                 && shadow->brush.hasAnimationEnded(time));
 }
 
-// A change of kind is not an animation: the surface shows the new brush
-// at once and asks for no further frames.
 std::optional<Animated<Brush>> updatedBrush(
         std::optional<Animated<Brush>> const& oldBrush,
         std::optional<Animated<Brush>> const& newBrush,
@@ -60,12 +58,8 @@ std::optional<Animated<Brush>> updatedBrush(
         std::chrono::milliseconds time
         )
 {
-    if (!oldBrush || !newBrush
-            || !isSameKind(oldBrush->getFinalValue(),
-                newBrush->getInitialValue()))
-    {
+    if (!oldBrush || !newBrush)
         return newBrush;
-    }
 
     return oldBrush->updated(*newBrush, options, time);
 }

@@ -46,6 +46,28 @@ namespace avg
         return lerp(*a, *b, t);
     }
 
+    /**
+     * @brief Whether lerp() from a to b switches to b at once, so a
+     * transition between them has nothing to animate.
+     *
+     * True for brushes of different kinds, and for pens whose brushes
+     * differ in kind and whose widths are equal.
+     */
+    template <typename T>
+    bool isInstantLerp(T const&, T const&)
+    {
+        return false;
+    }
+
+    AVG_EXPORT bool isInstantLerp(Brush const& a, Brush const& b);
+    AVG_EXPORT bool isInstantLerp(Pen const& a, Pen const& b);
+
+    template <typename T>
+    bool isInstantLerp(std::optional<T> const& a, std::optional<T> const& b)
+    {
+        return a && b && isInstantLerp(*a, *b);
+    }
+
     template <typename... Ts, size_t... S>
     std::tuple<Ts...> tupleLerp(
             std::tuple<Ts...> const& a,
