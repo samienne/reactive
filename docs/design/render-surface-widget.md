@@ -1,4 +1,4 @@
-# Design: a render surface widget
+# Design: render surfaces
 
 > **Status: proposed, nothing implemented.** Written against master `4d00d3fd`
 > (2026-11-16), with the unmerged `origin/effect-brushes` (tip `30b6727b`) and
@@ -10,61 +10,40 @@
 
 ## Purpose
 
-Application code - typically a 3D engine that uses bqui as its UI toolkit -
-wants to draw arbitrary ase content and have it appear inside the UI as an
-ordinary widget: placed by layout, clipped, transformed, possibly rounded,
-and composited with everything around it. This note designs that widget,
-`renderSurface`, the handle that asks it to redraw, a fixed-size *render
-image* usable as a brush, and the avg and ase pieces under them. "Surface"
-always means the layout-sized widget. Three uses shape the widget:
-
-- **A 3D viewport anywhere in the layout**, e.g. an editor's scene view in a
-  docked panel: clipped by a scroll view, rounded, moved by a transform
-  animation.
-- **A fullscreen 3D background with the UI on top**, where glass and blur
-  over it sample the 3D image like any other backdrop.
-- **Several viewports of one scene**, e.g. four cameras in a grid, all
-  redrawn when the scene changes.
+Application code - typically a 3D engine using bqui as its UI toolkit -
+wants arbitrary ase content inside the UI: placed by layout, clipped,
+transformed, possibly rounded, and composited with everything around it.
+This note designs a **texture brush**, a **frame hook**, and the
+**`renderSurface`** widget built on them, for four uses: a 3D viewport in
+the layout; a fullscreen 3D background under glass; several viewports of
+one scene; one application-sized texture in several shapes.
 
 ## Decided
 
 - **First producer: ase code in the same process and render context.** Raw
-  GL in a share-group context, Vulkan, and platform hardware buffers are
-  future stages.
+  GL in a share-group context, Vulkan and platform buffers are future
+  stages. **Pixels are SDR**; the engine tone-maps. **Time** is the
+  window's frame clock (`ase::Frame`), so remote pause/step freezes the 3D.
 - **Rendered in the UI frame.** The producer draws as part of the window's
   frame and the result is composited in that same frame: no swapchain, no
-  added latency, 3D and UI in sync. Each image is texture-backed; when the
-  UI redraws for its own reasons and the image has no pending request, the
-  last image is reused and the producer is not called.
-- **The handle only requests frames.** `RenderSurfaceHandle` is a small
-  shared object with `requestFrame()`, safe from any thread, and a timed
-  variant. It owns no texture and no size.
-- **Each placement owns its surface.** The widget is
-  `widget::renderSurface(handle, onFrame)`. Every placement of it has its own
-  texture, sized to that placement's size and scaling factor, created,
-  resized and released with it. `onFrame` belongs to the widget, so
-  placements sharing a handle can draw differently. One handle may be given
-  to any number of `renderSurface` widgets, in one window or several; a
-  request reaches every live placement and wakes each window holding one.
-  The owner's reason: a shared surface gets into trouble when sizes change
-  or when it sits at several points in the layout.
-- **A fixed-size render image is a separate concept.** Made with a pixel size
-  the application picks, it owns its texture and `onFrame`, takes requests
-  of the same shape, and fills shapes as an image brush, so one image can
-  be shown in any number of places. The widget is the main target.
-- **Frame API.** Requests coalesce. `onFrame` is called once per window
-  frame per placement with a pending request, and returns nothing. Inside
-  it, `frame.requestFrame()` asks for the next cycle, so an animating view
-  needs no captured handle; the handle is for requests from outside.
-  `onFrame` is also called unrequested when the placement must be redrawn
-  (created, resized, recreated), never while it is not visible, and
-  receives the window's frame-clock time and step, so remote pause/step
-  freezes the 3D too.
-- **Pixels are SDR.** The engine tone-maps internally. Whole-UI HDR is a
-  separate future feature.
-- **Stability.** API stability is aimed for only at the widget/modifier
-  level. The render tree, avg and ase may change freely; no seams or
-  compatibility layers are added for them.
+  added latency, 3D and UI in sync. Images are texture-backed; when the UI
+  redraws for its own reasons and nothing requests a frame, the last images
+  are reused and the application is not called.
+- **Two primitives.** A brush made from an application-created
+  `ase::Texture`; and a frame hook in the widget hierarchy, tied to a shared
+  handle, called once per window frame with a list of surfaces. A fixed-size
+  image is the application's own texture, a hook with an empty list, and a
+  texture brush; there is no toolkit render-image object.
+- **`renderSurface(handle, ...)` is the layout-sized placement.** Every
+  placement owns a texture sized by its layout size and the window's scaling
+  factor, carries an application key, and is listed to its handle's hook.
+  It has no callback of its own.
+- **The handle requests frames**, from any thread, with a timed variant. A
+  request makes every window holding a hook of that handle produce a frame.
+  Scope is per window by construction: a handle used in two windows gets
+  one call per window frame, each with that window's surfaces.
+- **Stability** is aimed for only at the widget/modifier level. The render
+  tree, avg and ase may change freely, with no seams added for them.
 
 ## Where the code is
 
@@ -72,509 +51,478 @@ always means the layout-sized widget. Three uses shape the widget:
 
 - **One frame path per window.** `WindowBridge::onFrame`
   (`src/bqui/src/windowbridge.cpp`) runs on the app loop thread: resize,
-  signal transaction, render tree into `drawing_` only while `animating_`,
-  then always `Painter::clearWindow`, `paintToWindow`, `presentWindow` and
-  `flush`; an idle UI that is woken repaints the same `drawing_`. Its return
-  value is the delay `GenericWindow::frame` turns into `nextFrameTime`
-  (`src/ase/src/genericwindow.cpp`).
-- **Pacing is per window and speaks "not before".**
-  `PlatformBase::renderDirtyWindows` renders a window whose `nextFrameTime`
-  is due and that `canAcquire`s; `earliestFrameTime` holds a due time to at
-  least `lastFrameTime + frameStep` (`src/ase/src/platformbase.cpp`).
-  `ase::Frame` is `{ time, dt }`, the clock a pause token steps.
-- **`ase::Window::requestFrame` is loop-thread only.** It writes
-  `GenericWindow::nextFrame_` unguarded; `PlatformBase::requestFrame` is the
-  thread-safe part (an atomic plus a `RunLoop::post`). `OffscreenWindow` and
-  `DummyWindow::requestFrame` do not wake the platform, unlike WGL and GLX.
-- **One render context per app** (`App::run`, `src/bqui/src/app.cpp`), so
-  producer resources are valid in every window.
-- **Per-placement state is made in the build function.** A widget's build
-  function runs once per placement (`makeWidget`, `widget/widget.h`);
-  `scrollView` makes its inputs there (`src/bqui/src/widget/scrollview.cpp`),
-  so two placements scroll independently, while `button` makes them with
-  the widget value (`src/bqui/src/widget/button.cpp`), so all placements of
-  one value share them. Rebuilding a widget destroys its state; `forEach`
-  keeps survivors (`docs/design/arraysignal.md`).
-- **Render-tree nodes are values,** cloned and carried from the old tree to
-  the new by `update()`, matched by id and kind
-  (`avg/rendertree/rendertreenode.h`). Size changes make new nodes, not new
-  widgets.
-- **Submission is FIFO across `submit` calls**; `GlRenderState::submit`
-  reorders only within one (`compareCommand`,
-  `src/ase/src/gl/glrenderstate.cpp`). On the effect branch a draw that
-  samples a texture rendered earlier in the same buffer needs a
-  `pushBarrier()` between them.
+  `makeTransaction` if `needsUpdate_` (signals, layout, render-tree update;
+  an observer sets the flag, so an input set on the loop thread before this
+  step is in this frame), render tree into `drawing_` only while
+  `animating_`, then always `Painter::clearWindow`, `paintToWindow`,
+  `presentWindow` and `flush`. The effect branch keeps this shape. The
+  return value, `nullopt` unless animating, is the delay
+  `GenericWindow::frame` turns into `nextFrameTime`.
+- **The painter submits once, late.** `clearWindow` and `paintToWindow` only
+  record; `Painter::flush`, called from `presentWindow`, submits
+  (`src/avg/src/painter.cpp`). **Submission is FIFO across `submit`
+  calls**; `GlRenderState::submit` reorders only within one
+  (`compareCommand`, `src/ase/src/gl/glrenderstate.cpp`).
+- **Pacing is per window and speaks "not before"**
+  (`PlatformBase::renderDirtyWindows`, frames `frameStep` apart).
+  `ase::Window::requestFrame` is loop-thread only (it writes
+  `GenericWindow::nextFrame_` unguarded); `PlatformBase::requestFrame` is
+  the thread-safe part. `ase::Frame` is `{ time, dt }`.
+- **One render context per app**, made inside `App::run`
+  (`src/bqui/src/app.cpp`) and not exposed: resources are valid in every
+  window, but the application gets the context only through bqui.
+- **`Instance` carries per-widget lists up the tree.** Input areas and
+  keyboard inputs (`widget/instance.h`) are concatenated in
+  `modifier/addwidgets.h` and `widget/reduce.h`, moved by
+  `Instance::transform`, and clipped by `modifier::clip`
+  (`src/bqui/src/modifier/clip.cpp`), which drops keyboard inputs outside
+  its obb. Per-placement state is made in a widget's build function, as
+  `scrollView` makes its inputs (`src/bqui/src/widget/scrollview.cpp`).
+- **`ase::Texture` is a shared handle with identity equality**
+  (`src/ase/src/texture.cpp`). `GlTexture::destroy` dispatches deletion to
+  the GL thread, so the last reference may drop on any thread (a
+  framebuffer's destructor also waits for it). Textures never resize in
+  place. Filtering is fixed at creation - linear, clamp-to-edge, no
+  mipmaps (`src/ase/src/gl/gltexture.cpp`); ase has no sampler state.
+- **No `Drawing` element draws a caller's texture**; the glyph atlas is the
+  only textured path (`src/avg/src/rendering.cpp`). On the effect branch
+  `Brush` is a `std::variant<Color, Effect>` with `isSameKind`. Clipping is
+  rectangular; a shaped fill lowers a `shape::AnyShape` to an
+  `avg::ShapeFunction`, as `modifier::surface` and `avg::SurfaceNode` do
+  there. Fills are not antialiased; there is no opacity concept.
 - **The effect branch renders every window frame offscreen** into a
   full-window `TargetImage` (`FORMAT_SRGBA` over
-  `FORMAT_DEPTH24_STENCIL8`). Backdrop effects sample snapshots taken at
-  `BackdropScope`s; stacked containers (bqui's `background`/`foreground`)
-  put later children in scopes over earlier ones. Its ase adds what a
-  producer needs: `PipelineDesc` (format-checked by
-  `Pipeline::matchesTarget`), `ShaderInterface`/`makeShader`,
-  `getClipSpaceAdjustment`, `FORMAT_RGBA16F`, scissors and barriers.
-- **No `Drawing` element draws a caller's texture.** Elements are shapes,
-  text, clips and region fills, plus `BackdropScope` and `EffectElement` on
-  the effect branch, whose inputs are sub-drawings or the backdrop. The
-  textured path that exists is the glyph atlas: the renderer's batch
-  `Element` carries `std::vector<ase::Texture>` (`src/avg/src/rendering.cpp`).
-- **Clipping is rectangular.** `Drawing::ClipElement` holds a `Rect`, and
-  `modifier::clip` clips to the widget's obb (`src/bqui/src/modifier/clip.cpp`).
-  A shaped fill takes a `shape::AnyShape` lowered to an `avg::ShapeFunction`,
-  as the effect branch's `modifier::surface` and `avg::SurfaceNode` do.
-- **Opacity is not a concept in bqui or avg**; alpha lives in colours. Fills
-  are not antialiased.
+  `FORMAT_DEPTH24_STENCIL8`); backdrop effects sample snapshots at
+  `BackdropScope`s, and stacked containers put later children over earlier
+  ones. Its ase adds what a producer needs: `PipelineDesc`
+  (format-checked), `makeShader`, `getClipSpaceAdjustment`,
+  `FORMAT_RGBA16F`, scissors and barriers.
 
-## The frame, in order
+## The API, sketched
 
-A window frame with a visible placement runs, on the loop thread, inside
-`WindowBridge::onFrame`:
-
-1. Resize and transaction, as today.
-2. Draw the render tree into `drawing_` if animating, as today.
-3. **Collect the visible placements** of `drawing_` (*avg*, below), each
-   with the logical size it is shown at.
-4. **Serve them.** For each: record this window as its wake target, remake
-   its target if the pixel extent changed, and call `onFrame` if a request
-   is due or a redraw is required. The producer records into a fresh
-   `ase::CommandBuffer`, which the bridge submits on the window's main
-   render queue at once.
-5. Paint, present and flush the UI, as today, sampling each placement's
-   texture.
-
-Step 4's submits precede the painter's `flush`, so the producers' commands
-complete before any UI draw that samples them; no barrier is needed between
-them. A producer needs barriers only inside its own buffer, and anything it
-submits to the main queue itself during `onFrame` is ordered the same way.
-Placements are served in drawing order; one `onFrame` may not assume
-another's ran.
-
-## ase: what the producer is handed
-
-`onFrame` receives a frame object, `SurfaceFrame&`:
-
-- **The render context**, for programs, pipelines, buffers and its own
-  textures and framebuffers. It is the app's one context, so resources made
-  once survive resizes, window moves and placements coming and going.
-- **A command buffer**, submitted by bqui when `onFrame` returns.
-- **The target**: a framebuffer with the placement's colour texture, plus a
-  depth attachment if the widget asked for one, and the two formats its
-  `PipelineDesc`s must declare.
-- **Sizes** (pixel extent, logical size, scaling factor) and **time** (the
-  window's `ase::Frame`).
-- **Why it is called**: requested, created, resized or recreated.
-- **`requestFrame()`** and its timed form: this placement again (*Open
-  questions* 2).
-
-**The placement owns its colour texture**, `FORMAT_SRGBA`, made by bqui. It
-is cleared once when made (transparent, or opaque black for an opaque
-placement), so a skipped frame never exposes undefined memory; after that
-the producer clears. **Depth is a widget option**: none or a format
-(`FORMAT_DEPTH24_STENCIL8` as avg uses), allocated as a renderbuffer. An
-engine with its own pipeline (HDR in `FORMAT_RGBA16F`, G-buffers) brings its
-own targets, writes only its tone-mapped pass into the target, and asks for
-no depth.
-
-**Resize and recreation.** Textures never resize in place (`TextureImpl` has
-no setters). A placement remakes texture, depth and framebuffer when its
-pixel extent changes and calls `onFrame` with *resized* in that same frame,
-so nothing stretched or stale is shown. (GL serialises writing it in
-frame N+1 after sampling in N; Vulkan would rotate images per frame in
-flight - that backend's business.) Producer resources tied to the old
-size are the producer's to remake, one set per placement (*Open questions*
-3). Device loss (`docs/design/render-architecture.md`) would show up as
-*recreated*; GL never loses its context, so nothing produces it yet.
-
-**Pacing, and a "not before" time.** A request may carry a frame-clock time
-before which it is not served. Each placement keeps its earliest due time;
-the bridge returns the earliest of the UI's delay and its placements' due
-times, which `GenericWindow::frame` already turns into `nextFrameTime`, and
-serves a placement only once `frame.time` reaches its due time. Two small
-changes: the bridge must return a delay even when the UI is idle (today
-`nullopt` unless animating), and the window needs a `requestFrame` variant
-that lowers `nextFrame_` to a given time rather than "now". Pacing still
-holds frames `frameStep` apart, and a timed request freezes under pause.
-
-**What ase lacks for a real 3D producer**, independent of the widget: depth
-compare function, face culling, stencil ops, per-draw viewport,
-multisampling, mipmaps, sampler state, cube/array textures, instancing. A
-lit spinning cube works without them; a real engine needs at least culling
-and depth compare. These are ase PRs on their own track, recorded so the
-demo's limits are not mistaken for the widget's.
-
-## avg: getting the image into a drawing
-
-**An image brush, shared by both concepts.** `Brush` gains a third kind next
-to colour and effect: an image, holding a shared reference to an *image
-source* and the rectangle the image is mapped onto in the element's space,
-or none to map it onto the fill's bounds. The widget is then an ordinary
-shape node (`RectNode`, or `SurfaceNode` for the shape-taking form) filled
-with an image brush over its placement, and a render image's
-`brush()` is the same kind over its own source. A dedicated image node
-would be marginally simpler for the widget alone, but it would be a second
-mechanism next to the brush the render image needs anyway; one brush
-kind serves both, and everything else comes from machinery that exists:
-
-- **Transforms**: `operator*(Transform, Brush)` already threads the
-  element's transform, and the mapping rectangle moves with the shape, so
-  rotation and scale need nothing.
-- **Clipping** is the drawing's `ClipElement`, like any fill.
-- **Rounded or any shape** is the fill geometry. Edges are aliased like
-  every fill; that is avg's limitation, not this widget's.
-- **Animation**: two image brushes of one source are `isSameKind` and lerp
-  their mapping; any other pair switches at once.
-- **Backdrop effects over it** need nothing: the fill is painted into the
-  window target in paint order, so a later scope's snapshot contains it;
-  inside an `EffectInput`'s sub-drawing it is an effect input like any
-  content.
-
-Image brushes are for fills (`ShapeElement`, `RegionFill`); a pen or text
-with one is not supported. There is no opacity multiplier: a fading
-viewport waits for group opacity like any other widget.
-
-**Lowering.** The renderer tessellates the fill as for a colour, then
-computes each vertex's uv from its final device position through the
-inverse of the brush's mapping, so clipping and rotation are exact. A new
-textured pipeline modelled on the text pipeline (position, uv, one
-sampler, `MatrixBlock`) comes in two variants: opaque (depth-writing, sorts
-freely) and premultiplied-blended (z order). One draw per image fill; image
-fills never batch with colour meshes, as effect brushes do not.
-
-**The image source** is a small avg type held by `shared_ptr`: the current
-texture (or none, drawing nothing) and the opaque flag. A widget placement
-and a render image each are one. Because the brush holds the source
-rather than a texture, a drawing made before a resize samples the remade
-texture, so "UI idle, viewport at 60 Hz" costs one repaint of an unchanged
-`drawing_` per frame and no signal work. Nodes are values: a size change or
-a transform animation makes or interpolates nodes holding the same source.
-
-**Visibility.** A free function over a `Drawing` and the target's pixel
-rectangle returns each image source that would be drawn - after clips and
-the renderer's culling, effect inputs included - with the largest logical
-size it is mapped at (a placement can appear twice while a transition draws
-old and new trees). It is a walk separate from `avg::render`, so the
-renderer never calls application code and the producers' buffers are
-submitted before the painter's.
-
-**Colour.** The texture is sRGB-encoded with premultiplied alpha. With
-`GL_FRAMEBUFFER_SRGB` on (`GlRenderState`) the producer's shader writes
-linear values in [0, 1] and the hardware encodes; sampling decodes, so the
-image blends in linear light like all UI content. **The producer must not
-gamma-encode itself.** An opaque source's alpha is ignored. Row order is
-GL's: the producer renders with clip-space +y up (times
-`getClipSpaceAdjustment()`) as it would for a window, and the brush maps
-the top row to the top of its rectangle.
-
-## bqui: the widget-level API
-
-A sketch - names are the owner's to choose, the shape is what matters:
+Names are the owner's to choose; the shape is what matters.
 
 ```cpp
-bqui::RenderSurfaceHandle scene;         // shared; only requests frames
+bqui::RenderHandle<CameraId> scene;          // shared; requests frames
 
-auto view = [&engine, scene](Camera camera)
-{
-    return bqui::widget::renderSurface(scene,
-            [&engine, camera](bqui::SurfaceFrame& frame)
+auto views = bqui::widget::uniformGrid(...,
+        bqui::widget::renderSurface(scene, CameraId::top),
+        bqui::widget::renderSurface(scene, CameraId::front,
+            bqui::shape::rectangle(radius)));
+
+auto ui = views | bqui::modifier::onRenderFrame(scene,
+        [&engine](bqui::RenderFrame<CameraId>& frame)
+        {
+            frame.submit(engine.shadowPass(frame));     // shared pre-pass
+            for (auto& s : frame.surfaces())
+                if (s.isVisible())
+                {
+                    frame.submit(engine.render(s.key(), s.target(), frame));
+                    s.present();
+                }
+        });
+
+scene.requestFrame();                         // any thread
+```
+
+The fixed-size case, with no toolkit object:
+
+```cpp
+auto card = shape::rectangle(r).fill(brush.signal)   // a bq input
+    | modifier::onRenderFrame(mirror, [&](bqui::RenderFrame<>& frame)
+        {
+            if (!texture)                    // first call: make it
             {
-                engine.render(camera, frame);
-                if (engine.isAnimating())
-                    frame.requestFrame();      // this placement, next cycle
-            },
-            bqui::RenderSurfaceOptions().depth(ase::FORMAT_DEPTH24_STENCIL8));
-};
-
-scene.requestFrame();                    // any thread: redraw every placement
-
-auto rounded = bqui::widget::renderSurface(scene,
-        bqui::shape::rectangle(radius), onFrame, options);
-
-auto ui = content | bqui::modifier::background(view(mainCamera));
+                texture = frame.context().makeTexture({512, 512},
+                        ase::FORMAT_SRGBA);
+                brush.handle.set(avg::Brush(*texture));  // this frame
+            }
+            frame.submit(engine.renderMirror(*texture));
+        });
 ```
 
-- **`RenderSurfaceHandle`** is cheap to copy and shares a registry of
-  placements. It needs no context and may exist before any window.
-- **`renderSurface(handle, onFrame, options)`** is a widget: a rectangle in
-  the widget's size filled with its placement's image brush, with a size
-  hint that stretches (natural size zero).
-  Options are fixed per widget: depth format, opaque, later the colour
-  format (the HDR hook). It reports no input areas; input is the usual
-  modifiers. The shape-taking overload fills a `shape::AnyShape` instead,
-  lowered to a `ShapeFunction` as `modifier::surface` does; avg clips only
-  to rectangles, so this is how a layout-sized viewport is rounded.
-- **`onFrame`** runs on the loop thread. One widget value placed twice is
-  two placements calling the same `onFrame`; views that draw differently
-  (four cameras) are four widget values.
-- **Visibility** is what step 3 finds. A placement scrolled or clipped away,
-  or in a window that renders no frame, gets no calls.
-- **Texture extent** is the logical size times the window's scaling factor,
-  rounded. A transform's scale is not included, so a scale-in animation
-  does not reallocate every frame. During a live resize the placement is
-  remade and drawn in the same frame, at one allocation per frame
-  (*Open questions* 5).
-- **Input** is what every widget has, in local logical coordinates:
-  press/release, move while held (drag-to-orbit works), hover enter/leave,
-  keys and text when focused. Hover with position, wheel (ase has none),
-  pointer lock and key-state polling are separate toolkit features.
+## The frame hook
 
-## Placements: state, identity and registration
+**A modifier, `modifier::onRenderFrame(handle, callback)`**, since it adds
+no geometry, named like `onClick` and `onDraw`. Its build function makes a
+*hook* per placement of the modified widget and adds it to a new
+`Instance` list, concatenated in `addwidgets.h` and `reduce.h`. A hook is
+mounted wherever its widget is, visible or not; the root is the usual spot.
 
-**Where the state lives.** The build function of `renderSurface` makes a
-*placement* - one per build, the way `scrollView` makes its inputs - held
-by `shared_ptr`. It is the image source and holds a handle copy, `onFrame`,
-the options, texture, depth and framebuffer, the last extent, and a
-*request cell*. The build maps the widget's size to a shape node filled
-with an image brush over the placement, so the render tree, and after
-drawing `drawing_`, hold it
-too. Making it with the widget value instead, as `button` does its inputs,
-would make every placement of a value share one texture - the model the
-owner rejected.
+**The frame object** (`RenderFrame<Key>&`) hands the callback:
 
-**Identity and lifetime.** The placement is the identity. Size and
-transform changes make new nodes over the same placement, so the texture
-survives them. Rebuilding the widget - a parent signal yielding a new
-widget rather than a `forEach` survivor - makes a new placement: a new
-texture and an `onFrame` with *created*. On removal the placement dies when
-the last tree and drawing holding it are replaced, on the loop thread, so
-its GPU resources are released there.
+- **time**: the window's `ase::Frame` (`time`, `dt`);
+- **the render context**, the app's only one, for programs, pipelines and
+  the application's own textures, which survive windows and placements;
+- **`submit(ase::CommandBuffer)`**, any number of times, straight to the
+  main render queue. Submits are FIFO and the painter submits only after
+  the callback returns, so everything submitted here completes before any
+  UI draw samples it; barriers are needed only inside the application's own
+  buffers. Shared pre-passes (shadow maps, skinning) are earlier submits
+  that belong to no surface. A toolkit-owned shared buffer would gain
+  nothing, since bqui never inspects it;
+- **`surfaces()`**: this window's live placements of the handle, in layout
+  order, possibly empty.
 
-**The registry** is a mutex and a list of weak references to request cells,
-not to placements. A cell - an atomic pending flag, an atomic due time and
-the wake target - holds no GPU resources, so a requesting thread that
-briefly owns the last reference may destroy it; a weak reference to the
-placement could release a texture off the loop thread. A placement
-registers its cell when made and removes it in its destructor; requests
-prune expired entries. The loop thread never holds the mutex during
-`onFrame`.
+**Each surface** gives `target()` (a framebuffer over the placement's
+`FORMAT_SRGBA` colour texture, plus depth if the widget asked, and the
+formats its `PipelineDesc`s must declare); `pixelSize()`, `logicalSize()`
+and `scalingFactor()` (extent = layout size times the window's scaling
+factor, rounded; a transform's scale is excluded, so a scale-in animation
+does not reallocate); `key()`; `reason()` - *requested* (the handle has a
+due request), *created*, *resized* (texture remade), or none (listed while
+the hook runs for another reason); `hasContent()`, false after *created*
+and *resized*, when the texture is undefined memory; `isVisible()`, by
+layout, inside the window and its clips; `present()` (*Reporting
+results*); and a per-placement slot (*Open questions* 6).
 
-**The wake target.** A cell has none until the bridge first serves its
-placement, which sets it to that window's *waker*: a small shared object
-the `WindowBridge` owns, holding the window behind a mutex the bridge clears
-when destroyed. `wake()` posts once (an atomic coalesces) to the app's run
-loop a task that calls `ase::Window::requestFrame` there if the window
-still exists - the only safe way to reach it, as that call is loop-thread
-only.
+**When it is called.** Once in a window frame in which its handle has a
+due request, a visible placement of it has no content, or the hook was just
+mounted (so it can make resources first). Needing content does not itself
+schedule frames - creation and resize already come with a transaction's
+frame - and a hover animation in the UI repaints without calling it.
 
-**A request from outside.** `handle.requestFrame()` locks the registry, sets
-every live cell pending (or lowers its due time), collects the distinct
-wakers, unlocks, and wakes each. A placement never shown, or not visible
-now, is only marked and is served when it appears. The bridge clears a
-cell's flag *before* calling `onFrame`, so a request during the call is
-served next cycle.
+**The key** is a template parameter, `RenderHandle<Key>` (an empty type by
+default, for the brush-only case), so `key()` is typed; registry, cells and
+placements are type-erased in `.cpp` files behind thin typed wrappers. A
+small integer would push a lookup, an `std::any` a checked cast, into every
+callback.
 
-**A request from inside.** `frame.requestFrame()` sets only this
-placement's cell, on the loop thread; the bridge folds it into the delay it
-returns, so nothing is posted.
+## Where the callback sits in the frame
 
-**Who outlives whom.** A handle that outlives its windows finds cleared
-wakers and expired cells: requests do nothing and clean up. Placements that
-outlive the application's handle keep the registry alive through their own
-copies; only outside requests stop. The registry never keeps a placement, a
-window or the run loop alive.
+It must run after signals and layout have settled, so placement sizes are
+current and a resize never renders into a stale target, and before the
+UI's draw commands are submitted. `WindowBridge::onFrame` becomes:
 
-## The render image
+1. **Resize and transaction**, as today. Layout is settled, and the
+   placement and hook lists on `widgetInstance_` are current.
+2. **Reconcile placements.** Each placement's obb after clips and the
+   window rectangle gives visibility, its size the logical size,
+   `aseWindow.getScalingFactor()` the extent. A visible placement whose
+   extent changed gets a new texture, depth and framebuffer (*resized*);
+   what it shows is unchanged for now.
+3. **Call the due hooks**, once each, with their handle's placements.
+4. **Settle shown textures.** A placement presented with a new texture
+   (first content, or after a resize) sets its brush input to it and drops
+   the old one. If that, or an input the callback set, raised
+   `needsUpdate_`, `makeTransaction` runs again, so this frame's tree shows
+   the new texture.
+5. **Draw, paint, present and flush**, as today, returning the earlier of
+   the UI's delay and the earliest due hook.
 
-The second concept, separate from the widget: an image whose size the
-application picks, shown wherever a brush can fill. It gives shaped fills
-not tied to layout, and the identical image in many places rendered once
-(a mirror, a minimap, a thumbnail of the main view, a texture on a card).
+Sizes are settled at step 2; what must change is that the bridge cannot
+see placements and bqui widgets have no scaling factor. Hence the
+`Instance` lists - placements with their obbs, moved by
+`Instance::transform` and marked invisible (not dropped) by `clip` outside
+its obb; hooks untouched by `clip` - with the bridge supplying the scaling
+factor. Visibility is by layout, not by the drawn image, so a transition
+still sliding a placement in counts it at its target position: coarser
+than the earlier draft's walk over `drawing_`, but known before the draw,
+which lets step 4 put a presented texture into this frame's drawing. The
+second transaction runs only when a shown texture changes (creation, a
+resize, a first present): two per frame during a live resize (*Open
+questions* 9).
 
-```cpp
-bqui::RenderImage mirror(bqui::RenderImageOptions()
-        .pixelSize({ 512, 512 }));         // chosen by the application
-mirror.onFrame([&engine](bqui::SurfaceFrame& frame) { /* draw */ });
-mirror.requestFrame();                     // any thread
+## Reporting results
 
-auto a = bqui::shape::rectangle(radius).fill(mirror.brush());
-```
+bqui must know which surfaces got an image, to pick what each shows.
 
-- **Contract.** A shared object that owns one texture and one `onFrame`.
-  Requests, the frame object, reasons, clearing, depth, opaque and colour
-  are as for a placement; the frame reports the fixed pixel size with a
-  scaling factor of 1.
-- **Sizing.** Fixed pixels, no coupling to any window's scaling factor or
-  to how large it is shown: each use scales it through its brush mapping.
-  The application may change the size on the loop thread; it is remade and
-  redrawn as *resized* at the next serve.
-- **Filtering when scaled** is linear and clamp-to-edge today, with no
-  mipmaps, since ase has no sampler state; minifying far below the pixel
-  size aliases. The application picks a size near its largest use.
-- **When `onFrame` runs.** *Recommendation:* once per request, in the first
-  frame of any window in which some use of it is visible, with that
-  window's time; other uses and windows sample the result (one context).
-  Not visible anywhere, it stays pending and wakes nothing. The
-  alternative - drawing whenever requested, visible or not - needs a frame
-  outside any window, which the loop does not have.
-- **Wake and lifetime.** It is its own request cell: a request wakes the
-  windows that last drew it. Drawings and the application share its source,
-  so its texture is released where the last reference goes; if that is not
-  the loop thread, the release is posted to the loop. It is kept while
-  invisible - the application chose its size so it can be reused.
+- **(i) The callback returns the updated surfaces**, a missing one meaning
+  "not updated". Pure and easy to test. But the value names surfaces, which
+  are references into the frame, and ties completion to the return: an
+  async producer cannot finish later, and a later acquire/present target
+  has nowhere to put the acquire.
+- **(ii) An explicit per-surface call, `surface.present()`.** It maps onto a
+  later swapchain mode (acquire in `target()`, release in `present()`) and
+  onto producers finishing on another queue ("present after this fence").
+  Forgetting it means "not updated", silently - the same risk as an
+  element left out of (i).
 
-Open for this concept: a filtering or mipmap option once ase has sampler
-state (*recommendation:* add it there, not before), and whether a widget
-placement should also expose a brush (*recommendation:* no - a view that
-needs both a layout size and reuse renders into a render image the
-application sizes from the layout).
+Shared pre-pass work stays out of either. Today both only flip a flag, so
+the choice is about later stages, which favour the explicit call.
+**Recommendation: (ii)**, a late `present()` being a debug assertion for
+now. Owner's call (*Open questions* 2).
+
+## Surfaces that are not updated
+
+A listed surface that is not presented keeps what it shows: its previous
+content if it has some; after a resize, the old texture stretched over the
+new rectangle until the new one is presented, then released; if never
+presented, nothing - whatever is behind shows.
+
+The owner allowed undefined contents here; defining them costs one flag,
+a second texture held only during a resize, and step 4's transaction,
+which a resize pays anyway. The drawing then never samples undefined
+memory, so bqui need not clear on creation. **Recommendation: define it.**
+Owner's call (*Open questions* 3).
+
+## Which surfaces are listed
+
+**All live placements of the handle in this window, visible or not,** with
+their reasons. Listing only those needing a draw would hide the rest from
+an engine that redraws every view on a scene change (the common request);
+listing all costs an entry each. bqui never asks content of an invisible
+placement. **A request means the handle**: the next call lists every
+surface as *requested*; the application redraws what it chooses.
+
+**No per-surface request.** Continuous animation of one view is
+`handle.requestFrame()` plus the engine drawing only that view, since the
+rest keep their content - one call per frame either way. A per-surface
+request would only change one entry's `reason()` (*Open questions* 4).
+
+## Hook lifetime
+
+- **Registration.** A hook registers a *cell* with its handle's registry (a
+  mutex and weak references): an atomic pending flag, an atomic due time
+  and a *waker*, a small object the `WindowBridge` owns that holds the
+  window behind a mutex and is cleared when the bridge dies. A cell holds
+  no callback or GPU resource, so another thread may own the last reference.
+- **A request from outside** locks the registry, marks every live cell (or
+  lowers its due time), collects the distinct wakers, unlocks, and wakes
+  each: one post to the run loop that calls `ase::Window::requestFrame`
+  there if the window still exists. The bridge clears a cell's flag before
+  calling the hook, so a request made during the call is served next frame.
+- **A newly mounted hook is due**, so a request made before any window
+  existed is not lost. **Unmounting** happens in a transaction on the loop
+  thread, which destroys the callback and its captures.
+- **A hook with no placements** gets an empty list: the texture-brush case.
+  **Placements with no hook** in their window never show anything; a debug
+  warning says so once.
+- **Several hooks of one handle in one window** would be handed the same
+  surfaces. **Recommendation:** a debug assertion; in release the first in
+  layout order is called. Allowing it needs a rule for who presents what,
+  and no use needs two (*Open questions* 5).
+- The registry never keeps a hook, placement, window or run loop alive.
+
+## The texture brush
+
+`Brush` gains a third kind next to colour and effect: a **texture** - an
+`ase::Texture`, the rectangle it is mapped onto in the element's space (or
+none, for the fill's bounds), and an opaque flag.
+
+- **Ownership and equality.** The brush holds the texture by value (already
+  a shared handle) and compares by texture identity and mapping. New
+  contents in the same texture leave the brush equal: the tree does not
+  change and the next paint samples them. A new texture is a new brush
+  value, reaching the tree through a signal. Two texture brushes are
+  `isSameKind` when they share the texture, and lerp their mapping.
+- **Transforms, clipping, shapes, effects** come from existing machinery:
+  `operator*(Transform, Brush)` moves the mapping with the shape, clipping
+  is `ClipElement`, any shape is the fill geometry (aliased like every
+  fill), and a later backdrop scope's snapshot contains the fill.
+- **Lowering.** The renderer tessellates the fill as for a colour, then
+  computes each vertex's uv from its device position through the inverse of
+  the mapping, so clipping and rotation are exact. A textured pipeline
+  modelled on the text pipeline comes in two variants: opaque
+  (depth-writing, sorts freely) and premultiplied-blended (z order). No
+  batching with colour meshes; fills only, not pens or text.
+- **Pixel contract.** Premultiplied alpha. A `FORMAT_SRGBA` texture is
+  decoded on sampling and blends in linear light like all UI content; with
+  `GL_FRAMEBUFFER_SRGB` on, a producer writes linear values and **must not
+  gamma-encode itself**. An opaque brush ignores alpha. Row order is
+  render-target order: render with clip-space +y up (times
+  `getClipSpaceAdjustment()`) as for a window, and the brush maps the top
+  row to the top; an image uploaded top row first needs a mirrored mapping.
+- **Filtering** is what the texture was made with: linear, clamp-to-edge,
+  no mipmaps, so strong minification aliases. An option waits for sampler
+  state in ase.
+
+## The renderSurface widget
+
+`renderSurface(handle, key, options)`, and `renderSurface(handle, key,
+shape, options)`. A placement is a rectangle of the widget's size (a
+`RectNode`) filled with a texture brush over its shown texture, or in the
+shaped form a `shape::AnyShape` lowered to a `ShapeFunction` and filled the
+same way, as `modifier::surface` does; avg clips only to rectangles, so
+this is how a viewport is rounded.
+
+- **State.** The build function makes a *placement* per build, as
+  `scrollView` makes its inputs: handle copy, key, options, shown and
+  pending targets, extent, content flag, slot and brush input. It maps size
+  and brush to the fill node and adds the placement, with its obb, to the
+  `Instance` list. Made with the widget value instead, placements would
+  share one texture - the rejected model.
+- **Identity.** Size and transform changes make new nodes over the same
+  placement, so the texture survives them; a rebuilt widget is a new
+  placement, *created*. A removed placement dies with its widget, in a
+  transaction; the last drawing keeps its texture alive until replaced.
+- **Options**, fixed per widget: depth format (none, or
+  `FORMAT_DEPTH24_STENCIL8`), opaque, later the colour format (the HDR
+  hook). An engine with its own HDR targets writes only its tone-mapped
+  pass into the target and asks for no depth.
+- **Layout and input**: stretches (natural size zero); input is the usual
+  modifiers, in local logical coordinates. Producer resources tied to the
+  old size on a resize are the application's to remake, in the slot.
+
+## Redraw without a tree change
+
+When only texture contents change - a requested frame, normally - the brush
+is equal, no input changes, no transaction runs and `animating_` stays
+false. `WindowBridge::onFrame` still clears, paints the unchanged
+`drawing_`, presents and flushes on every frame it runs, so **a requested
+frame recomposites today**, at one repaint per frame and no signal work.
+What must change is outside the paint path: a request from another thread
+must reach the window (the waker), and the bridge must return a delay when
+idle for a timed request.
+
+## Timed requests, and what is left for later
+
+**Timed requests.** A request may carry a frame-clock time before which it
+is not served. Each cell keeps its earliest due time; the bridge returns
+the earlier of the UI's delay and its hooks' due times, which
+`GenericWindow::frame` already turns into `nextFrameTime`. Two small
+changes: the bridge returns a delay even when the UI is idle, and the
+window gets a `requestFrame` variant that lowers `nextFrame_` to a given
+time rather than "now". A timed request freezes under pause.
+
+**An after-frame hook** is a later addition, meaning "after `presentWindow`
+and `flush` have submitted this frame" - not after GPU completion or
+present. It is nearly free (one call after `flush`), but no use needs it
+yet and that meaning is easily mistaken for completion.
+
+**ase gaps for a real 3D producer** (depth compare, culling, stencil ops,
+per-draw viewport, multisampling, mipmaps, sampler state, cube/array
+textures, instancing) are ase PRs on their own track; a lit cube works
+without them.
 
 ## The uses, walked through
 
-**Viewport in a docked panel.** `renderSurface(scene, shape::rectangle(r),
-onFrame, options)` in a `scrollView`. Scrolled out, the walk drops it and
-the engine is not called; scrolled back with no request, it is drawn from
-its texture, or remade and drawn as *recreated* if released. A UI animation
-over the panel repaints without calling the engine. Undocking the panel
-into another window rebuilds it: a new placement, drawn as *created*.
+**Viewport in a docked panel.** `renderSurface(scene, mainCamera,
+shape::rectangle(r))` in a `scrollView`, `onRenderFrame(scene, ...)` at the
+root. Scrolled out, `clip` marks it: listed invisible, never asked for
+content. A UI animation over it repaints without calling the engine.
+Undocked into another window, it is a new placement there, *created* -
+provided that window also has a hook for `scene`.
 
 **Fullscreen background with glass.** `content | background(renderSurface(
-scene, onFrame, options))`. On the effect branch `background` stacks, so a
+scene, mainCamera))`. On the effect branch `background` stacks, so a
 frosted-glass card's snapshot is taken after the image is painted and
-blurs the 3D. The engine continues through `frame.requestFrame()`. The cost
-over a bare engine is one full-window textured quad, the effects, and the
-present quad.
+blurs the 3D. An animating engine requests every frame. The cost over a
+bare engine is one full-window textured quad, the effects, and the present.
 
-**Four viewports on one handle.** Four `renderSurface(scene, ...)` widgets,
-each capturing its own camera, in a grid; each has a texture of its own
-cell size. An edit on a worker thread calls `scene.requestFrame()`: four
-cells are marked, the window is woken once, and its next frame calls the
-four `onFrame`s, each into its own target. Orbiting one viewport continues
-through its `frame.requestFrame()` and redraws only that one. Dragging a
-splitter gives *resized* only to the two it resizes. A viewport moved to a
-second window keeps answering the same handle.
+**Four viewports on one handle.** Four `renderSurface(scene, camera)` in a
+grid, one hook. A worker thread's `scene.requestFrame()` wakes the window
+once; its next frame calls the hook once with four *requested* surfaces,
+and the engine renders shadows once and then the four views. Orbiting one
+viewport: the engine requests every frame and presents only that view; the
+others keep their content. Dragging a splitter lists two as *resized*.
+
+**A fixed-size texture in several shapes.** The hook's first call makes a
+512x512 `FORMAT_SRGBA` texture from `frame.context()` and sets a brush
+input over it (second sketch); a card, a thumbnail and a circle fill with
+that brush at their own sizes. A request calls the hook with an empty list;
+the engine renders once and every shape samples the result. With hooks in
+two windows both are called; the application skips a frame time it has
+already rendered. A new size is a new texture and brush value.
 
 ## Testing
 
 **Dummy backend (CI, every leg).** `DummyRenderQueue` records submissions
-on the effect branch, and the dummy platform runs the real frame loop, so a
-headless app test with a pause token can assert:
+on the effect branch and the dummy platform runs the real frame loop, so
+headless app tests with a pause token can assert: the callback's submits
+precede the painter's in the same frame; call counts (per request, on
+mount, on create and resize, none while only the UI animates, coalescing,
+a request during the callback served next frame); the list's reasons,
+keys, sizes and visibility, per window; the presentation rules (nothing
+before the first present, the old texture stretched after a resize, a
+presented texture shown in the same frame); lifetimes (requests racing a
+closed window or an unmount, a dropped handle, the second-hook assertion);
+time under the stepped clock and timed requests not served early. In avg:
+uv under rotation, clipping and a rounded shape, the two pipelines,
+equality and lerp of texture brushes.
 
-- each producer's buffer is submitted before the painter's, in the same
-  frame, and the UI draw binds that placement's texture;
-- `onFrame` counts: one per frame while requesting; none for an idle
-  placement while the UI animates; one unrequested on creation and resize;
-  none while invisible; a request made while invisible served on becoming
-  visible; one inside `onFrame` served next frame; several between frames
-  served once;
-- several placements: one `handle.requestFrame()` calls each once;
-  `frame.requestFrame()` only its own; placements in two windows both
-  woken; a rebuilt widget gets *created* and a new texture;
-- lifetimes: requests from another thread after the window closed, after
-  every placement went, or racing a removal do nothing; the application
-  dropping its handle while placements live;
-- `time`/`dt` follow the stepped clock; a timed request is not served
-  early; the texture is stable across same-size frames and replaced on
-  resize (as `test/renderingtest.cpp` checks the window target);
-- avg: uv under rotation, clipping and a rounded shape (vertex data),
-  opaque versus blended pipeline, lerp between image brushes, and the
-  visibility walk against culling and effect inputs;
-- a render image: served once per request with uses in two windows,
-  not served while unseen, kept while invisible.
-
-**Real GL (manual, CI-dark).** sRGB round trip, row order, blending,
-rounded edges and glass over 3D need a GL context: readback in
-`bquiheadlesstest`, or `window.screenshot` (remote-screenshot branch) from
-a script - a producer clearing to a known colour must read back as that
-exact sRGB value inside the viewport, the background outside the rounded
-corner, and a blurred mix under glass.
+**Real GL (manual, CI-dark).** sRGB round trip, row order, blending and
+glass over 3D need readback in `bquiheadlesstest` or `window.screenshot`
+(remote-screenshot branch): a producer clearing to a known colour must read
+back as that exact sRGB value inside the viewport, the background outside
+the rounded corner, and a blurred mix under glass.
 
 ## Dependencies on unmerged work
 
-- **From the effect branch:** `PipelineDesc` and format-checked targets,
-  `makeShader`, barriers, the text pipeline as the image pipeline's model,
-  and the always-offscreen target plus stacked containers, without which
-  glass cannot sample the 3D, and the `std::variant` `Brush` with
-  `isSameKind` (the image brush is a third alternative).
-- **On master instead?** The viewport case could draw straight to the
-  window framebuffer, but would be rebased onto the pipeline API and
-  painter the effect branch rewrites, and would miss the background case.
-  **Build on the effect branch once it lands.**
+- **From the effect branch:** `PipelineDesc`, `makeShader`, barriers, the
+  text pipeline as the textured pipeline's model, the always-offscreen
+  target and stacked containers (without which glass cannot sample the 3D),
+  and the `std::variant` `Brush` with `isSameKind`. Building on master
+  would mean rebasing onto the pipeline API and painter the effect branch
+  rewrites, and would miss the background case: **build on the effect
+  branch once it lands.**
 - **From remote-screenshot:** readback, for tests only.
 
 ## Staged plan
 
 Each stage is one PR, after the effect branch is on master.
 
-1. **avg: image brush and visibility.** The brush kind and image source,
-   the textured pipeline (two variants), lowering with per-vertex uv,
-   lerp/`isSameKind`, the visibility walk. Dummy tests on
-   command shape and vertex data.
-2. **bqui: `RenderSurfaceHandle` and `renderSurface`.** The registry, request
-   cells and window wakers, the per-build placement, options and the
-   shape-taking form, bridge steps 3-4, target ownership and resize, the
-   frame object with its own `requestFrame`. Headless tests for every
-   call-count and lifetime rule above.
-3. **Timed requests.** The `GenericWindow` change, the bridge's combined
-   delay, timed forms on handle and frame; tests under a pause token.
-4. **Demo and verification.** A 3D page in `testapp1` (a rounded viewport in
-   a scroll view, four viewports on one handle, a background under a glass
-   card), the screenshot script, and the docs: `src/bqui/readme.md`, the
-   bqui and avg `AGENTS.md`, a `docs/decisions.md` entry for the in-frame
-   mode, per-placement ownership and the shared brush.
-5. **The render image.** `RenderImage`, its source, request cell, serving
-   rule, `brush()`, resize; headless tests and a mirror on the demo page.
+1. **avg: the texture brush.** The brush kind, equality and `isSameKind`,
+   the textured pipeline (two variants), lowering with per-vertex uv.
+   Dummy tests on command shape and vertex data.
+2. **bqui: frame hook, handle and requests.** `RenderHandle<Key>`, registry,
+   cells and window wakers, `modifier::onRenderFrame` and the hook list on
+   `Instance`, the frame object with `submit` and an always-empty surface
+   list, bridge step 3 and the transaction re-run of step 4. Headless tests
+   for call counts and lifetimes. This alone serves the fixed-size case.
+3. **bqui: `renderSurface`.** The placement list on `Instance` (merge
+   points, `transform`, `clip`), bridge steps 2 and 4, targets and resize,
+   the surface entries with `present()`, the shown-texture rules, options
+   and the shape-taking form.
+4. **Timed requests.** The `GenericWindow` change, the bridge's combined
+   delay, the timed form on the handle; tests under a pause token.
+5. **Demo and docs.** A 3D page in `testapp1` covering the four uses, the
+   screenshot script, `src/bqui/readme.md`, the bqui and avg `AGENTS.md`,
+   and a `docs/decisions.md` entry for the in-frame mode and primitives.
 
-The ase 3D gaps proceed on their own and do not block stages 1-3.
+The ase 3D gaps proceed on their own and do not block stages 1-4.
 
 ## Future stages
 
-- **(a) Rendered independently:** own rate and thread, the UI sampling the
-  newest image from a mailbox. On one context and GL queue it decouples
-  little; it belongs with a separate context or queue and fences.
+- **(a) Rendered independently** (own rate and thread, the UI sampling the
+  newest image): needs a separate context or queue and fences, where
+  `present()` after a fence earns its keep.
 - **(b) Into the window target:** saves the background's full-screen copy,
-  but the engine's depth collides with avg's per-frame depth. Only if
-  profiling shows the copy matters.
+  but the engine's depth collides with avg's; only if profiling says so.
 - **(c) Foreign producers and external memory:** share-group GL, Vulkan,
-  platform buffers; an imported texture with explicit synchronisation.
-- **(d) UI inside a 3D scene:** the offscreen window, plus handing over its
-  texture and mapping ray hits back to window coordinates.
-- **(e) Whole-UI HDR:** the colour format becomes a widget option; the
-  options type leaves room for exactly that.
+  platform buffers, with explicit synchronisation.
+- **(d) UI inside a 3D scene**, **(e) whole-UI HDR** (the colour format
+  becomes a widget option), and **(f) a per-placement callback** layered
+  over a hook as a convenience, if a use wants one.
 
 ## Open questions for the owner
 
-1. **Names.** `renderSurface`, `RenderSurfaceHandle`, `SurfaceFrame` and
-   `RenderImage` are working names: "surface" is the layout-sized widget,
-   "image" the application-sized brush source, and "frame" stays temporal
-   (`onFrame`, `requestFrame`, the frame object). The effect branch already
-   uses "surface" for a filled card (`modifier::surface`,
-   `avg::SurfaceNode`), which the widget's own form fills with an image
-   brush; the owner may want one of the two renamed.
-2. **Scope of `frame.requestFrame()`.** *Recommendation:* this placement
-   only - what a view animating itself (an orbit drag, a camera tween)
-   means; `handle.requestFrame()` is the all-placements form and can still
-   be called from inside `onFrame`.
-3. **Per-placement producer resources.** An engine with its own HDR
-   targets needs one set per placement and must know when one dies.
-   *Recommendation:* the frame exposes a per-placement slot
-   (`std::shared_ptr<void>`, say) that bqui destroys with the placement on
-   the loop thread; no separate release callback.
-4. **Release while invisible.** *Recommendation:* release the texture when
-   a frame finds the placement invisible; memory now scales with
-   placements. The next visible frame remakes and draws it in that frame
-   (*recreated*), at one redraw when scrolled back. The slot in 3 is kept.
-5. **Slack allocation during resize.** Exact extents reallocate every frame
-   of a live resize, per resizing placement; coarse buckets need a per-draw
-   viewport in ase and a uv rectangle in the brush. *Recommendation:*
-   exact extents now; revisit with the viewport gap if profiles show it.
-6. **Opaque by default.** *Recommendation:* yes, per widget: engines
-   produce opaque frames, and an opaque draw sorts freely and needs no
-   blending.
-7. **Timed requests.** *Recommendation:* stage 3, on both handle and frame;
-   small, correct under pause, and not blocking stages 1-2.
-8. **Who clears.** *Recommendation:* bqui only on creation; the producer
-   every frame it draws. Clearing in bqui too doubles a full clear per
-   placement per frame.
-9. **Driven by a signal value.** A further form could take a bq signal
-   (`renderSurface(cameraSignal, onFrame)`), request a frame for that
-   placement when the value changes, and pass the value to `onFrame` - a
-   fit for views driven by UI state, riding the UI transaction.
-   *Recommendation:* not in stage 1; the handle covers the engine-owned
-   case, and the signal form can be added later as an overload over the
-   same placement without changing the model.
+1. **Names.** `renderSurface` sits next to the effect branch's
+   `modifier::surface` and `avg::SurfaceNode` (a filled card), which its
+   shaped form even uses; and `modifier::frame` already exists (a border),
+   so the hook must not be `frame`. Widget alternatives: `viewport` (reads
+   well, but is a GL term for a rectangle), `renderTarget` (names the
+   texture, not the widget), `renderView`. *Recommendation:*
+   `widget::renderView`, `RenderHandle`, `modifier::onRenderFrame`,
+   `RenderFrame`.
+2. **Reporting results.** *Recommendation:* `surface.present()`.
+3. **Never-presented contents.** *Recommendation:* defined - not drawn until
+   first presented, the old texture stretched until a resized one is.
+4. **Per-surface requests.** *Recommendation:* none.
+5. **Several hooks of one handle in one window.** *Recommendation:* debug
+   assertion, first in layout order wins.
+6. **Per-placement producer resources** (an engine's HDR targets, one set
+   per view). *Recommendation:* a slot (`std::shared_ptr<void>`, say)
+   destroyed with the placement; no release callback.
+7. **Release while invisible.** *Recommendation:* release the texture when
+   a frame finds the placement invisible; scrolling back lists it as
+   *created*, drawn in that same frame once presented. The slot is kept.
+8. **Slack allocation during resize.** *Recommendation:* exact extents now;
+   coarse buckets need a per-draw viewport in ase and a uv rectangle in the
+   brush, so revisit with that gap if profiles show the cost.
+9. **How a new texture reaches the tree.** A brush input and a second
+   transaction (proposed), or a render-tree node that reads the placement's
+   texture at draw time (no second transaction, but a node that is not a
+   value). *Recommendation:* the input; measure live resize first.
+10. **Opaque by default.** *Recommendation:* yes, per widget.
+11. **Timed requests.** *Recommendation:* stage 4, on the handle.
+12. **Driven by a signal value**: the key from a bq signal, requesting a
+    frame when it changes. *Recommendation:* later, as an overload.
 
 ## Non-goals
 
 - Independent rendering, foreign producers, external memory, UI-in-3D and
-  HDR (*Future stages*); image brushes on strokes and text.
+  HDR (*Future stages*); texture brushes on strokes and text.
 - New input kinds, group opacity, shaped clipping of arbitrary widgets and
   antialiased edges: toolkit features of their own.
 - The ase 3D gaps, and partial redraw: an in-frame image repaints the UI
