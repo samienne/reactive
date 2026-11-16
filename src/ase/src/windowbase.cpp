@@ -29,9 +29,68 @@ WindowBase::WindowBase(RenderContext& context, Vector2i size,
 {
 }
 
+WindowBase::~WindowBase()
+{
+    for (auto& request : captureRequests_)
+        request(ReadbackError::Cancelled);
+}
+
 RenderContext& WindowBase::getRenderContext()
 {
     return context_;
+}
+
+bool WindowBase::canCapture() const
+{
+    return capturesOnPresent() && context_.canReadback();
+}
+
+void WindowBase::captureNextFrame(CaptureCallback callback)
+{
+    if (!canCapture())
+    {
+        callback(ReadbackError::Unsupported);
+        return;
+    }
+
+    captureRequests_.push_back(std::move(callback));
+}
+
+void WindowBase::capturePresent(Framebuffer const& source, Vector2i size)
+{
+    ++presentCount_;
+
+    if (captureRequests_.empty())
+        return;
+
+    auto requests = std::move(captureRequests_);
+    captureRequests_.clear();
+
+    CommandBuffer commandBuffer;
+    commandBuffer.pushReadback(source, size,
+            [requests = std::move(requests), presentIndex = presentCount_,
+            frameTime = lastFrameTime()](ReadbackResult result)
+            {
+                for (auto const& request : requests)
+                {
+                    if (result.valid())
+                    {
+                        request(FrameCapture{
+                                presentIndex, frameTime, result.value() });
+                    }
+                    else
+                    {
+                        request(result.err());
+                    }
+                }
+            });
+
+    context_.getMainRenderQueue().submit(std::move(commandBuffer));
+}
+
+bool WindowBase::capturesOnPresent() const
+{
+    return false;
 }
 
 std::optional<std::chrono::microseconds>

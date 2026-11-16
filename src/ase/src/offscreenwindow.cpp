@@ -52,7 +52,13 @@ std::optional<std::chrono::microseconds> OffscreenWindow::frame(
 
 PresentStatus OffscreenWindow::present()
 {
+    capturePresent(framebuffer_, texture_.getSize());
     return PresentStatus::Ok;
+}
+
+bool OffscreenWindow::capturesOnPresent() const
+{
+    return true;
 }
 
 } // namespace ase

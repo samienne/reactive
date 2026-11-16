@@ -9,6 +9,7 @@
 #include "asevisibility.h"
 #include "framebuffer.h"
 #include "presentstatus.h"
+#include "readback.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -77,6 +78,18 @@ namespace ase
          * returns `Ok`.
          */
         virtual PresentStatus present() = 0;
+
+        /**
+         * @brief Whether `captureNextFrame` can return pixels for this window.
+         */
+        virtual bool canCapture() const = 0;
+
+        /**
+         * @brief Read back the next frame this window presents.
+         *
+         * Call on the thread that drives the window's frames.
+         */
+        virtual void captureNextFrame(CaptureCallback callback) = 0;
 
         virtual void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

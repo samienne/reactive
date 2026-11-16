@@ -119,6 +119,7 @@ bquitestsrc = [
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
+  'test/windowcapturetest.cpp',
   'test/windowtest.cpp',
   ]
 
