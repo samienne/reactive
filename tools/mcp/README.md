@@ -38,10 +38,11 @@ The app *connects* to an endpoint the client *listens* on. The bridge therefore
 opens a loopback TCP listener, launches `inspectorapp` pointed at it, accepts the
 connection, calls `system.describe`, and serves MCP over stdio.
 
-`inspectorapp` renders offscreen on the real GPU backend, so screenshots work.
-On a machine with no GPU, set `REACTIVE_PLATFORM=dummy`: everything but
-`window.screenshot` works, and `window.list` reports `canCapture` false. The
-app's stderr goes to the bridge's.
+On Windows and Linux, `inspectorapp` renders offscreen on the OpenGL backend,
+so screenshots work. Other systems (e.g. macOS) get the dummy platform by
+default; on a machine with no GPU, set `REACTIVE_PLATFORM=dummy` to get it too.
+On the dummy platform everything but `window.screenshot` works, and
+`window.list` reports `canCapture` false. The app's stderr goes to the bridge's.
 
 ## Requirements
 
