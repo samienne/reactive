@@ -6,7 +6,8 @@
 (2026-11-12); the command buffer section against `b3dad8f7` (2026-11-12); the
 pipeline state and target format notes against `28b2afb6` (2026-11-12); the
 submission contract, clip-space, texture and format notes against `28b2afb6`
-(2026-11-12).*
+(2026-11-12); the `UniformValues` equality note against `4cf3da53`
+(2026-11-14).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.

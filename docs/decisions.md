@@ -6,7 +6,10 @@ entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
 seven Vulkan readiness entries against `4d8e996e` (2026-11-12), implemented
 in `28b2afb6` (2026-11-12) except the compiler component, which waits for
 Vulkan work; the five backdrop-effect entries against `4d8e996e`
-(2026-11-12).*
+(2026-11-12), their sentences on final passes, sharing and surfaces against
+`4cf3da53` (2026-11-14); the six effect-brush, pass-sharing, sub-drawing,
+outline and shadow entries against `4cf3da53` (2026-11-14), the effect
+sizes entry against `4cf3da53` (2026-11-14).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.

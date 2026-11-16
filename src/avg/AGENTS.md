@@ -2,13 +2,10 @@
 
 *Last verified against `44d4091` (2026-07-22); the text sections against
 `f3ed6e5` (2026-10-22); the painter section against `3c3dfb34` (2026-11-12);
-the shapes-and-drawings and render tree sections against `8220ce96`
-(2026-11-12); the effects section, and the effect notes in those two
-sections, against `f914b404` (2026-11-12); the renderer's scope pre-pass and
-effect emission notes against `4d8e996e` (2026-11-12); the pipeline cache and
-the painter's target formats against `28b2afb6` (2026-11-12); the
-shader-source seam and the clip-space adjustment in the painter against
-`28b2afb6` (2026-11-12).*
+the painter's target formats, the shader-source seam and the clip-space
+adjustment in the painter against `28b2afb6` (2026-11-12); the
+shapes-and-drawings, render tree and effects sections against `4cf3da53`
+(2026-11-14).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.

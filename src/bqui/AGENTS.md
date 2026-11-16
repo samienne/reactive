@@ -1,7 +1,7 @@
 # bqui — agent notes
 
-*Last verified against `4d8e996e` (2026-11-12), for the surface modifiers and
-stacking.*
+*Last verified against `4cf3da53` (2026-11-14), for the shape outlines, the
+surface and shadow-boundary modifiers and stacking.*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
