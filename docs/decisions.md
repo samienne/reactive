@@ -1,8 +1,8 @@
 # Decisions
 
-*Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
+*Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the bulk remote results entry against
-`5d2700c` (2026-11-16).*
+`5d2700c` (2026-11-16); the pixel readback entry against `1318092` (2026-11-16).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -138,6 +138,23 @@ item identity*), because a list whose items the user edits in place otherwise
 needs an application-minted id in every element to keep its widgets. An update
 is always a change, never compared with the old value, so values need not be
 comparable; signals detect changes by item generation.
+
+## Pixel readback is a render command served by present
+
+`CommandBuffer::pushReadback` reads a framebuffer's colour in queue order, like a
+fence. A window captures by arming a one-shot request that its next `present()`
+serves, so a capture is always a frame that was rendered, never a stale surface.
+GL reads with a synchronous `glReadPixels` on the render thread.
+
+**Why:** a render command is backend-neutral, where a "run this on the render
+thread" hook is not (see *Frame cadence is per-window*): a command-buffer
+backend implements it as a copy into a buffer. Synchronous `glReadPixels` stalls
+only the render thread, never the loop; a PBO with a fence would un-stall it at
+the cost of a two-phase state machine, which a few captures a second does not
+justify. Fixing the pixel layout at the ase boundary means no consumer guesses
+row order or colour space. On-screen capture fits the same hook (read the
+default framebuffer before the swap) but is CI-dark and has undefined obscured
+regions, so it is a follow-up.
 
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 

@@ -4,6 +4,7 @@
 #include "genericwindow.h"
 #include "rendercontext.h"
 #include "presentstatus.h"
+#include "readback.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -12,8 +13,10 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace ase
 {
@@ -32,7 +35,12 @@ namespace ase
     class ASE_EXPORT WindowBase : public WindowImpl
     {
     public:
+        ~WindowBase() override;
+
         RenderContext& getRenderContext() override;
+
+        bool canCapture() const override;
+        void captureNextFrame(CaptureCallback callback) override;
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
@@ -72,10 +80,21 @@ namespace ase
          */
         WindowBase(RenderContext& context, Vector2i size, float scalingFactor);
 
+        /**
+         * @brief Count a present and serve the captures armed for it.
+         *
+         * A window that overrides `canCapture()` to true calls this from every
+         * `present()`, passing the framebuffer it presents and that
+         * framebuffer's size in pixels.
+         */
+        void capturePresent(Framebuffer const& source, Vector2i size);
+
         GenericWindow genericWindow_;
 
     private:
         friend class PlatformBase;
+
+        std::vector<CaptureCallback> takeCaptureRequests();
 
         // The frame time this window next wants to render at, or nullopt if
         // quiesced. The loop schedules its cadence from these across all windows.
@@ -109,5 +128,9 @@ namespace ase
         RenderContext context_;
 
         std::shared_ptr<WindowPresentSync> presentSync_;
+
+        std::mutex captureMutex_;
+        std::vector<CaptureCallback> captureRequests_;
+        std::uint64_t presentCount_ = 0;
     };
 }

@@ -78,6 +78,8 @@ namespace ase
                 BlendMode dstFactor) = 0;
 
         virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl() = 0;
+
+        virtual bool canReadback() const = 0;
     };
 }
 

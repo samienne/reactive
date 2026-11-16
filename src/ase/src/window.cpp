@@ -93,6 +93,16 @@ PresentStatus Window::present()
     return d()->present();
 }
 
+bool Window::canCapture() const
+{
+    return d()->canCapture();
+}
+
+void Window::captureNextFrame(CaptureCallback callback)
+{
+    d()->captureNextFrame(std::move(callback));
+}
+
 WindowImpl* Window::getImplOfType(std::type_index type)
 {
     return d()->getImplOfType(type);
