@@ -606,6 +606,14 @@ private:
 
     void finish()
     {
+        auto screenshots = std::move(screenshots_);
+        screenshots_.clear();
+        for (auto& entry : screenshots)
+        {
+            entry.second.responder.reject(RpcError{ kInternalError,
+                "the session ended before the screenshot was taken" });
+        }
+
         endSession();
 
         if (writable_.id() == 0)

@@ -1455,13 +1455,15 @@ namespace
     // Run a driver over `transport` on this thread until it stops its loop.
     // Returns false if it had not stopped after a generous bound.
     bool runDriver(testkit::ScriptedTransport& transport,
-            RemoteWindows windows = {}, BlobLimits blobLimits = {})
+            RemoteWindows windows = {}, BlobLimits blobLimits = {},
+            std::function<bool(std::chrono::microseconds)> step = {})
     {
         btl::RunLoop loop;
         bool timedOut = false;
 
         RemoteApp app;
-        app.step = [](std::chrono::microseconds) { return true; };
+        app.step = step ? std::move(step)
+            : [](std::chrono::microseconds) { return true; };
         app.sync = [] {};
         app.liveWindows = [windows] { return windows; };
         RemoteDriver driver(loop, transport, std::move(app), std::nullopt,
@@ -2251,7 +2253,7 @@ TEST(session, halfClosedClientStillGetsAScreenshot)
             reply.at("result").at("blob").at("size").get<size_t>());
 }
 
-TEST(session, sessionEndWhileAScreenshotIsPendingDropsIt)
+TEST(session, shutdownWhileAScreenshotIsPendingAnswersIt)
 {
     CapturableFakeWindow window(btl::makeUniqueId(), "ending");
 
@@ -2261,11 +2263,34 @@ TEST(session, sessionEndWhileAScreenshotIsPendingDropsIt)
     transport.incomingEnds = true;
     ASSERT_TRUE(runDriver(transport, { window }));
 
-    EXPECT_EQ((std::vector<int>{ 2 }), replyIds(transport.wire));
+    auto frames = testkit::unframed(transport.wire);
+    ASSERT_EQ(2u, frames.size());
+    EXPECT_EQ(2, json::parse(frames[0]).at("id").get<int>());
+    auto shot = json::parse(frames[1]);
+    EXPECT_EQ(1, shot.at("id").get<int>());
+    EXPECT_EQ(kInternalError, errorCodeOf(shot));
 
     // The armed capture outlived the loop it would post to, so it is dropped
     // uncalled.
     EXPECT_EQ(1u, window.takeArmed().size());
+}
+
+TEST(session, appQuittingInTheZeroTimeFrameAnswersTheScreenshot)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "quitting");
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.screenshot",
+            screenshotParams(window));
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }, {},
+                [](std::chrono::microseconds) { return false; }));
+
+    auto frames = testkit::unframed(transport.wire);
+    ASSERT_EQ(1u, frames.size());
+    auto reply = json::parse(frames.front());
+    EXPECT_EQ(1, reply.at("id").get<int>());
+    EXPECT_EQ(kInternalError, errorCodeOf(reply));
 }
 
 // --- Stepping a platform whose window is out of in-flight frames -----------
