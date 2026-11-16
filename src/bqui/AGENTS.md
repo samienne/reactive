@@ -202,8 +202,12 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
   tests shrink them. A producer whose blob would take the unreleased bytes past
   `maxOutstanding` fails with `kBlobCapReached` (-32002) and the bytes in use
   and the cap in the error data. A read is clamped to `maxRead`, and is
-  `defaultRead` long when it names no length; a bad offset or length is
-  invalid params.
+  `defaultRead` long when it names no length; a bad offset or length,
+  including a zero length, is invalid params. The constructor throws
+  `std::invalid_argument` for limits under which a read could make no progress
+  or a `maxRead` reply could not fit the outgoing queue.
+- **A blob request is an ordinary request**, so a `blob.read` queues behind a
+  pending `app.step` like any other.
 - **`system.describe` carries both**: each method's `returnsBlob` marker
   (`Method::returnsBlob`) and a top-level `limits.blob` object with the three
   limits and the chunk encodings. The MCP bridge reads them to hide `blob.*`

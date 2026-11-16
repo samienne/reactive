@@ -1,7 +1,8 @@
 # Decisions
 
 *Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
-entries against `3ba9415` (2026-09-28).*
+entries against `3ba9415` (2026-09-28); the bulk remote results entry against
+`5d2700c` (2026-11-16).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.

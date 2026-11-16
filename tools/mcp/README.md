@@ -11,10 +11,10 @@ MCP. This bridge owns the socket (framing, request-id correlation, app
 notifications) and generates one MCP tool per protocol method from the app's own
 `system.describe`, so the tool list never drifts from the protocol.
 
-The `blob.*` methods are plumbing, not tools. When a method that `system.describe`
-marks `returnsBlob` answers with a blob descriptor, the bridge pulls the blob in
-`blob.read` chunks, releases it, and returns its content: text for text and JSON
-types, image content for `image/*`.
+The `blob.*` methods are plumbing, not tools. When a method that
+`system.describe` marks `returnsBlob` answers with a blob descriptor, the bridge
+pulls the blob in `blob.read` chunks, releases it, and returns its content: text
+for text and JSON types, image content for `image/*`.
 
 ## How it runs
 
