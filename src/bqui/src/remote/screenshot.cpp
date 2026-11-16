@@ -27,8 +27,6 @@ struct Tap
     float weight;
 };
 
-// For each output pixel, the source pixels its area covers and how much of
-// it each one covers.
 std::vector<std::vector<Tap>> areaTaps(int in, int out)
 {
     std::vector<std::vector<Tap>> taps(static_cast<size_t>(out));
@@ -171,9 +169,12 @@ std::optional<ScreenshotPlan> planScreenshot(ase::Vector2i frameSize,
     ScreenshotPlan plan;
     plan.origin = ase::Vector2i(x0, frameHeight - y1);
     plan.size = ase::Vector2i(x1 - x0, y1 - y0);
-    plan.outputSize = ase::Vector2i(
-            (std::max)(1, static_cast<int>(std::lround(plan.size.x() * scale))),
-            (std::max)(1, static_cast<int>(std::lround(plan.size.y() * scale))));
+    auto scaled = [&](int pixels)
+    {
+        return (std::max)(1, static_cast<int>(std::lround(pixels * scale)));
+    };
+    plan.outputSize = ase::Vector2i(scaled(plan.size.x()),
+            scaled(plan.size.y()));
     plan.captured = LogicalRect{
         static_cast<float>(x0 / factor),
         static_cast<float>(y0 / factor),

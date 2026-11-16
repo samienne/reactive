@@ -93,8 +93,6 @@ size_t filterCost(std::uint8_t const* filtered, size_t length)
     return cost;
 }
 
-// Filters every row with the filter whose output has the smallest sum of
-// absolute signed bytes, the heuristic the PNG specification recommends.
 std::vector<std::uint8_t> filterRows(std::uint32_t width,
         std::uint32_t height, std::uint8_t const* rgb)
 {

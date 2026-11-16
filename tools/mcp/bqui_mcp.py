@@ -310,7 +310,8 @@ async def selftest(conn: AppConnection, methods: list[dict],
             shot = await conn.request("window.screenshot", {"window": wid})
             data = await fetch_blob(conn, shot["blob"], read_length)
             if not data.startswith(b"\x89PNG\r\n\x1a\n"):
-                raise RuntimeError("window.screenshot did not answer with a PNG")
+                raise RuntimeError(
+                    "window.screenshot did not answer with a PNG")
             print(f"screenshot ok, {shot['width']}x{shot['height']},",
                   len(data), "bytes")
     print("SELFTEST OK")

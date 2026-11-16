@@ -805,9 +805,7 @@ private:
         return pending;
     }
 
-    // Renders the due windows without moving time or the frame index, so a
-    // paused app serves an armed capture. Holds the gate while a window waits
-    // for a free slot.
+    // Holds the gate while a window waits for a free slot.
     void renderZeroFrame()
     {
         if (!stepApp(std::chrono::microseconds(0)))
