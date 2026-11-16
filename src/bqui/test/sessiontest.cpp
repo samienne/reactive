@@ -1020,3 +1020,55 @@ TEST(session, dynamicWindowsOpenAndCloseById)
     rpc(*client, id++, "app.shutdown");
     appThread.join();
 }
+
+// --- Outgoing queue: a slow reader does not stall the driver ---------------
+
+TEST(session, aStalledReplyDoesNotBlockLaterCommands)
+{
+    auto idA = btl::makeUniqueId();
+    // A name far larger than the OS buffers of the channel, so its reply
+    // cannot leave the driver until the client reads.
+    std::string name(8 * 1024 * 1024, 'n');
+    FakeRemoteWindow a(idA, name);
+    SessionFixture s("stalledreply", { a });
+
+    int introspectId = s.nextId++;
+    sendRequest(*s.client, introspectId, "window.introspect",
+            { { "window", idA.getValue() } });
+
+    int stepId = s.nextId++;
+    sendRequest(*s.client, stepId, "app.step", { { "count", 3 } });
+
+    // The steps run although the reply before them is still unread. Bound the
+    // wait, so a driver parked in a write fails here instead of hanging.
+    for (int i = 0; i < 500 && s.steps.load() < 3; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    ASSERT_EQ(3, s.steps.load());
+
+    auto introspection = awaitResponse(*s.client, introspectId);
+    EXPECT_TRUE(name == introspection.at("result").at("introspection")
+            .at("name").get<std::string>());
+    EXPECT_EQ(3u, awaitResponse(*s.client, stepId).at("result").at("frame")
+            .get<uint64_t>());
+}
+
+TEST(session, shutdownFlushesAQueuedReplyFirst)
+{
+    auto idA = btl::makeUniqueId();
+    std::string name(8 * 1024 * 1024, 'n');
+    FakeRemoteWindow a(idA, name);
+    SessionFixture s("shutdownflush", { a });
+
+    int introspectId = s.nextId++;
+    sendRequest(*s.client, introspectId, "window.introspect",
+            { { "window", idA.getValue() } });
+
+    int shutdownId = s.nextId++;
+    sendRequest(*s.client, shutdownId, "app.shutdown");
+
+    auto introspection = awaitResponse(*s.client, introspectId);
+    ASSERT_TRUE(introspection.is_object());
+    EXPECT_TRUE(name == introspection.at("result").at("introspection")
+            .at("name").get<std::string>());
+    EXPECT_TRUE(awaitResponse(*s.client, shutdownId).at("result").is_object());
+}

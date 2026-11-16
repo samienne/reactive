@@ -1,6 +1,7 @@
 #include "bqui/remote/remotedriver.h"
 #include "bqui/remote/transport.h"
 
+#include "debug.h"
 #include "introspectionjson.h"
 
 #include <avg/rendertree/snapshot.h>
@@ -38,6 +39,9 @@ constexpr int kInternalError = -32603;
 
 // One nominal frame at ~60 Hz — the default step when a client gives no dt.
 constexpr int64_t kNominalFrameUs = 16667;
+
+// How long an orderly shutdown waits for a queued reply to reach the client.
+constexpr std::chrono::seconds kShutdownFlushTimeout{ 2 };
 
 // A handler failure carrying a JSON-RPC error code.
 struct RpcError
@@ -232,15 +236,7 @@ public:
             // A completion-based backend (Win32 named pipe) only signals
             // readable once an overlapped read is pending, so this first
             // receiveReady() kicks that read off (a no-op for socket backends).
-            for (auto& frame : transport_->receiveReady())
-            {
-                dispatch(frame);
-                if (shuttingDown_)
-                    break;
-            }
-
-            if (shuttingDown_ || transport_->disconnected())
-                loop_.stop();
+            receive();
         });
     }
 
@@ -260,16 +256,23 @@ private:
     void onReadable(btl::RunLoop::Controller& controller)
     {
         ControllerScope scope(controller_, controller);
+        receive();
+    }
 
+    // Keeps draining while shutting down, so a readable channel does not spin
+    // the loop while the last reply flushes; those frames are discarded.
+    void receive()
+    {
         for (auto& frame : transport_->receiveReady())
         {
-            dispatch(frame);
             if (shuttingDown_)
                 break;
+
+            dispatch(frame);
         }
 
         if (shuttingDown_ || transport_->disconnected())
-            loop_.stop();
+            finish();
     }
 
     void dispatch(std::string const& frame)
@@ -281,14 +284,83 @@ private:
     // A send to a vanished peer is end-of-session, not a fault to propagate.
     void safeSend(std::string const& frame)
     {
+        if (closed_)
+            return;
+
         try
         {
-            transport_->send(frame);
+            transport_->enqueue(frame);
+            flush();
         }
-        catch (std::exception const&)
+        catch (std::exception const& e)
         {
-            shuttingDown_ = true;
+            close(e.what());
+        }
+    }
+
+    // Writable interest is held only while the queue has something to write.
+    void flush()
+    {
+        if (transport_->flushReady())
+        {
+            writable_ = btl::RunLoop::Source();
+            return;
+        }
+
+        if (writable_.id() == 0)
+        {
+            writable_ = controller_->addWritable(transport_->writableHandle(),
+                    [this](btl::RunLoop::Controller& c) { onWritable(c); });
+        }
+    }
+
+    void onWritable(btl::RunLoop::Controller& controller)
+    {
+        ControllerScope scope(controller_, controller);
+
+        try
+        {
+            flush();
+        }
+        catch (std::exception const& e)
+        {
+            close(e.what());
+            return;
+        }
+
+        if (shuttingDown_ && writable_.id() == 0)
             loop_.stop();
+    }
+
+    void close(char const* reason)
+    {
+        DBG("Remote connection closed: %1", reason);
+        closed_ = true;
+        shuttingDown_ = true;
+        writable_ = btl::RunLoop::Source();
+        loop_.stop();
+    }
+
+    // Ends the session. A reply still queued gets a bounded time to reach a
+    // connected client first.
+    void finish()
+    {
+        shuttingDown_ = true;
+
+        if (writable_.id() == 0 || transport_->disconnected())
+        {
+            writable_ = btl::RunLoop::Source();
+            loop_.stop();
+            return;
+        }
+
+        if (flushTimeout_.id() == 0)
+        {
+            flushTimeout_ = controller_->addTimer(kShutdownFlushTimeout,
+                    [this](btl::RunLoop::Controller&)
+                    {
+                        close("the client did not read the last reply");
+                    });
         }
     }
 
@@ -309,7 +381,7 @@ private:
 
         if (shuttingDown_)
         {
-            loop_.stop();
+            finish();
             return;
         }
 
@@ -319,7 +391,7 @@ private:
         advanceFrame(std::chrono::microseconds(kNominalFrameUs));
         if (shuttingDown_)
         {
-            loop_.stop();
+            finish();
             return;
         }
 
@@ -657,8 +729,11 @@ private:
     uint64_t frame_ = 0;
     State state_ = State::Paused;
     bool shuttingDown_ = false;
+    bool closed_ = false;
     bool frameNotifications_ = false;
     bool ticking_ = false;
+    btl::RunLoop::Source writable_;
+    btl::RunLoop::Timer flushTimeout_;
 };
 
 RemoteDriver::RemoteDriver(btl::RunLoop& loop, Transport& transport,
