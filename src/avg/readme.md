@@ -84,7 +84,9 @@ texture with a depth buffer, remade when the window is resized), then copies
 that image onto the window with one textured quad. Every frame takes this one
 path whether or not it uses effects, and the offscreen image is what later
 backdrop effects such as frosted glass sample from. The design behind the
-scopes, the effects and this target is `docs/design/backdrop-effects.md`.
+scopes, the effects and this target is `docs/design/backdrop-effects.md`;
+effect brushes, effect elements and shadows are in
+`docs/design/effect-brushes-and-shadows.md`.
 
 ## The render tree
 

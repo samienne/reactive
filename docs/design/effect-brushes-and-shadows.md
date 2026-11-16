@@ -1,18 +1,20 @@
 # Design: effect brushes, effect elements and outline shadows
 
-> **Status: design (ahead of the code).** Nothing here is implemented. It
-> records decisions taken with the owner on 2026-11-14, including those
-> from the owner's review of the first draft, and grounds them in the code
-> at the tip of the backdrop-effect stack (PRs #172-#177), which lands as
-> it is; this work starts after it. A brush becomes a colour or an effect
-> description; a `Drawing` gains an effect element whose inputs are
+> **Status: implemented except stage 8.** Stages 1-7 of the staged plan
+> are in, at `4cf3da53` (2026-11-14); the cost options of stage 8 are not.
+> The design records decisions taken with the owner on 2026-11-14,
+> including those from the owner's review of the first draft, and grounds
+> them in the code at the tip of the backdrop-effect stack (PRs
+> #172-#177), which this work started from. A brush is a colour or an
+> effect description; a `Drawing` has an effect element whose inputs are
 > sub-drawings or the enclosing scope's backdrop; the renderer lowers both
-> into one shared pass graph; shadows are produced by a shadow boundary from
-> outline shapes the render tree carries next to the drawing. Builds on
-> `backdrop-effects.md` and `shader-interface.md`. Current-state claims are
-> verified against `03314fc6` (2026-11-14) unless marked otherwise; the
-> section "Work implied by the code" lists what the decisions cost in the
-> existing code.
+> into one shared pass graph; shadows are produced by a shadow boundary
+> from outline shapes the drawing carries inside it. Builds on
+> `backdrop-effects.md` and `shader-interface.md`. "Where the code was"
+> and "Work implied by the code" describe `03314fc6` (2026-11-14), the
+> starting point, and every line number in this document points there;
+> decision 7 and "Open questions" are verified against `4cf3da53`,
+> decision 11 against `4cf3da53`.
 
 ## Why
 
@@ -75,11 +77,11 @@ and every pass reruns every frame. The owner measured the stack tip at
   are recorded as later routes, not designed here.
 - Changing PRs #172-#177. They land as they are.
 
-## Where the code is today
+## Where the code was
 
-Verified by reading the files named; `src/avg/AGENTS.md` (*Shapes and
-drawings*, *Render tree*, *Effects*, *Text*) describes the same state in
-more detail.
+The code at `03314fc6`, before this work, verified then by reading the
+files named. Stages 1-7 replaced most of it; `src/avg/AGENTS.md`
+describes the code as it is now.
 
 - **Effect model.** `Effect` (`src/avg/include/avg/effect.h`) is a public,
   validated list of `Pass` values in execution order. A pass names its
@@ -270,31 +272,54 @@ options are staged, in this order, each adopted only when the counters
 Removing the snapshot copy is deferred to "Later"; the reasons are
 recorded there.
 
-### 6. Outlines travel next to the drawing
+### 6. Outlines travel inside the drawing
 
-The render tree carries, next to each drawing, the outline shapes of the
-widgets that produced it.
+*Revised 2026-11-14: outlines were first to travel next to the drawing
+through the render tree, with an outline node around every shape widget.*
 
-- **Set in `bqui`, where a shape becomes a widget.** The code that turns a
-  shape into a widget (`src/bqui/include/bqui/shape/shape.h`) also applies
-  the outline modifier. `avg` gets a small outline node that passes its
-  child's drawing through unchanged and adds the outline. `onDraw` is left
-  alone, so a user `onDraw` callback sets no outline unless the user adds
-  the modifier.
-- **Which shapes set one.** The automatic outline comes from opaque fills
-  only. A stroke-only shape's outline is the stroke geometry, not the
-  enclosed area. A shape with both a fill and a stroke has an outline
-  that includes the stroke width, so the outline matches what is
-  painted. A translucent fill sets none, so a hover highlight at
-  30% alpha casts nothing, unless the user sets an outline by hand.
-- A modifier can override the outline, add to it, or set it to none.
+A `Drawing` carries, next to its element list, the outline shapes of the
+widgets that produced it. They are not elements; the renderer never reads
+them. They can be read, set, added to, cleared and taken on their own.
+
+- **Every drawing operation applies to both lists**, in the one place it
+  is implemented: transforms, scaling, clips (a shape fully inside is
+  kept, one outside dropped, the rest intersected with the clip, with the
+  drawing's own clip maths), `filterByRect`, concatenation and
+  `Drawing::over`. So outlines receive the same transforms as the drawing,
+  and no render tree node needs to know about them: `RenderTreeNode::draw`
+  keeps returning `std::pair<Drawing, bool>`.
+- **Outlines live only on the outermost drawing.** Whatever wraps a
+  drawing into an element that holds a sub-drawing (a backdrop scope, and
+  the effect element of decision 3 with sub-drawing inputs) lifts the inner
+  drawing's outlines onto the drawing that holds the element, with the
+  element's transform. A sub-drawing has no outline list, so nested
+  drawings never hold outlines, and one `Drawing` helper does the lifting
+  for every such element.
+- **Set in `bqui`, where a shape becomes a widget.** The draw function of
+  `fill`, `stroke` and `fillAndStroke`
+  (`src/bqui/include/bqui/shape/shape.h`) returns a drawing that already
+  carries its outline, built in the same call from the same animated
+  shape, brush and pen as the drawn element. `onDraw` is left alone, so a
+  user `onDraw` callback sets no outline unless it adds one to the drawing
+  it returns, or the user adds a modifier.
+- **Which shapes set one.** The automatic outline comes from opaque colour
+  fills only. A stroke-only shape's outline is the stroke geometry, not the
+  enclosed area, and only with an opaque colour pen; so is a translucent
+  fill's under an opaque pen. A shape with an opaque fill and a stroke has
+  an outline that includes the stroke width, so the outline matches what
+  is painted. A translucent fill sets none, so a hover highlight at 30%
+  alpha casts nothing, unless the user sets an outline by hand. An effect
+  brush sets none.
+- A modifier can override the outline, add to it, or set it to none. These
+  modifiers wrap the widget in a small `avg` outline node that edits its
+  child's drawing; the automatic case needs no node.
 - Text sets no outline by default.
 - Casting is opt-out: everything with an outline casts once the outline
   reaches a shadow boundary.
 - **An outline that reaches no shadow boundary is dropped.** The root is
-  not an implicit boundary; no boundary means no shadow.
+  not an implicit boundary; `RenderTree::draw` drops the outlines, so no
+  boundary means no shadow.
 - A caster supplies no parameters for now; there is no elevation.
-- Outlines receive the same transforms as the drawing.
 - **Clips also clip outlines.** An item scrolled out of view must not
   cast, so the caster is cut, not only its painted shadow.
 
@@ -303,34 +328,40 @@ interleaves shadows: it is the backdrop composition only.
 
 ### 7. The shadow boundary
 
-A shadow boundary modifier takes the light parameters: direction or
-offset, softness and colour. It collects the outlines that reach it,
-offsets them, unions them geometrically (`Shape::add`), and emits the
-union into the drawing as one fill wrapped in blur effect elements
-(decision 3), under the boundary's content.
+A shadow boundary modifier takes the light: an offset, a blur radius and
+a colour whose alpha is the shadow's opacity; there is no spread. It takes
+the outlines of its content's drawing, which reach it already transformed
+and clipped, offsets them, unions them geometrically (`Shape::add`), and
+emits the union into the drawing as one fill wrapped in blur effect
+elements (decision 3), under all of the boundary's content.
 
 - Because the shadow is one unioned shape, overlapping shadows do not
   darken twice, and there is no separate stroke to blend against the fill.
 - Casters inside one boundary do not shadow each other. That needs a
   nested boundary.
 - Casters are treated as opaque.
-- The per-surface shadow of the surface modifier goes away
-  (`src/bqui/include/bqui/modifier/surface.h:77-82`). The demo
-  (`src/testapp1/main.cpp:106`) gets a shadow boundary in its place.
+- Neither the shadow nor its casters are limited to the boundary's area,
+  since content may overflow it; only the renderer culls a shadow, against
+  the target.
+- Casting is opt-out. An opaquely filled surface or background casts like
+  any opaque fill; only the toolkit's window background opts out.
+- The per-surface shadow of the surface modifier is gone, and the demo
+  (`src/testapp1/main.cpp`) casts its cards' shadows through one boundary.
 
-A backdrop boundary is usually wanted at the same point. They are
-separate modifiers, plus one combined modifier for the common case, and
-the nesting order decides what glass sees:
+A backdrop boundary is usually wanted at the same point. The nesting
+order decides what glass sees:
 
-- **Shadow boundary outside the backdrop boundary.** The shadow stamp is
+- **Shadow boundary outside the backdrop boundary.** The shadow is
   painted before the scope is entered, so it is part of the backdrop, and
   glass shows the blurred shadows of its neighbours. The combined modifier
   nests this way.
-- **Backdrop boundary outside the shadow boundary.** The stamp is painted
+- **Backdrop boundary outside the shadow boundary.** The shadow is painted
   inside the scope, after its snapshot, so glass does not see the shadows;
   they only lie over the backdrop.
 
-With the separate modifiers the nesting is the user's choice.
+There is no standalone backdrop-boundary modifier: a stack already gives
+each later child its own scope, so a shadow boundary inside a stack's
+child gives the second order.
 
 ### 8. Glass surfaces set their outline to none
 
@@ -387,7 +418,9 @@ The conversion to pixels happens where the scaling factor is first known:
   knows the factor when it emits its blur.
 - **An effect brush's sizes are converted by the renderer when it lowers
   the brush.** The brush is built before the factor is known; lowering is
-  the first place that has both the brush and the factor.
+  the first place that has both the brush and the factor. It converts at
+  the factor times the scale of the brush's transform to the root, so the
+  sizes scale with the drawing, as an effect element's do.
 
 This resolves the open call in `backdrop-effects.md` ("Effect parameters
 in logical units"): an effect's divisor, paddings and parameter bytes are
@@ -427,25 +460,32 @@ Each stage lands on its own and leaves `master` working.
 5. **Effect element with sub-drawing inputs.** Offscreen content
    rendering with the pooled depth buffer and the entry clears of
    decision 3, nested elements, multiple inputs; group opacity and content
-   blur as the first users.
-6. **Outlines.** The outline node in `avg`; the render tree carries
-   outlines, transformed and clipped with the drawing; `bqui` shapes set
-   them by the rules of decision 6; the override, add and none modifiers.
-   Nothing consumes them yet, so pending shadows still draw.
+   blur as the first users. Each sub-drawing input is built through
+   `Drawing::liftSubDrawing`, so its outlines move onto the outer drawing.
+6. **Outlines.** The drawing carries outlines, transformed and clipped
+   with its elements and lifted out of sub-drawings; the root drops them;
+   `bqui` shapes set them by the rules of decision 6; the override, add and
+   none modifiers through a small outline node. Nothing consumes them yet,
+   so pending shadows still draw.
 7. **Shadow boundary.** The boundary modifier with light sizes in logical
    units, the combined modifier (shadow boundary outside backdrop
    boundary), glass outlines set to none, a boundary in the demo. The
    pending-shadow list, `SurfaceShadow`, the surface modifier's shadow
    argument and the shadow half of `Drawing::over` are removed in the same
    PR, since the two mechanisms cannot both own shadow placement.
+   Implemented as `avg::ShadowBoundaryNode`, `bqui::modifier::shadowBoundary`
+   and `shadowAndBackdropBoundary`, as decision 7 now reads. The light's
+   sizes reach pixels through the content blur's recipe at lowering, so
+   the boundary itself converts nothing.
 8. **Cost options** from decision 5, one PR each, each justified by the
    counters: region-sized scratch first. GPU timer queries (decision 10)
    are added at this point if the counters cannot settle a choice.
 
 ## Work implied by the code
 
-None of these is open; each is work a decision implies in code that
-exists. Line numbers are at `03314fc6`.
+Each item is work a decision implied in the code at `03314fc6`, where
+the line numbers point; stages 1-7 did it, except the separate pen fix at
+the end, which is still open.
 
 - **Brush consumers assume a colour.** `Painter::getPipeline` picks the
   pipeline from the brush's alpha (`src/avg/src/painter.cpp:288-302`);
@@ -476,20 +516,20 @@ exists. Line numbers are at `03314fc6`.
   Decision 3 adds the pooled depth buffer, the entry clears and the
   render order; this is the largest piece of new renderer work and the
   reason sub-drawing inputs are their own stage.
-- **`RenderTreeNode::draw` changes for every node.** It returns
-  `std::pair<Drawing, bool>`
-  (`src/avg/include/avg/rendertree/rendertreenode.h:49-52`), taken by
-  every node kind, `RenderTree::draw`, the snapshot path and the tests.
-  The outline list needs the operations the pending-shadow list has today
-  (`+=`, `clip`, `transform`, `filterByRect`, bounds), so the mechanism
-  moves more than it disappears: it holds geometry instead of painted
-  elements and has one consumer.
-- **Counters exist but are unreachable.** `EffectEmitter::getPassCount`
-  and `getSnapshotCount` (`src/avg/include/avg/effectemitter.h:100-102`)
-  are read only by `effectemittertest.cpp`; the emitter is a local of
-  `render` (`rendering.cpp:961`) and dies with the frame. The headless
-  test (`src/bqui/test/headlessrendertest.cpp`) renders an empty widget
-  and asserts frame counts only.
+- **The outline list lives where the pending-shadow list does.** Carrying
+  outlines inside `Drawing` leaves `RenderTreeNode::draw`
+  (`src/avg/include/avg/rendertree/rendertreenode.h:49-52`) and every
+  node kind unchanged. The outline list needs the operations the
+  pending-shadow list has today (`+=`, `clip`, `transform`,
+  `filterByRect`), so the mechanism moves more than it disappears: it
+  holds geometry instead of painted elements and has one consumer.
+- **Counters are per render.** Stage 1 made `render` return a
+  `RenderCounters` (`src/avg/include/avg/rendercounters.h`) collected from
+  the frame's emitter and command buffer, which `paintToImage` and
+  `paintToWindow` pass on; `src/avg/test/rendercounterstest.cpp` pins
+  them for the fixed scene set. The headless test
+  (`src/bqui/test/headlessrendertest.cpp`) renders an empty widget and
+  asserts frame counts only.
 - **Opaque effects against the tests.** `Effect`'s constructor from passes
   is public and exported (`effect.h:161-181`) and the `avg` tests build
   effects from hand-written passes. Making effects opaque needs a
@@ -516,7 +556,8 @@ is `std::abs(alpha - 1.0f) < 0.0001f`.
   at fill time at the frame's point size (`src/avg/src/shape.cpp:229-230`,
   `src/avg/src/region.cpp:231-255`). A boundary with many casters (a list)
   unions all of them every frame while anything animates. This is why
-  "shadow union" has its own CPU zone; no cache is designed.
+  the union has its own CPU zone, "Shape operation fill", where Clipper
+  evaluates it; no cache is designed.
 - **A wide shared region can cost more than the sharing saves.** Pass
   count drops when two far-apart panels share a chain, while the pixels
   blurred grow to the box that spans them (decision 4). The pixels-shaded
@@ -527,6 +568,33 @@ is `std::abs(alpha - 1.0f) < 0.0001f`.
 
 - **Per-caster parameters** such as elevation.
 - **A stable user-facing way to author effects.**
+
+Found during implementation:
+
+- **Stroke width in culling.** Stroke geometry reaches the full pen width
+  on each side of the path (`strokeElementToRegion` in
+  `src/avg/src/shape.cpp` passes the pen width as Clipper's offset
+  delta), while culling assumes half of it
+  (`Shape::getControlBb`, and `getElementRect` in
+  `src/avg/src/rendering.cpp`). The owner decides which is intended.
+- **Shadows pop.** Only opaque colour fills and pens set an outline, so a
+  caster whose fill fades through alpha 1 gains or loses its shadow at
+  once. A light whose radius crosses 0 switches between an unblurred fill
+  and the blur chain (`shadowOf`, `src/avg/src/builtineffects.cpp`).
+- **The light ignores the boundary's transform.** The offset and radius
+  are applied in the space the outlines reach the boundary in, the root's
+  logical units, so a scaled boundary scales its casters but not their
+  offset or blur.
+- **A backdrop effect inside a sub-drawing** reads the snapshot of the
+  scope that encloses the element, not a scope inside the sub-drawing,
+  which opens none.
+- **Sharing trades passes for pixels.** Two panels side by side went from
+  8 to 5 passes and from 338,660 to 375,080 pixels shaded
+  (`src/avg/test/rendercounterstest.cpp`). Sub-drawings also render into
+  full-size targets, which makes region-sized scratch the first stage 8
+  candidate.
+- **The shadow union runs through Clipper every frame**, with no cache
+  (see "Risks").
 
 ## Later
 

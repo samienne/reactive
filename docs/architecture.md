@@ -47,6 +47,14 @@ paint order. Nothing is analysed per element, and a scope with no effect in
 it costs nothing. The design is
 [`design/backdrop-effects.md`](design/backdrop-effects.md).
 
+An effect is a brush, so glass can fill any shape, stroke or text run, and
+the same passes can run over a widget's own content rendered offscreen
+(group opacity, content blur). Shadows work the same way: a drawing
+carries the outline shapes of the widgets that drew it, and a *shadow
+boundary* unions the outlines that reach it into one blurred shadow under
+its content. The design is
+[`design/effect-brushes-and-shadows.md`](design/effect-brushes-and-shadows.md).
+
 Because signals are stateless graph descriptions (their state lives in an
 evaluation context), and the render tree and drawings are immutable, there is no
 shared mutable state to guard: the render thread can draw the current tree at any
