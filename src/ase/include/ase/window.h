@@ -78,9 +78,8 @@ namespace ase
         /**
          * @brief Whether `captureNextFrame` can return pixels for this window.
          *
-         * True for a headless window on a backend that can read back, such as
-         * GL; false for an on-screen window and for every window on the dummy
-         * backend. When false, a capture fails with
+         * A headless window can on a backend that reads back, such as GL; no
+         * window can on the dummy backend. When false, a capture fails with
          * `ReadbackError::Unsupported`.
          */
         bool canCapture() const;

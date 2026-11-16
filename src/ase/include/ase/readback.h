@@ -17,11 +17,9 @@ namespace ase
      * `pixels` holds `size[0] * size[1]` pixels, tightly packed with no row
      * padding, four bytes per pixel in the order R, G, B, A, each an unsigned
      * 8-bit value. Rows run top to bottom: the first row is the top of the
-     * image as it appears on screen. Colour bytes are as stored in the
-     * framebuffer; for a window that is sRGB-encoded, ready to write to an
-     * image file without conversion. Alpha is premultiplied and has no
-     * meaning for a window, which renders over an opaque clear; treat the
-     * image as opaque RGB.
+     * image as it appears on screen. All four bytes, alpha included, are
+     * returned as stored in the framebuffer; for a window the colour is
+     * sRGB-encoded, ready to write to an image file without conversion.
      *
      * `size` is in pixels: a window's logical size times its scaling factor.
      */

@@ -85,7 +85,7 @@ namespace ase
         virtual bool canCapture() const = 0;
 
         /**
-         * @brief Read back the next frame this window presents.
+         * @brief Capture the next frame this window presents.
          *
          * Safe to call from any thread, including from a capture callback.
          */

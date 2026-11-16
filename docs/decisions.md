@@ -1,7 +1,8 @@
 # Decisions
 
-*Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
-entries against `3ba9415` (2026-09-28).*
+*Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
+entries against `3ba9415` (2026-09-28); the pixel readback entry against
+`1318092` (2026-11-16).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -95,14 +96,9 @@ comparable; signals detect changes by item generation.
 ## Pixel readback is a render command served by present
 
 `CommandBuffer::pushReadback` reads a framebuffer's colour in queue order, like a
-fence, and completes a callback on whatever thread the backend runs commands. A
-window captures by arming a one-shot request that its next `present()` serves,
-so a capture is always a frame that was rendered, never a stale surface. GL
-reads with a synchronous `glReadPixels` on the render thread; the result is
-tightly packed 8-bit RGBA, top row first, bytes as stored (sRGB for a window),
-with alpha ignored. Capability is `capturesOnPresent() && canReadback()`, so the
-dummy context and on-screen windows report false and fail at once with
-`Unsupported`.
+fence. A window captures by arming a one-shot request that its next `present()`
+serves, so a capture is always a frame that was rendered, never a stale surface.
+GL reads with a synchronous `glReadPixels` on the render thread.
 
 **Why:** a render command is backend-neutral, where a "run this on the render
 thread" hook is not (see *Frame cadence is per-window*): a command-buffer
