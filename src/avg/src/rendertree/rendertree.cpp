@@ -30,6 +30,8 @@ std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::upda
         std::chrono::milliseconds time
         ) &&
 {
+    ZoneScopedN("RenderTree::update");
+
     if (!root_)
     {
         return {

@@ -209,6 +209,11 @@ size_t EffectEmitter::getSnapshotCount() const
     return snapshotCount_;
 }
 
+size_t EffectEmitter::getPixelsShaded() const
+{
+    return pixelsShaded_;
+}
+
 void EffectEmitter::draw(PassPipeline& pipeline, ase::Framebuffer const& target,
         Vector2i targetSize, Divisor divisor, PixelRect const& region,
         std::vector<Input> const& inputs,
@@ -269,6 +274,9 @@ void EffectEmitter::draw(PassPipeline& pipeline, ase::Framebuffer const& target,
     commands_.push(target, pipeline.getPipeline(), std::move(uniformSet),
             std::move(vertexBuffer), std::nullopt, std::move(textures), 0.0f,
             scissorOf(region));
+
+    pixelsShaded_ += static_cast<size_t>(region.width)
+        * static_cast<size_t>(region.height);
 }
 
 void EffectEmitter::pushBarrier()

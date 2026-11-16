@@ -18,6 +18,8 @@
 #include <ase/uniformbufferrange.h>
 #include <ase/uniformset.h>
 #include <ase/usage.h>
+#include <ase/format.h>
+#include <ase/rendercommand.h>
 #include <ase/buffer.h>
 #include <ase/matrix.h>
 #include <ase/pipeline.h>
@@ -679,12 +681,15 @@ void renderElements(ase::CommandBuffer& commandBuffer,
     // Opaque elements go first in any order, as the depth test settles
     // them; blended elements stay in paint order, batched only while the
     // pipeline and textures stay the same.
-    std::stable_sort(elements.begin(), elements.end(),
-            [](Element const& a, Element const& b)
-            {
-                return !a.pipeline.isBlendEnabled()
-                    && b.pipeline.isBlendEnabled();
-            });
+    {
+        ZoneScopedN("Sort elements");
+        std::stable_sort(elements.begin(), elements.end(),
+                [](Element const& a, Element const& b)
+                {
+                    return !a.pipeline.isBlendEnabled()
+                        && b.pipeline.isBlendEnabled();
+                });
+    }
 
     std::vector<float> resultVertices;
     std::vector<uint32_t> resultIndices;
@@ -883,9 +888,41 @@ void drawItems(pmr::memory_resource* memory, ase::CommandBuffer& commandBuffer,
     flushSegment();
 }
 
+RenderCounters countRender(ase::CommandBuffer const& commandBuffer,
+        size_t firstCommand, Vector2i screenSize, ScratchPlan const& plan,
+        EffectEmitter const* emitter)
+{
+    RenderCounters counters;
+    counters.draws = static_cast<size_t>(std::count_if(
+                commandBuffer.begin() + static_cast<std::ptrdiff_t>(
+                    firstCommand),
+                commandBuffer.end(),
+                [](ase::RenderCommand const& command)
+                {
+                    return std::holds_alternative<ase::DrawCommand>(command);
+                }));
+
+    for (PoolSize const& pool : plan.pools)
+    {
+        Vector2i const size = targetSize(screenSize, pool.key.divisor);
+        counters.scratchTargets += pool.count;
+        counters.scratchBytes += pool.count * static_cast<size_t>(size[0])
+            * static_cast<size_t>(size[1]) * ase::getBytes(pool.key.format);
+    }
+
+    if (emitter)
+    {
+        counters.passes = emitter->getPassCount();
+        counters.snapshots = emitter->getSnapshotCount();
+        counters.pixelsShaded = emitter->getPixelsShaded();
+    }
+
+    return counters;
+}
+
 } // anonymous namespace
 
-void render(pmr::memory_resource* memory,
+RenderCounters render(pmr::memory_resource* memory,
         ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         TargetImage& target,
         float scalingFactor,
@@ -894,6 +931,8 @@ void render(pmr::memory_resource* memory,
 {
     ZoneScoped;
     assert(drawing.getPendingShadows().empty());
+
+    size_t const firstCommand = commandBuffer.size();
 
     ase::Vector2i const size = target.getSize();
 
@@ -954,7 +993,8 @@ void render(pmr::memory_resource* memory,
         drawItems(memory, commandBuffer, context, target.getFramebuffer(),
                 painter, text, effects.scopes, ScratchPlan(), nullptr,
                 std::move(items));
-        return;
+        return countRender(commandBuffer, firstCommand, size, ScratchPlan(),
+                nullptr);
     }
 
     ScratchPlan const plan = planScratch(timeline);
@@ -962,6 +1002,8 @@ void render(pmr::memory_resource* memory,
 
     drawItems(memory, commandBuffer, context, target.getFramebuffer(),
             painter, text, effects.scopes, plan, &emitter, std::move(items));
+
+    return countRender(commandBuffer, firstCommand, size, plan, &emitter);
 }
 
 } // namespace
