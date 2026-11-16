@@ -32,6 +32,22 @@ Transforms/composition return a new `Shape`; `fill`/`stroke`/`fillAndStroke`
 terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 (the layout axis is separate — `docs/decisions.md`).
 
+**Outlines.** The three terminators draw through `detail::drawShape`
+(`src/shape/shape.cpp`), which returns the filled/stroked element plus the
+outline in the drawing's outline list, from the same animated shape, brush
+and pen, so the outline follows the animation and the placement for free.
+Rules: an opaque colour fill casts the shape (grown by the stroke via
+`Shape::add` + `strokeToShape` when there is a pen); otherwise an opaque
+colour pen casts the stroke geometry; translucent and effect brushes cast
+nothing. `onDraw`, text and `modifier::surface` set none (glass and cards
+alike, decision 8 of `docs/design/effect-brushes-and-shadows.md`).
+`modifier::outline` (replace) and `addOutline` (add), each taking a
+`shape::Shape` or a signal of shape functions, and `noOutline`
+(`modifier/outline.h`) wrap the render tree in an `avg::OutlineNode` over
+the widget's obb. The cost per
+opaque shape widget and frame is one or two `Shape` copies (a `Path` copy
+is a shared-pointer copy) and a vector push; nothing is triangulated.
+
 ## Surfaces and stacking
 
 Depth is element order in a flat `avg::Drawing`, and a backdrop effect
