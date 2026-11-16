@@ -25,6 +25,7 @@ libbquisrc = [
   'src/modifier/onhover.cpp',
   'src/modifier/onkeyevent.cpp',
   'src/modifier/ontextevent.cpp',
+  'src/modifier/outline.cpp',
   'src/modifier/setgravity.cpp',
   'src/modifier/setid.cpp',
   'src/modifier/setmaximumsize.cpp',
@@ -56,6 +57,7 @@ libbquisrc = [
   'src/shape/circle.cpp',
   'src/shape/ellipse.cpp',
   'src/shape/rectangle.cpp',
+  'src/shape/shape.cpp',
 
   'src/widgetobject.cpp',
   'src/theme.cpp',
@@ -114,6 +116,7 @@ bquitestsrc = [
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
+  'test/outlinetest.cpp',
   'test/rendertreetest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',

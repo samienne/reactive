@@ -8,7 +8,7 @@
 > description; a `Drawing` gains an effect element whose inputs are
 > sub-drawings or the enclosing scope's backdrop; the renderer lowers both
 > into one shared pass graph; shadows are produced by a shadow boundary from
-> outline shapes the render tree carries next to the drawing. Builds on
+> outline shapes the drawing carries next to its elements. Builds on
 > `backdrop-effects.md` and `shader-interface.md`. Current-state claims are
 > verified against `03314fc6` (2026-11-14) unless marked otherwise; the
 > section "Work implied by the code" lists what the decisions cost in the
@@ -270,31 +270,54 @@ options are staged, in this order, each adopted only when the counters
 Removing the snapshot copy is deferred to "Later"; the reasons are
 recorded there.
 
-### 6. Outlines travel next to the drawing
+### 6. Outlines travel inside the drawing
 
-The render tree carries, next to each drawing, the outline shapes of the
-widgets that produced it.
+*Revised 2026-11-14: outlines were first to travel next to the drawing
+through the render tree, with an outline node around every shape widget.*
 
-- **Set in `bqui`, where a shape becomes a widget.** The code that turns a
-  shape into a widget (`src/bqui/include/bqui/shape/shape.h`) also applies
-  the outline modifier. `avg` gets a small outline node that passes its
-  child's drawing through unchanged and adds the outline. `onDraw` is left
-  alone, so a user `onDraw` callback sets no outline unless the user adds
-  the modifier.
-- **Which shapes set one.** The automatic outline comes from opaque fills
-  only. A stroke-only shape's outline is the stroke geometry, not the
-  enclosed area. A shape with both a fill and a stroke has an outline
-  that includes the stroke width, so the outline matches what is
-  painted. A translucent fill sets none, so a hover highlight at
-  30% alpha casts nothing, unless the user sets an outline by hand.
-- A modifier can override the outline, add to it, or set it to none.
+A `Drawing` carries, next to its element list, the outline shapes of the
+widgets that produced it. They are not elements; the renderer never reads
+them. They can be read, set, added to, cleared and taken on their own.
+
+- **Every drawing operation applies to both lists**, in the one place it
+  is implemented: transforms, scaling, clips (a shape fully inside is
+  kept, one outside dropped, the rest intersected with the clip, with the
+  drawing's own clip maths), `filterByRect`, concatenation and
+  `Drawing::over`. So outlines receive the same transforms as the drawing,
+  and no render tree node needs to know about them: `RenderTreeNode::draw`
+  keeps returning `std::pair<Drawing, bool>`.
+- **Outlines live only on the outermost drawing.** Whatever wraps a
+  drawing into an element that holds a sub-drawing (a backdrop scope, and
+  the effect element of decision 3 with sub-drawing inputs) lifts the inner
+  drawing's outlines onto the drawing that holds the element, with the
+  element's transform. A sub-drawing has no outline list, so nested
+  drawings never hold outlines, and one `Drawing` helper does the lifting
+  for every such element.
+- **Set in `bqui`, where a shape becomes a widget.** The draw function of
+  `fill`, `stroke` and `fillAndStroke`
+  (`src/bqui/include/bqui/shape/shape.h`) returns a drawing that already
+  carries its outline, built in the same call from the same animated
+  shape, brush and pen as the drawn element. `onDraw` is left alone, so a
+  user `onDraw` callback sets no outline unless it adds one to the drawing
+  it returns, or the user adds a modifier.
+- **Which shapes set one.** The automatic outline comes from opaque colour
+  fills only. A stroke-only shape's outline is the stroke geometry, not the
+  enclosed area, and only with an opaque colour pen; so is a translucent
+  fill's under an opaque pen. A shape with an opaque fill and a stroke has
+  an outline that includes the stroke width, so the outline matches what
+  is painted. A translucent fill sets none, so a hover highlight at 30%
+  alpha casts nothing, unless the user sets an outline by hand. An effect
+  brush sets none.
+- A modifier can override the outline, add to it, or set it to none. These
+  modifiers wrap the widget in a small `avg` outline node that edits its
+  child's drawing; the automatic case needs no node.
 - Text sets no outline by default.
 - Casting is opt-out: everything with an outline casts once the outline
   reaches a shadow boundary.
 - **An outline that reaches no shadow boundary is dropped.** The root is
-  not an implicit boundary; no boundary means no shadow.
+  not an implicit boundary; `RenderTree::draw` drops the outlines, so no
+  boundary means no shadow.
 - A caster supplies no parameters for now; there is no elevation.
-- Outlines receive the same transforms as the drawing.
 - **Clips also clip outlines.** An item scrolled out of view must not
   cast, so the caster is cut, not only its painted shadow.
 
@@ -304,7 +327,8 @@ interleaves shadows: it is the backdrop composition only.
 ### 7. The shadow boundary
 
 A shadow boundary modifier takes the light parameters: direction or
-offset, softness and colour. It collects the outlines that reach it,
+offset, softness and colour. It takes the outlines of its content's
+drawing, which reach it already transformed and clipped,
 offsets them, unions them geometrically (`Shape::add`), and emits the
 union into the drawing as one fill wrapped in blur effect elements
 (decision 3), under the boundary's content.
@@ -427,11 +451,13 @@ Each stage lands on its own and leaves `master` working.
 5. **Effect element with sub-drawing inputs.** Offscreen content
    rendering with the pooled depth buffer and the entry clears of
    decision 3, nested elements, multiple inputs; group opacity and content
-   blur as the first users.
-6. **Outlines.** The outline node in `avg`; the render tree carries
-   outlines, transformed and clipped with the drawing; `bqui` shapes set
-   them by the rules of decision 6; the override, add and none modifiers.
-   Nothing consumes them yet, so pending shadows still draw.
+   blur as the first users. Each sub-drawing input is built through
+   `Drawing::liftSubDrawing`, so its outlines move onto the outer drawing.
+6. **Outlines.** The drawing carries outlines, transformed and clipped
+   with its elements and lifted out of sub-drawings; the root drops them;
+   `bqui` shapes set them by the rules of decision 6; the override, add and
+   none modifiers through a small outline node. Nothing consumes them yet,
+   so pending shadows still draw.
 7. **Shadow boundary.** The boundary modifier with light sizes in logical
    units, the combined modifier (shadow boundary outside backdrop
    boundary), glass outlines set to none, a boundary in the demo. The
@@ -476,14 +502,13 @@ exists. Line numbers are at `03314fc6`.
   Decision 3 adds the pooled depth buffer, the entry clears and the
   render order; this is the largest piece of new renderer work and the
   reason sub-drawing inputs are their own stage.
-- **`RenderTreeNode::draw` changes for every node.** It returns
-  `std::pair<Drawing, bool>`
-  (`src/avg/include/avg/rendertree/rendertreenode.h:49-52`), taken by
-  every node kind, `RenderTree::draw`, the snapshot path and the tests.
-  The outline list needs the operations the pending-shadow list has today
-  (`+=`, `clip`, `transform`, `filterByRect`, bounds), so the mechanism
-  moves more than it disappears: it holds geometry instead of painted
-  elements and has one consumer.
+- **The outline list lives where the pending-shadow list does.** Carrying
+  outlines inside `Drawing` leaves `RenderTreeNode::draw`
+  (`src/avg/include/avg/rendertree/rendertreenode.h:49-52`) and every
+  node kind unchanged. The outline list needs the operations the
+  pending-shadow list has today (`+=`, `clip`, `transform`,
+  `filterByRect`), so the mechanism moves more than it disappears: it
+  holds geometry instead of painted elements and has one consumer.
 - **Counters are per render.** Stage 1 made `render` return a
   `RenderCounters` (`src/avg/include/avg/rendercounters.h`) collected from
   the frame's emitter and command buffer, which `paintToImage` and

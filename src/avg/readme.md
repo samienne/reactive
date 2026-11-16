@@ -41,6 +41,11 @@ additions shape what a frame can do beyond flat painting:
   therefore carries its shadows separately as *pending*; they travel with it
   through concatenation, clipping and transforms, and whoever renders the
   drawing first flushes them ahead of everything else.
+- **Outlines.** A drawing also carries the outline shapes its content
+  casts shadows with. They are never painted; they are transformed and
+  clipped with the drawing, and wrapping a drawing into a scope moves them
+  onto the drawing that holds the scope, so they always sit on the
+  outermost drawing.
 - **Backdrop scopes.** A *scope* encloses part of a drawing and fixes what
   counts as lying behind it: the frame as it was when the scope was entered,
   never the scope's own content or its siblings. Effects that sample what
@@ -64,7 +69,7 @@ shadow) casts its shadow as a pending shadow and never opens a scope; a
 `ContainerNode` built with `Stacking::stacked` is the stack that paints its
 children over one another through `over`, while a flat container (vbox, hbox,
 grid) only concatenates. `RenderTree::draw` is the root: it flushes the
-drawing it returns.
+drawing it returns and drops its outlines.
 
 ## Animation
 

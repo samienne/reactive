@@ -56,6 +56,13 @@ shape::circle().fill(avg::Color(0.85f, 0.2f, 0.2f));
 shape::rectangle().rotate(0.2f).stroke(pen);   // rectangle, circle, ellipse
 ```
 
+A styled shape also gives its drawing an *outline*, the shape it will cast
+a shadow with: what it paints opaquely, so a translucent fill casts nothing.
+`modifier::outline(shape)`, `addOutline(shape)` and `noOutline()` replace,
+add to or remove a widget's outline; `outline` and `addOutline` also take a
+signal of `avg::ShapeFunction`s (optional for `outline`, where none
+removes it).
+
 ## Application
 
 ```cpp

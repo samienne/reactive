@@ -40,6 +40,25 @@ outgrows one file.
   drawing; anything that renders a node's drawing directly (tests, snapshot
   paths) must flush it first, or the shadows are silently dropped (`render`
   only sees the main list).
+- **Outlines.** A `Drawing` also holds an `Outlines` value (`outlines.h`,
+  `src/outlines.cpp`): a list of `Shape`s, the casters of a later shadow
+  boundary. They are not elements and the renderer never reads them;
+  `getControlBb` does not cover them. Every operation that maps or
+  combines drawings applies to them in its own body: `+=` (copy and move),
+  `over`, `transform`/`operator*`, scaling, `filterByRect`, and `clip`,
+  which keeps a shape whose bounds lie inside, drops one outside and
+  intersects the rest with the clip rect (a lazy `Shape::intersect`, the
+  same Obb-inverse maths as the elements); a zero-area clip drops them
+  all. `clip` checks the outlines even
+  when the elements fit, since an added outline may be larger than the
+  painted bounds. **Invariant: only the outermost drawing holds
+  outlines.** `SubDrawing` has no outline list; an element that wraps
+  another `Drawing` takes it through `liftSubDrawing(inner, transform)`,
+  which moves inner's outlines and pending shadows, mapped by the
+  element's transform, onto the holder. `scope()` and `Drawing::effect`
+  use it; a new wrapping element must too. `clip` wraps a drawing's own
+  lists in `ClipElement`s and keeps the clipped outlines on that same
+  drawing, so it lifts nothing.
 - **`BackdropScope`** is a sub-drawing with its own transform, shaped like
   `ClipElement` without the clip; `scope()` wraps the main list into one, and
   `over(below, above)` is the one composition for painting a child over
@@ -68,7 +87,7 @@ outgrows one file.
   shape is lowered as that element's Region pass writing at its output,
   not drawn into a target of its own. `Drawing::effect` is the one
   construction path: it takes the inputs as `Drawing`s (an empty one is
-  the backdrop), moves their pending shadows onto the result, and sets
+  the backdrop), lifts their pending shadows and outlines onto the result, and sets
   `controlBb` to the shape's bounds or to the sub-drawing inputs' painted
   bounds grown by the pass's reach (`getReach()`, per axis, times its
   output divisor, in logical units; it is the padding unless the factory
@@ -118,12 +137,23 @@ outgrows one file.
   `ShapeNode`/`RectNode` (animated leaves), `TransitionNode` (enter/leave),
   `ClipNode` (clips a child to an `Animated<Obb>` — **rectangle only**),
   `IdNode` (stable identity for matching), `SurfaceNode` (a filled shape with
-  a shadow and an optional backdrop effect under a child subtree).
+  a shadow and an optional backdrop effect under a child subtree),
+  `OutlineNode` (replaces or adds to its child's outlines).
 - `oldTree.update(newTree, options, time)` splices trees (creating animated
   transitions); `draw(context, obb, time)` is a **pure** function of the
   timestamp and returns whether animation continues, so nodes report when they
   next need a redraw. `RenderTree::draw` is the root: it flushes the drawing
-  (pending shadows ahead of the content) before returning it.
+  (pending shadows ahead of the content) and drops its outlines before
+  returning it; `getRoot()->draw` keeps them, which is what tests read.
+- **`OutlineNode`** (`rendertree/outlinenode.h`) exists for bqui's outline
+  modifiers only; shape widgets put their outline in the drawing their
+  `ShapeNode` returns. Its own obb starts as `Obb()` and only carries the
+  placement applied later (like onDraw's container), animated with the
+  parent's options; a separate `area` obb (the widget's obb when wrapped)
+  sizes and places the outline and animates with the node's own options,
+  as the `ShapeNode` beside it does; the outline function's parameters
+  animate with the same options (`ShapeFunction::updated`). Its child is
+  paired through `updateNode`, like any single-child node's.
 - **Stacking.** `ContainerNode` takes a `Stacking` flag. `flat` (the default,
   what vbox/hbox/grid use) concatenates the children's drawings with `+=` and
   passes their pending shadows up unchanged, so nested flat containers draw
