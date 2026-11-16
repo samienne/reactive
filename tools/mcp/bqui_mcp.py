@@ -304,7 +304,9 @@ async def selftest(conn: AppConnection, methods: list[dict],
         if json.loads(data) != inline:
             raise RuntimeError("renderTree blob differs from the inline reply")
         print("renderTree blob ok,", len(data), "bytes, same as the inline reply")
-        if wl["windows"][0].get("canCapture"):
+        names = {m["name"] for m in methods}
+        if ("window.screenshot" in names
+                and wl["windows"][0].get("canCapture")):
             shot = await conn.request("window.screenshot", {"window": wid})
             data = await fetch_blob(conn, shot["blob"], read_length)
             if not data.startswith(b"\x89PNG\r\n\x1a\n"):

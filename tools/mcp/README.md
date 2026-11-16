@@ -44,8 +44,8 @@ BQUI_BUILD_DIR=/path/to/build python tools/mcp/bqui_mcp.py --selftest
 ```
 Launches the app, prints the generated tools, queries `window.list` /
 `window.introspect`, pulls `window.renderTree` as a blob and checks it against
-the inline reply, takes a `window.screenshot` when the window can capture, and
-exits.
+the inline reply, takes a `window.screenshot` when the app has the method and
+the window can capture, and exits.
 
 ## Register with Claude Code
 
