@@ -4,10 +4,10 @@
 
 #include "avg/animated.h"
 #include "avg/brush.h"
-#include "avg/builtineffects.h"
 #include "avg/color.h"
 #include "avg/drawing.h"
 #include "avg/drawcontext.h"
+#include "avg/effect.h"
 #include "avg/shapefunction.h"
 #include "avg/vector.h"
 #include "avg/avgvisibility.h"
@@ -17,7 +17,6 @@
 #include <memory>
 #include <typeindex>
 #include <utility>
-#include <variant>
 
 namespace avg
 {
@@ -33,44 +32,17 @@ namespace avg
     };
 
     /**
-     * @brief Frosted glass behind a surface, as frostedGlass() makes it.
-     */
-    struct SurfaceFrostedGlass
-    {
-        Animated<FrostedGlassOptions> options;
-    };
-
-    /**
-     * @brief The backdrop behind a surface tinted by colour, as tint()
-     * makes it.
-     */
-    struct SurfaceTint
-    {
-        Animated<Color> colour;
-        Animated<float> strength;
-    };
-
-    /**
-     * @brief The backdrop effect a surface paints behind its fill.
-     *
-     *     SurfaceEffect glass = SurfaceFrostedGlass{ options };
-     *
-     * Its members animate as values, so a change of radius or tint never
-     * changes what the surface draws, only how it looks. A value that an
-     * animation curve carries out of its range is drawn clamped to it.
-     */
-    using SurfaceEffect = std::variant<SurfaceFrostedGlass, SurfaceTint>;
-
-    /**
      * @brief A filled shape with a child subtree on it, an optional shadow
      * under it and an optional backdrop effect behind its fill.
      *
      * The shape is produced for the node's size, so
      * `SurfaceNode(obb, options, roundedRect, Brush(white), shadow,
      * std::nullopt, child)` paints a white card that casts the shadow and
-     * shows child on top; a SurfaceEffect in place of the std::nullopt
-     * draws the effect through the shape before the fill, so a translucent
-     * fill shows frosted glass. The shadow is a pending shadow of the
+     * shows child on top; an Effect in place of the std::nullopt draws the
+     * effect through the shape before the fill, so a translucent fill shows
+     * frosted glass. The effect animates through lerp(): between two
+     * effects of the same kind its parameters interpolate, and a change of
+     * kind switches at once. The shadow is a pending shadow of the
      * drawing: the container holding the surface paints it under all of
      * its content, not under the surface alone. A surface adds no backdrop
      * scope; stack surfaces with a stacking ContainerNode to layer them.
@@ -86,7 +58,7 @@ namespace avg
                 ShapeFunction shape,
                 Animated<std::optional<Brush>> fill,
                 std::optional<SurfaceShadow> shadow,
-                std::optional<SurfaceEffect> effect,
+                std::optional<Animated<Effect>> effect,
                 std::shared_ptr<RenderTreeNode> childNode
                 );
 
@@ -119,7 +91,7 @@ namespace avg
         ShapeFunction const& getShape() const;
         Animated<std::optional<Brush>> const& getFill() const;
         std::optional<SurfaceShadow> const& getShadow() const;
-        std::optional<SurfaceEffect> const& getEffect() const;
+        std::optional<Animated<Effect>> const& getEffect() const;
         std::shared_ptr<RenderTreeNode> const& getChild() const;
 
     private:
@@ -127,7 +99,7 @@ namespace avg
         ShapeFunction shape_;
         Animated<std::optional<Brush>> fill_;
         std::optional<SurfaceShadow> shadow_;
-        std::optional<SurfaceEffect> effect_;
+        std::optional<Animated<Effect>> effect_;
         std::shared_ptr<RenderTreeNode> childNode_;
     };
 } // namespace avg

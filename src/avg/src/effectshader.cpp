@@ -135,6 +135,7 @@ PassShader makePassShader(size_t inputCount,
         std::vector<PassParameter> const& parameters, std::string body)
 {
     PassShader shader;
+    shader.id = ShaderId::create();
     shader.fragmentSource = passFragmentPrelude(inputCount, parameters)
         + std::move(body);
     shader.interface = passInterface(inputCount, parameters);

@@ -15,6 +15,7 @@
 
 #include <avg/animated.h>
 #include <avg/animationoptions.h>
+#include <avg/builtineffects.h>
 #include <avg/rendertree.h>
 #include <avg/rendertree/surfacenode.h>
 #include <avg/shapefunction.h>
@@ -34,14 +35,6 @@ namespace
         avg::Brush brush;
     };
 
-    struct TintValue
-    {
-        avg::Color colour;
-        float strength;
-    };
-
-    using EffectValue = std::variant<avg::FrostedGlassOptions, TintValue>;
-
     bq::signal::AnySignal<std::optional<ShadowValue>> shadowValues(
             std::optional<SurfaceShadow> shadow)
     {
@@ -59,33 +52,6 @@ namespace
                 });
     }
 
-    bq::signal::AnySignal<std::optional<EffectValue>> effectValues(
-            std::optional<SurfaceEffect> effect)
-    {
-        if (!effect)
-            return bq::signal::constant(std::optional<EffectValue>());
-
-        if (auto* glass = std::get_if<SurfaceFrostedGlass>(&*effect))
-        {
-            return std::move(glass->options).map(
-                    [](avg::FrostedGlassOptions options)
-                    {
-                        return std::make_optional(EffectValue(options));
-                    });
-        }
-
-        auto& tint = std::get<SurfaceTint>(*effect);
-
-        return bq::signal::merge(
-                std::move(tint.colour),
-                std::move(tint.strength)
-                ).map([](avg::Color colour, float strength)
-                {
-                    return std::make_optional(EffectValue(
-                                TintValue{ colour, strength }));
-                });
-    }
-
     std::optional<avg::SurfaceShadow> toNodeShadow(
             std::optional<ShadowValue> const& shadow)
     {
@@ -99,24 +65,13 @@ namespace
         };
     }
 
-    std::optional<avg::SurfaceEffect> toNodeEffect(
-            std::optional<EffectValue> const& effect)
+    std::optional<avg::Animated<avg::Effect>> toNodeEffect(
+            std::optional<avg::Effect> const& effect)
     {
         if (!effect)
             return std::nullopt;
 
-        if (auto* options = std::get_if<avg::FrostedGlassOptions>(&*effect))
-        {
-            return avg::SurfaceEffect(avg::SurfaceFrostedGlass{
-                    avg::Animated<avg::FrostedGlassOptions>(*options) });
-        }
-
-        auto const& tint = std::get<TintValue>(*effect);
-
-        return avg::SurfaceEffect(avg::SurfaceTint{
-                avg::Animated<avg::Color>(tint.colour),
-                avg::Animated<float>(tint.strength)
-                });
+        return avg::Animated<avg::Effect>(*effect);
     }
 
     widget::Instance makeSurfaceInstance(widget::Instance instance,
@@ -124,7 +79,7 @@ namespace
             avg::ShapeFunction const& shape,
             std::optional<avg::Brush> const& fill,
             std::optional<ShadowValue> const& shadow,
-            std::optional<EffectValue> const& effect)
+            std::optional<avg::Effect> const& effect)
     {
         auto node = std::make_shared<avg::SurfaceNode>(
                 instance.getObb(),
@@ -146,7 +101,7 @@ AnyWidgetModifier surface(
         shape::AnyShape shape,
         std::optional<bq::signal::AnySignal<avg::Brush>> fill,
         std::optional<SurfaceShadow> shadow,
-        std::optional<SurfaceEffect> effect
+        std::optional<bq::signal::AnySignal<avg::Effect>> effect
         )
 {
     return makeWidgetModifier([](auto widget, auto animation, auto shape,
@@ -167,11 +122,12 @@ AnyWidgetModifier surface(
         std::move(shape).getShapeFunction(),
         bq::signal::fromOptional(std::move(fill)),
         shadowValues(std::move(shadow)),
-        effectValues(std::move(effect))
+        bq::signal::fromOptional(std::move(effect))
         );
 }
 
-AnyWidgetModifier backdrop(shape::AnyShape shape, SurfaceEffect effect)
+AnyWidgetModifier backdrop(shape::AnyShape shape,
+        bq::signal::AnySignal<avg::Effect> effect)
 {
     return surface(std::move(shape), std::nullopt, std::nullopt,
             std::move(effect));
@@ -182,8 +138,11 @@ AnyWidgetModifier frostedGlass(
         bq::signal::AnySignal<avg::FrostedGlassOptions> options
         )
 {
-    return backdrop(std::move(shape),
-            SurfaceFrostedGlass{ std::move(options) });
+    return backdrop(std::move(shape), std::move(options).map(
+                [](avg::FrostedGlassOptions const& value)
+                {
+                    return avg::frostedGlass(value);
+                }));
 }
 
 AnyWidgetModifier frostedGlass(avg::FrostedGlassOptions options)
@@ -200,8 +159,13 @@ AnyWidgetModifier tint(
         bq::signal::AnySignal<float> strength
         )
 {
-    return backdrop(std::move(shape),
-            SurfaceTint{ std::move(colour), std::move(strength) });
+    return backdrop(std::move(shape), bq::signal::merge(
+                std::move(colour),
+                std::move(strength)
+                ).map([](avg::Color const& value, float amount)
+                {
+                    return avg::tint(value, amount);
+                }));
 }
 
 AnyWidgetModifier tint(

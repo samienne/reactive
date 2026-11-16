@@ -42,6 +42,16 @@ size_t UniformValues::getSize() const
     return bytes_.size();
 }
 
+bool UniformValues::operator==(UniformValues const& rhs) const
+{
+    return block_ == rhs.block_ && bytes_ == rhs.bytes_;
+}
+
+bool UniformValues::operator!=(UniformValues const& rhs) const
+{
+    return !(*this == rhs);
+}
+
 ShaderInterface::Member const& UniformValues::resolve(std::string_view name,
         UniformType type, std::optional<size_t> arrayCount) const
 {

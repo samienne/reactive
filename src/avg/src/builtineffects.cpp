@@ -1,5 +1,6 @@
 #include "builtineffects.h"
 
+#include "effectfactory.h"
 #include "effectshader.h"
 #include "lerp.h"
 
@@ -8,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -71,6 +73,108 @@ namespace
         "    result = vec4(mix(colour, param.tint.rgb, param.tint.a), 1.0);\n"
         "}\n";
 
+    PassShader const& copyShader()
+    {
+        static PassShader const shader = makePassShader(1, {}, copyBody);
+        return shader;
+    }
+
+    PassShader const& blurShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "blur", ase::UniformType::Float4 },
+                }, blurBody);
+        return shader;
+    }
+
+    PassShader const& glassShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "tint", ase::UniformType::Float4 },
+                { "highlight", ase::UniformType::Float4 },
+                { "adjust", ase::UniformType::Float4 },
+                }, glassBody);
+        return shader;
+    }
+
+    PassShader const& tintShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "tint", ase::UniformType::Float4 },
+                }, tintBody);
+        return shader;
+    }
+
+    struct TintParameters
+    {
+        Color colour;
+        float strength;
+    };
+
+    TintParameters lerp(TintParameters const& a, TintParameters const& b,
+            float t)
+    {
+        return TintParameters{
+            avg::lerp(a.colour, b.colour, t),
+            avg::lerp(a.strength, b.strength, t)
+        };
+    }
+
+    template <typename TParameters>
+    class ParameterRecipe final : public EffectRecipe
+    {
+    public:
+        using Build = Effect (*)(TParameters const&);
+
+        ParameterRecipe(TParameters parameters, Build build) :
+            parameters_(std::move(parameters)),
+            build_(build)
+        {
+        }
+
+        bool isSameKind(EffectRecipe const& rhs) const override
+        {
+            auto const* other = dynamic_cast<ParameterRecipe const*>(&rhs);
+            return other && other->build_ == build_;
+        }
+
+        Effect interpolate(EffectRecipe const& rhs, float t) const override
+        {
+            auto const& other = static_cast<ParameterRecipe const&>(rhs);
+            return build_(lerp(parameters_, other.parameters_, t));
+        }
+
+    private:
+        TParameters parameters_;
+        Build build_;
+    };
+
+    template <typename TParameters>
+    std::shared_ptr<EffectRecipe const> makeRecipe(TParameters parameters,
+            Effect (*build)(TParameters const&))
+    {
+        return std::make_shared<ParameterRecipe<TParameters> const>(
+                std::move(parameters), build);
+    }
+
+    float clampStrength(float strength)
+    {
+        return std::clamp(strength, 0.0f, 1.0f);
+    }
+
+    // An overshooting curve interpolates past either end of an animation,
+    // to values the factories reject.
+    FrostedGlassOptions clampToValid(FrostedGlassOptions options)
+    {
+        options.radius = std::max(options.radius, 0.0f);
+        options.saturation = std::max(options.saturation, 0.0f);
+        options.highlightWidth = std::max(options.highlightWidth, 0.0f);
+        options.tintStrength = clampStrength(options.tintStrength);
+        options.highlightStrength = clampStrength(options.highlightStrength);
+
+        return options;
+    }
+
     ase::Vector4f toVector(Color const& colour, float w)
     {
         return ase::Vector4f(colour.getRed(), colour.getGreen(),
@@ -95,11 +199,11 @@ namespace
         }
     }
 
-    Pass regionPass(PassShader shader, std::vector<PassInput> inputs,
+    Pass regionPass(PassShader const& shader, std::vector<PassInput> inputs,
             Divisor divisor, int padding)
     {
         Pass pass;
-        pass.shader = std::move(shader);
+        pass.shader = shader;
         pass.inputs = std::move(inputs);
         pass.output = PassOutput{ divisor, ase::FORMAT_RGBA16F };
         pass.geometry = Geometry::Region;
@@ -107,11 +211,11 @@ namespace
         return pass;
     }
 
-    Pass shapePass(PassShader shader, std::vector<PassInput> inputs,
+    Pass shapePass(PassShader const& shader, std::vector<PassInput> inputs,
             int padding)
     {
         Pass pass;
-        pass.shader = std::move(shader);
+        pass.shader = shader;
         pass.inputs = std::move(inputs);
         pass.geometry = Geometry::Shape;
         pass.padding = padding;
@@ -121,18 +225,72 @@ namespace
     Pass blurPass(PassInput input, Divisor divisor, int tapRadius,
             float sigma, ase::Vector2f direction)
     {
-        PassShader shader = makePassShader(1, {
-                { "blur", ase::UniformType::Float4 },
-                }, blurBody);
+        PassShader const& shader = blurShader();
 
         ase::UniformValues values(shader.interface, "ParamBlock");
         values.set("blur", ase::Vector4f(direction.x(), direction.y(),
                     static_cast<float>(tapRadius), sigma));
 
-        Pass pass = regionPass(std::move(shader), { input }, divisor,
-                tapRadius);
+        Pass pass = regionPass(shader, { input }, divisor, tapRadius);
         pass.parameters = std::move(values);
         return pass;
+    }
+
+    Effect buildFrostedGlass(FrostedGlassOptions const& parameters)
+    {
+        FrostedGlassOptions const options = clampToValid(parameters);
+
+        Divisor const divisor = frostedGlassDivisor(options.radius);
+        float const passRadius = options.radius / static_cast<float>(
+                toInt(divisor));
+        int const tapRadius = static_cast<int>(std::ceil(passRadius));
+        float const sigma = std::max(passRadius / 2.0f, 0.5f);
+
+        PassShader const& glass = glassShader();
+
+        ase::UniformValues values(glass.interface, "ParamBlock");
+        values.set("tint", toVector(options.tint, options.tintStrength));
+        values.set("highlight", toVector(options.highlight,
+                    options.highlightStrength));
+        values.set("adjust", ase::Vector4f(options.saturation,
+                    options.highlightWidth, 0.0f, 0.0f));
+
+        // Bilinear upsampling reaches half a blurred texel past the shape.
+        Pass final = shapePass(glass, { PassInput::pass(2) },
+                toInt(divisor) / 2);
+        final.parameters = std::move(values);
+
+        std::vector<Pass> passes;
+        passes.push_back(regionPass(copyShader(), { PassInput::backdrop() },
+                    divisor, 0));
+        passes.push_back(blurPass(PassInput::pass(0), divisor, tapRadius,
+                    sigma, ase::Vector2f(1.0f, 0.0f)));
+        passes.push_back(blurPass(PassInput::pass(1), divisor, tapRadius,
+                    sigma, ase::Vector2f(0.0f, 1.0f)));
+        passes.push_back(std::move(final));
+
+        return makeEffect(std::move(passes),
+                makeRecipe(parameters, &buildFrostedGlass));
+    }
+
+    Effect buildTint(TintParameters const& parameters)
+    {
+        float const strength = clampStrength(parameters.strength);
+
+        PassShader const& shader = tintShader();
+
+        ase::UniformValues values(shader.interface, "ParamBlock");
+        values.set("tint", toVector(parameters.colour,
+                    strength * parameters.colour.getAlpha()));
+
+        Pass pass = shapePass(shader, { PassInput::backdrop() }, 0);
+        pass.parameters = std::move(values);
+
+        std::vector<Pass> passes;
+        passes.push_back(std::move(pass));
+
+        return makeEffect(std::move(passes),
+                makeRecipe(parameters, &buildTint));
     }
 } // anonymous namespace
 
@@ -188,60 +346,14 @@ Effect frostedGlass(FrostedGlassOptions const& options)
     requireStrength(options.tintStrength, "tintStrength");
     requireStrength(options.highlightStrength, "highlightStrength");
 
-    Divisor const divisor = frostedGlassDivisor(options.radius);
-    float const passRadius = options.radius / static_cast<float>(
-            toInt(divisor));
-    int const tapRadius = static_cast<int>(std::ceil(passRadius));
-    float const sigma = std::max(passRadius / 2.0f, 0.5f);
-
-    PassShader glass = makePassShader(1, {
-            { "tint", ase::UniformType::Float4 },
-            { "highlight", ase::UniformType::Float4 },
-            { "adjust", ase::UniformType::Float4 },
-            }, glassBody);
-
-    ase::UniformValues values(glass.interface, "ParamBlock");
-    values.set("tint", toVector(options.tint, options.tintStrength));
-    values.set("highlight", toVector(options.highlight,
-                options.highlightStrength));
-    values.set("adjust", ase::Vector4f(options.saturation,
-                options.highlightWidth, 0.0f, 0.0f));
-
-    // Bilinear upsampling reaches half a blurred texel past the shape.
-    Pass final = shapePass(std::move(glass), { PassInput::pass(2) },
-            toInt(divisor) / 2);
-    final.parameters = std::move(values);
-
-    std::vector<Pass> passes;
-    passes.push_back(regionPass(makePassShader(1, {}, copyBody),
-            { PassInput::backdrop() }, divisor, 0));
-    passes.push_back(blurPass(PassInput::pass(0), divisor, tapRadius, sigma,
-            ase::Vector2f(1.0f, 0.0f)));
-    passes.push_back(blurPass(PassInput::pass(1), divisor, tapRadius, sigma,
-            ase::Vector2f(0.0f, 1.0f)));
-    passes.push_back(std::move(final));
-
-    return Effect(std::move(passes));
+    return buildFrostedGlass(options);
 }
 
 Effect tint(Color const& colour, float strength)
 {
     requireStrength(strength, "strength");
 
-    PassShader shader = makePassShader(1, {
-            { "tint", ase::UniformType::Float4 },
-            }, tintBody);
-
-    ase::UniformValues values(shader.interface, "ParamBlock");
-    values.set("tint", toVector(colour, strength * colour.getAlpha()));
-
-    Pass pass = shapePass(std::move(shader), { PassInput::backdrop() }, 0);
-    pass.parameters = std::move(values);
-
-    std::vector<Pass> passes;
-    passes.push_back(std::move(pass));
-
-    return Effect(std::move(passes));
+    return buildTint(TintParameters{ colour, strength });
 }
 
 } // namespace avg

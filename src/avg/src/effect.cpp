@@ -1,9 +1,12 @@
 #include "effect.h"
 
+#include "effectfactory.h"
 #include "effectshader.h"
 
+#include <atomic>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace avg
 {
@@ -72,12 +75,47 @@ std::ostream& operator<<(std::ostream& stream, PassInput const& input)
     return stream << "pass(" << input.getPass() << ")";
 }
 
+ShaderId ShaderId::create()
+{
+    static std::atomic<uint64_t> next(1);
+
+    ShaderId id;
+    id.value_ = next.fetch_add(1, std::memory_order_relaxed);
+    return id;
+}
+
+bool ShaderId::operator==(ShaderId const& rhs) const
+{
+    return value_ == rhs.value_;
+}
+
+bool ShaderId::operator!=(ShaderId const& rhs) const
+{
+    return !(*this == rhs);
+}
+
 bool PassOutput::operator==(PassOutput const& rhs) const
 {
     return divisor == rhs.divisor && format == rhs.format;
 }
 
 bool PassOutput::operator!=(PassOutput const& rhs) const
+{
+    return !(*this == rhs);
+}
+
+bool Pass::operator==(Pass const& rhs) const
+{
+    return shader.id == rhs.shader.id
+        && inputs == rhs.inputs
+        && output == rhs.output
+        && geometry == rhs.geometry
+        && padding == rhs.padding
+        && parameters == rhs.parameters
+        ;
+}
+
+bool Pass::operator!=(Pass const& rhs) const
 {
     return !(*this == rhs);
 }
@@ -247,12 +285,43 @@ std::vector<std::string> validate(std::vector<Pass> const& passes)
     return errors;
 }
 
-Effect::Effect(std::vector<Pass> passes) :
-    passes_(std::move(passes))
+struct Effect::Content
 {
-    std::vector<std::string> errors = validate(passes_);
+    std::vector<Pass> passes;
+    std::shared_ptr<EffectRecipe const> recipe;
+};
+
+class EffectAccess
+{
+public:
+    static Effect make(std::vector<Pass> passes,
+            std::shared_ptr<EffectRecipe const> recipe)
+    {
+        return Effect(std::make_shared<Effect::Content const>(
+                    Effect::Content{ std::move(passes), std::move(recipe) }));
+    }
+
+    static bool isSameContent(Effect const& a, Effect const& b)
+    {
+        return a.content_ == b.content_;
+    }
+
+    static EffectRecipe const* getRecipe(Effect const& effect)
+    {
+        return effect.content_->recipe.get();
+    }
+};
+
+EffectRecipe::~EffectRecipe()
+{
+}
+
+Effect makeEffect(std::vector<Pass> passes,
+        std::shared_ptr<EffectRecipe const> recipe)
+{
+    std::vector<std::string> errors = validate(passes);
     if (errors.empty())
-        return;
+        return EffectAccess::make(std::move(passes), std::move(recipe));
 
     std::string message = "invalid effect:";
     for (std::string const& error : errors)
@@ -261,18 +330,50 @@ Effect::Effect(std::vector<Pass> passes) :
     throw std::invalid_argument(message);
 }
 
+Effect::Effect(std::shared_ptr<Content const> content) :
+    content_(std::move(content))
+{
+}
+
 Effect::~Effect()
 {
 }
 
 std::vector<Pass> const& Effect::getPasses() const
 {
-    return passes_;
+    return content_->passes;
 }
 
 Pass const& Effect::getFinalPass() const
 {
-    return passes_.back();
+    return content_->passes.back();
+}
+
+bool Effect::operator==(Effect const& rhs) const
+{
+    return content_ == rhs.content_ || content_->passes == rhs.content_->passes;
+}
+
+bool Effect::operator!=(Effect const& rhs) const
+{
+    return !(*this == rhs);
+}
+
+bool isSameKind(Effect const& a, Effect const& b)
+{
+    EffectRecipe const* recipe = EffectAccess::getRecipe(a);
+    EffectRecipe const* other = EffectAccess::getRecipe(b);
+
+    return recipe && other && recipe->isSameKind(*other);
+}
+
+Effect lerp(Effect const& a, Effect const& b, float t)
+{
+    if (EffectAccess::isSameContent(a, b) || !isSameKind(a, b))
+        return b;
+
+    return EffectAccess::getRecipe(a)->interpolate(
+            *EffectAccess::getRecipe(b), t);
 }
 
 } // namespace avg

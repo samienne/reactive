@@ -69,18 +69,18 @@ avg::SurfaceShadow shadowAt(float dx, float dy, float spread = 0.0f)
     };
 }
 
-avg::SurfaceEffect glass(float radius)
+avg::Effect glass(float radius)
 {
     avg::FrostedGlassOptions options;
     options.radius = radius;
 
-    return avg::SurfaceFrostedGlass{ options };
+    return avg::frostedGlass(options);
 }
 
 std::shared_ptr<avg::SurfaceNode> surface(avg::Obb const& obb,
         std::optional<avg::SurfaceShadow> shadow,
         std::shared_ptr<avg::RenderTreeNode> child = nullptr,
-        std::optional<avg::SurfaceEffect> effect = std::nullopt,
+        std::optional<avg::Animated<avg::Effect>> effect = std::nullopt,
         std::optional<avg::AnimationOptions> options = std::nullopt)
 {
     return std::make_shared<avg::SurfaceNode>(
@@ -479,7 +479,7 @@ TEST(SurfaceNode, effectGoesAheadOfTheFillWhileTheShadowStaysPending)
 TEST(SurfaceNode, tintIsOneShapePass)
 {
     auto node = surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
-            nullptr, avg::SurfaceTint{ black, 0.5f });
+            nullptr, avg::tint(black, 0.5f));
 
     auto d = drawNode(*node);
 
@@ -568,7 +568,7 @@ TEST(SurfaceNode, anOvershootingCurveDrawsTheEffectClamped)
     auto tinted = [](float strength)
     {
         return surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
-                nullptr, avg::SurfaceTint{ black, strength });
+                nullptr, avg::tint(black, strength));
     };
 
     auto glassy = [](float radius)
@@ -616,4 +616,25 @@ TEST(SurfaceNode, frostedGlassOptionsInterpolateMemberwise)
 
     EXPECT_TRUE(a == avg::lerp(a, b, 0.0f));
     EXPECT_TRUE(a != b);
+}
+
+TEST(SurfaceNode, changingTheEffectKindSwitchesWithoutAnimating)
+{
+    std::chrono::milliseconds const duration(1000);
+    avg::AnimationOptions const options{ duration, avg::curve::linear };
+
+    avg::RenderTree tree(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
+                std::nullopt, nullptr, glass(8.0f)));
+    avg::RenderTree next(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
+                std::nullopt, nullptr, avg::tint(black, 0.5f)));
+
+    auto [updated, nextUpdate] = std::move(tree).update(std::move(next),
+            options, zero);
+
+    auto start = drawTree(updated, zero);
+    EXPECT_EQ(avg::tint(black, 0.5f), *effectAt(start.getElements(), 0).effect);
+
+    avg::DrawContext context(pmr::new_delete_resource());
+    EXPECT_FALSE(updated.draw(context, avg::Obb(avg::Vector2f(400.0f, 400.0f)),
+                duration / 2).second);
 }

@@ -2,6 +2,7 @@
 #include <avg/effect.h>
 #include <avg/effectplan.h>
 #include <avg/effectshader.h>
+#include <avg/lerp.h>
 
 #include <gtest/gtest.h>
 
@@ -444,4 +445,97 @@ TEST(BuiltinEffects, tintAloneNeedsOnlyTheSnapshot)
     ASSERT_EQ(1u, plan.pools.size());
     EXPECT_EQ(key(Divisor::One, ase::FORMAT_SRGBA), plan.pools[0].key);
     EXPECT_EQ(1u, plan.pools[0].count);
+}
+
+TEST(BuiltinEffects, aFactoryKeepsItsShaderIdentities)
+{
+    Effect first = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect second = avg::frostedGlass(glassWithRadius(24.0f));
+
+    ASSERT_EQ(first.getPasses().size(), second.getPasses().size());
+    for (size_t i = 0; i < first.getPasses().size(); ++i)
+    {
+        EXPECT_EQ(first.getPasses()[i].shader.id,
+                second.getPasses()[i].shader.id) << "pass " << i;
+    }
+
+    EXPECT_EQ(first, second);
+    EXPECT_NE(first, avg::frostedGlass(glassWithRadius(16.0f)));
+
+    // Both blurs run one shader with different directions.
+    EXPECT_EQ(first.getPasses()[1].shader.id, first.getPasses()[2].shader.id);
+    EXPECT_NE(first.getPasses()[1], first.getPasses()[2]);
+
+    EXPECT_EQ(avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f),
+            avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f));
+    EXPECT_NE(avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f),
+            avg::tint(Color(0.0f, 0.0f, 0.0f), 0.25f));
+}
+
+TEST(BuiltinEffects, effectsOfOneFactoryAreOfOneKind)
+{
+    Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
+
+    EXPECT_TRUE(avg::isSameKind(glass,
+                avg::frostedGlass(glassWithRadius(8.0f))));
+    EXPECT_TRUE(avg::isSameKind(dim, avg::tint(Color(1.0f, 1.0f, 1.0f), 1.0f)));
+    EXPECT_FALSE(avg::isSameKind(glass, dim));
+    EXPECT_FALSE(avg::isSameKind(dim, glass));
+}
+
+TEST(BuiltinEffects, frostedGlassInterpolatesItsOptions)
+{
+    FrostedGlassOptions a = glassWithRadius(8.0f);
+    a.tintStrength = 0.0f;
+    FrostedGlassOptions b = glassWithRadius(40.0f);
+    b.tintStrength = 1.0f;
+    b.tint = Color(0.0f, 0.0f, 0.0f);
+
+    Effect const from = avg::frostedGlass(a);
+    Effect const to = avg::frostedGlass(b);
+
+    EXPECT_EQ(avg::frostedGlass(avg::lerp(a, b, 0.5f)),
+            avg::lerp(from, to, 0.5f));
+    EXPECT_EQ(from, avg::lerp(from, to, 0.0f));
+    EXPECT_EQ(to, avg::lerp(from, to, 1.0f));
+
+    // A radius of 24 blurs at half size, 40 at a quarter.
+    expectDivisor(avg::lerp(from, to, 0.5f), Divisor::Two);
+}
+
+TEST(BuiltinEffects, tintInterpolatesColourAndStrength)
+{
+    Color const black(0.0f, 0.0f, 0.0f);
+    Color const white(1.0f, 1.0f, 1.0f);
+
+    EXPECT_EQ(avg::tint(avg::lerp(black, white, 0.25f), 0.5f),
+            avg::lerp(avg::tint(black, 0.5f), avg::tint(white, 0.5f),
+                0.25f));
+    EXPECT_EQ(avg::tint(black, 0.25f),
+            avg::lerp(avg::tint(black, 0.0f), avg::tint(black, 1.0f),
+                0.25f));
+}
+
+TEST(BuiltinEffects, overshootingInterpolationIsClampedToValidParameters)
+{
+    Color const black(0.0f, 0.0f, 0.0f);
+
+    EXPECT_EQ(avg::tint(black, 1.0f),
+            avg::lerp(avg::tint(black, 0.0f), avg::tint(black, 1.0f), 1.5f));
+    EXPECT_EQ(avg::tint(black, 0.0f),
+            avg::lerp(avg::tint(black, 0.0f), avg::tint(black, 1.0f), -0.5f));
+    EXPECT_EQ(avg::frostedGlass(glassWithRadius(0.0f)),
+            avg::lerp(avg::frostedGlass(glassWithRadius(0.0f)),
+                avg::frostedGlass(glassWithRadius(8.0f)), -0.5f));
+}
+
+TEST(BuiltinEffects, interpolatingAcrossKindsSwitchesAtOnce)
+{
+    Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
+
+    EXPECT_EQ(dim, avg::lerp(glass, dim, 0.0f));
+    EXPECT_EQ(dim, avg::lerp(glass, dim, 0.5f));
+    EXPECT_EQ(glass, avg::lerp(dim, glass, 0.5f));
 }

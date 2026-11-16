@@ -108,7 +108,7 @@ outgrows one file.
 - **`SurfaceNode`** (`rendertree/surfacenode.h`) holds a `ShapeFunction`
   (the shape for the node's size, animated like a `ShapeNode`'s parameters),
   an `Animated<std::optional<Brush>>` fill, an optional `SurfaceShadow`
-  (animated offset, spread and brush), an optional `SurfaceEffect` and a
+  (animated offset, spread and brush), an optional `Animated<Effect>` and a
   child. `draw` adds the shadow as a **pending shadow** (the shape translated
   by the offset, filled with the shadow brush and, for a positive spread,
   stroked with a pen of width `2 * spread` in the same brush), then the
@@ -117,26 +117,17 @@ outgrows one file.
   and effect only; like every other node it hands the inherited options to
   its child. It never adds a scope: that would give every card in a vbox a
   private backdrop.
-- **`SurfaceEffect`** is `std::variant<SurfaceFrostedGlass, SurfaceTint>`,
-  each alternative holding `Animated` members (`Animated<FrostedGlassOptions>`;
-  `Animated<Color>` plus `Animated<float>` strength), so effect parameters
-  animate as values and never change the drawing's structure. `draw` turns
-  the members' values at the frame's time into an `Effect` through
-  `frostedGlass`/`tint` and wraps it in a fresh `shared_ptr` for the
-  `EffectElement`; `update` interpolates member by member when both trees
-  hold the same alternative and takes the new value otherwise. A curve
-  that overshoots (`easeOutBack`) carries interpolated values out of the
-  range the built-ins accept, so `makeEffect` (`surfacenode.cpp`) clamps
-  strengths to [0, 1] and the radius, saturation and highlight width to
-  non-negative before building; the built-ins themselves still throw on
-  such input. Rebuilding
-  the `Effect` every frame is deliberate for now: the shader source does
-  not depend on parameter values, so an emitter cache keyed on source is
-  unaffected, and only the parameter bytes change; caching the `Effect` per
-  node while the options are unchanged is a later optimisation.
-  `FrostedGlassOptions` has `==` and a memberwise `lerp` (`builtineffects.h`)
-  to satisfy `Animated`; like `Animated<std::optional<Brush>>` it is
-  instantiated implicitly, not in `animated.cpp`.
+- **The surface's effect is an `Animated<Effect>`**, so effect parameters
+  animate as values and never change the drawing's structure. `draw` takes
+  the value at the frame's time and wraps it in a fresh `shared_ptr` for
+  the `EffectElement`; a static effect is built once, an animating one is
+  rebuilt by its factory every frame. `update` animates
+  when the old final value and the new value are of the same kind
+  (`isSameKind`) and takes the new value at once otherwise, so a change of
+  kind asks for no frames. `lerp(Effect, Effect, t)` interpolates through
+  the factory's recipe (see *Effects*). Like
+  `Animated<std::optional<Brush>>`, `Animated<Effect>` is instantiated
+  implicitly, not in `animated.cpp`.
 
 ## Render tree snapshots
 
@@ -190,6 +181,23 @@ with the rejected alternatives and the places the code departed from it;
   output. Construction validates and throws listing every broken rule
   (`validate` returns the same list); an output nobody reads is an error, so
   the planner never sees dead work.
+- **An `Effect` is opaque.** It has no public constructor: the factories
+  in `builtineffects.cpp` make one through `makeEffect` in the private
+  `src/effectfactory.h`, which tests use too for hand-written passes.
+  Copies share one immutable pass list. Each factory makes its
+  `PassShader`s once (function-local statics), so `makePassShader`'s
+  `ShaderId` stays the same across effects; two passes are equal when the
+  shader ids are and the inputs, output, geometry, padding and parameter
+  bytes (`UniformValues ==`) are, and two effects when their passes are.
+  The pipeline cache still keys on the source; the id is what chain
+  sharing will compare. Alongside the passes an effect may hold an
+  `EffectRecipe`: the factory's parameters (`FrostedGlassOptions`, or a
+  colour and strength for `tint`) and its build function, which is the
+  kind. `lerp` of two effects of one kind rebuilds from the interpolated
+  parameters, clamped to the factory's valid range first because an
+  overshooting curve leaves it; the recipe keeps them unclamped so a
+  retarget mid-overshoot starts from the true value. Any other pair, or an
+  effect without a recipe, switches to the second effect.
 - **Regions are derived backwards.** `deriveRegions` starts from the
   shape's screen bounds and walks to the first pass: a pass writes the union
   of what its readers sample, each grown by that reader's padding and

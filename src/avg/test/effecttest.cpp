@@ -1,6 +1,11 @@
+#include <effectfactory.h>
+
 #include <avg/effect.h>
 #include <avg/effectplan.h>
 #include <avg/effectshader.h>
+
+#include <ase/uniformvalues.h>
+#include <ase/vector.h>
 
 #include <gtest/gtest.h>
 
@@ -108,7 +113,7 @@ TEST(Effect, acceptsTwoPassBlur)
 {
     EXPECT_TRUE(avg::validate(blurPasses()).empty());
 
-    Effect effect(blurPasses());
+    Effect effect = avg::makeEffect(blurPasses());
     EXPECT_EQ(4u, effect.getPasses().size());
     EXPECT_EQ(Geometry::Shape, effect.getFinalPass().geometry);
 }
@@ -274,7 +279,7 @@ TEST(Effect, constructorThrowsWithEveryError)
 
     try
     {
-        Effect effect(passes);
+        Effect effect = avg::makeEffect(passes);
         FAIL() << "expected std::invalid_argument";
     }
     catch (std::invalid_argument const& e)
@@ -327,7 +332,7 @@ TEST(EffectPlan, targetSizeRoundsUp)
 
 TEST(EffectPlan, regionsGrowByPaddingAndClampToEachTarget)
 {
-    Effect blur(blurPasses());
+    Effect blur = avg::makeEffect(blurPasses());
 
     // The shape runs 10 px past the right edge of a 200x100 screen.
     EffectRegions regions = avg::deriveRegions(blur, rect(150, 40, 60, 30),
@@ -343,7 +348,7 @@ TEST(EffectPlan, regionsGrowByPaddingAndClampToEachTarget)
 
 TEST(EffectPlan, regionsAtOddSizesCoverTheWholeScreen)
 {
-    Effect effect({
+    Effect effect = avg::makeEffect({
         regionPass({ PassInput::backdrop() }, Divisor::Two,
                 ase::FORMAT_SRGBA),
         finalPass({ PassInput::pass(0) })
@@ -359,7 +364,7 @@ TEST(EffectPlan, regionsAtOddSizesCoverTheWholeScreen)
 
 TEST(EffectPlan, regionsOfAnOffscreenShapeAreEmpty)
 {
-    Effect blur(blurPasses());
+    Effect blur = avg::makeEffect(blurPasses());
 
     EffectRegions regions = avg::deriveRegions(blur, rect(-50, -50, 20, 20),
             Vector2i(200, 100));
@@ -371,7 +376,7 @@ TEST(EffectPlan, regionsOfAnOffscreenShapeAreEmpty)
 
 TEST(EffectPlan, regionsClampAtTheLeftEdge)
 {
-    Effect tint({ finalPass({ PassInput::backdrop() }) });
+    Effect tint = avg::makeEffect({ finalPass({ PassInput::backdrop() }) });
 
     EffectRegions regions = avg::deriveRegions(tint, rect(-10, 5, 30, 10),
             Vector2i(100, 100));
@@ -382,7 +387,7 @@ TEST(EffectPlan, regionsClampAtTheLeftEdge)
 
 TEST(EffectPlan, backdropRegionIsEmptyWhenNothingReadsIt)
 {
-    Effect fill({ finalPass({}) });
+    Effect fill = avg::makeEffect({ finalPass({}) });
 
     EffectRegions regions = avg::deriveRegions(fill, rect(10, 10, 10, 10),
             Vector2i(100, 100));
@@ -393,7 +398,7 @@ TEST(EffectPlan, backdropRegionIsEmptyWhenNothingReadsIt)
 
 TEST(ScratchPlan, chainPingPongsBetweenTwoSlots)
 {
-    Effect blur(blurPasses());
+    Effect blur = avg::makeEffect(blurPasses());
     ScratchTimeline timeline;
     size_t const snapshot = timeline.addSnapshot();
     timeline.addEffect(blur, snapshot);
@@ -431,7 +436,7 @@ TEST(ScratchPlan, chainPingPongsBetweenTwoSlots)
 
 TEST(ScratchPlan, snapshotStaysLiveUntilItsLastReader)
 {
-    Effect blur(blurPasses());
+    Effect blur = avg::makeEffect(blurPasses());
     ScratchTimeline timeline;
     size_t const snapshot = timeline.addSnapshot();
     timeline.addEffect(blur, snapshot);
@@ -454,7 +459,7 @@ TEST(ScratchPlan, snapshotStaysLiveUntilItsLastReader)
 
 TEST(ScratchPlan, consecutiveEffectsReuseTheSameSlots)
 {
-    Effect blur(blurPasses());
+    Effect blur = avg::makeEffect(blurPasses());
     ScratchTimeline timeline;
     size_t const snapshot = timeline.addSnapshot();
     timeline.addEffect(blur, snapshot);
@@ -472,7 +477,7 @@ TEST(ScratchPlan, consecutiveEffectsReuseTheSameSlots)
 
 TEST(ScratchPlan, outputNeverAliasesAnInputOfAWideGraph)
 {
-    Effect effect({
+    Effect effect = avg::makeEffect({
         regionPass({ PassInput::backdrop() }, Divisor::Two,
                 ase::FORMAT_RGBA16F),
         regionPass({ PassInput::backdrop() }, Divisor::Two,
@@ -495,7 +500,7 @@ TEST(ScratchPlan, outputNeverAliasesAnInputOfAWideGraph)
 
 TEST(ScratchPlan, nestedScopesHoldTwoSnapshots)
 {
-    Effect tint({ finalPass({ PassInput::backdrop() }) });
+    Effect tint = avg::makeEffect({ finalPass({ PassInput::backdrop() }) });
     ScratchTimeline timeline;
     size_t const outer = timeline.addSnapshot();
     timeline.addEffect(tint, outer);
@@ -528,7 +533,7 @@ TEST(ScratchPlan, unreadSnapshotIsReleasedAtOnce)
 
 TEST(ScratchPlan, poolsAreCountedPerKey)
 {
-    Effect effect({
+    Effect effect = avg::makeEffect({
         regionPass({ PassInput::backdrop() }, Divisor::Two,
                 ase::FORMAT_RGBA16F),
         regionPass({ PassInput::pass(0) }, Divisor::Two, ase::FORMAT_R8),
@@ -550,8 +555,82 @@ TEST(ScratchPlan, poolsAreCountedPerKey)
 
 TEST(ScratchTimeline, rejectsAnUnknownSnapshot)
 {
-    Effect tint({ finalPass({ PassInput::backdrop() }) });
+    Effect tint = avg::makeEffect({ finalPass({ PassInput::backdrop() }) });
     ScratchTimeline timeline;
 
     EXPECT_THROW(timeline.addEffect(tint, 0), std::invalid_argument);
+}
+
+TEST(Pass, equalPassesShareShaderIdentityAndBytes)
+{
+    avg::PassShader const shader = avg::makePassShader(1, {
+            { "tint", ase::UniformType::Float4 },
+            }, "void main() {}\n");
+
+    Pass pass;
+    pass.shader = shader;
+    pass.inputs = { PassInput::backdrop() };
+    pass.geometry = Geometry::Shape;
+    pass.parameters = ase::UniformValues(shader.interface, "ParamBlock");
+    pass.parameters->set("tint", ase::Vector4f(1.0f, 0.0f, 0.0f, 0.5f));
+
+    Pass const same = pass;
+    EXPECT_EQ(pass, same);
+
+    Pass otherParameters = pass;
+    otherParameters.parameters->set("tint",
+            ase::Vector4f(1.0f, 0.0f, 0.0f, 0.25f));
+    EXPECT_NE(pass, otherParameters);
+
+    Pass otherInputs = pass;
+    otherInputs.inputs = { PassInput::pass(0) };
+    EXPECT_NE(pass, otherInputs);
+
+    Pass otherOutput = pass;
+    otherOutput.output = PassOutput{ Divisor::Two, ase::FORMAT_RGBA16F };
+    EXPECT_NE(pass, otherOutput);
+
+    Pass otherPadding = pass;
+    otherPadding.padding = 1;
+    EXPECT_NE(pass, otherPadding);
+}
+
+TEST(Pass, theSameSourceMadeTwiceIsAnotherShader)
+{
+    avg::PassShader const first = avg::makePassShader(1, {},
+            "void main() {}\n");
+    avg::PassShader const second = avg::makePassShader(1, {},
+            "void main() {}\n");
+    ASSERT_EQ(first.fragmentSource, second.fragmentSource);
+
+    Pass a = finalPass({ PassInput::backdrop() });
+    a.shader = first;
+    Pass b = a;
+    b.shader = second;
+
+    EXPECT_NE(first.id, second.id);
+    EXPECT_NE(a, b);
+}
+
+TEST(Effect, comparesPassByPass)
+{
+    Effect blur = avg::makeEffect(blurPasses());
+    Effect copy = blur;
+
+    EXPECT_EQ(blur, copy);
+    EXPECT_EQ(blur, avg::makeEffect(blurPasses()));
+
+    auto passes = blurPasses();
+    passes[1].padding = 2;
+    EXPECT_NE(blur, avg::makeEffect(passes));
+}
+
+TEST(Effect, withoutARecipeInterpolatesBySwitching)
+{
+    Effect blur = avg::makeEffect(blurPasses());
+    Effect tint = avg::makeEffect({ finalPass({ PassInput::backdrop() }) });
+
+    EXPECT_FALSE(avg::isSameKind(blur, blur));
+    EXPECT_EQ(tint, avg::lerp(blur, tint, 0.0f));
+    EXPECT_EQ(tint, avg::lerp(blur, tint, 0.5f));
 }
