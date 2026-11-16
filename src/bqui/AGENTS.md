@@ -234,16 +234,19 @@ capture, marks the window due (`RemoteWindow::requestFrame`, since an idle
 window would not render) and, while paused, steps with zero elapsed time:
 input injected since the last step applies, but time and the driver's frame
 index do not move. Running, the next tick serves it; `app.pause` with a capture
-still waiting for its frame renders the zero-time frame then. What holds:
+whose frame has not rendered yet renders the zero-time frame then. What holds:
 
 - **The zero-time frame holds the gate** while a window waits for a free slot,
   resumed by the same paused wake as a pending step and released after
   `stepTimeout` at the latest. Once the frame has rendered, later requests go
   ahead while the pixels are read and encoded.
 - **Each screenshot has a deadline**: no capture within `stepTimeout` answers
-  with an internal error, and a capture arriving later is dropped. At most
-  `kMaxScreenshotsInFlight` (`src/remote/screenshot.h`) are unanswered at once;
-  beyond that is `kCaptureBusy` (-32011). A window that cannot capture is
+  with an internal error, and a capture arriving later is dropped unencoded.
+  The capture stays armed in the window until it next presents or goes away,
+  so the driver counts each window's armed captures until they complete. At
+  most `kMaxScreenshotsInFlight` (`src/remote/screenshot.h`) are unanswered at
+  once, and a window holds at most as many armed; beyond either is
+  `kCaptureBusy` (-32011). A window that cannot capture is
   `kCaptureUnsupported` (-32010), checked at request time and mapped again from
   the capture result; `Cancelled` and `Failed` are internal errors with the
   reason in the error data.
@@ -251,12 +254,16 @@ still waiting for its frame renders the zero-time frame then. What holds:
   (`planScreenshot` / `renderScreenshot`), encodes (`encodePng`,
   `src/remote/png.h`, zlib with a hand-written container) and posts the bytes
   back; the blob is added on the loop, so the outstanding cap is checked after
-  the encode. The driver's destructor waits for running jobs, since each posts
-  to the loop.
-- **A widget's bounds are read when the capture arrives**, from the
-  introspection then current, so the region matches the captured layout.
+  the encode. The driver's destructor waits for the jobs that have started,
+  since each posts to the loop; one that starts later does nothing.
+- **A screenshot's geometry is read right after the frame it captures**: after
+  each frame the driver renders, a screenshot whose window's
+  `RemoteWindow::presentCount` has moved since it was armed takes the widget
+  bounds and scaling factor then, so later frames cannot move its crop. A
+  window that does not count presents has them read when the capture arrives.
 - **A pending screenshot keeps a half-closed session up**, like a pending step;
-  a session that ends drops it unanswered.
+  a session that finishes, as when the app quits in the zero-time frame,
+  answers it with an internal error.
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
