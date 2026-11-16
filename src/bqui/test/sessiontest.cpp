@@ -35,6 +35,8 @@
 #include <ase/rendercontext.h>
 #include <ase/window.h>
 #include <avg/color.h>
+#include <avg/obb.h>
+#include <avg/rect.h>
 
 #include <btl/uniqueid.h>
 #include <btl/runloop.h>
@@ -241,11 +243,33 @@ namespace
 
     // A fake that can capture: it holds each armed callback until the test
     // completes it, as a render thread would, unless told to serve a result
-    // at once.
+    // at once. It presents whenever the fixture steps, and a widget layout set
+    // for the next present takes effect there.
     class CapturableFakeWindow : public FakeRemoteWindow
     {
     public:
         using FakeRemoteWindow::FakeRemoteWindow;
+
+        using Widget = std::optional<std::pair<avg::UniqueId, LogicalRect>>;
+
+        Introspection introspect() const override
+        {
+            Introspection root = FakeRemoteWindow::introspect();
+
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            if (widget_)
+            {
+                LogicalRect const& r = widget_->second;
+                Introspection child;
+                child.id = widget_->first;
+                child.obb = avg::Obb(avg::Rect(ase::Vector2f(r.x, r.y),
+                            ase::Vector2f(r.width, r.height)));
+                root.children.push_back(
+                        makeIntrospectionChild(std::move(child)));
+            }
+
+            return root;
+        }
 
         bool canCapture() const override { return true; }
 
@@ -267,6 +291,31 @@ namespace
         void requestFrame() override { ++frameRequests_; }
 
         float scalingFactor() const override { return scalingFactor_; }
+
+        std::uint64_t presentCount() const override { return presents_; }
+
+        void present()
+        {
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            if (nextWidget_)
+            {
+                widget_ = *nextWidget_;
+                nextWidget_.reset();
+            }
+            ++presents_;
+        }
+
+        void setWidget(Widget widget)
+        {
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            widget_ = std::move(widget);
+        }
+
+        void setWidgetAtNextPresent(Widget widget)
+        {
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            nextWidget_ = std::move(widget);
+        }
 
         std::vector<ase::CaptureCallback> takeArmed()
         {
@@ -300,6 +349,10 @@ namespace
         std::optional<ase::CaptureResult> serveWith_;
         std::atomic<int> frameRequests_{ 0 };
         float scalingFactor_ = 1.0f;
+        mutable std::mutex widgetMutex_;
+        Widget widget_;
+        std::optional<Widget> nextWidget_;
+        std::atomic<std::uint64_t> presents_{ 0 };
     };
 
     // Serve the driver over `fakes` on a background thread against a loopback
@@ -357,8 +410,18 @@ namespace
                     btl::RunLoop loop;
 
                     RemoteApp app;
-                    app.step = [this](std::chrono::microseconds)
+                    app.step = [this, windows](std::chrono::microseconds)
                     {
+                        for (auto& window : windows)
+                        {
+                            if (auto* capturable =
+                                    dynamic_cast<CapturableFakeWindow*>(
+                                        &window.get()))
+                            {
+                                capturable->present();
+                            }
+                        }
+
                         {
                             std::lock_guard<std::mutex> lock(stepsMutex);
                             ++steps;
@@ -1971,6 +2034,63 @@ TEST(session, screenshotOfARegionCropsAndScales)
     EXPECT_EQ(2, half.at("result").at("height").get<int>());
     EXPECT_EQ((json{ { "x", 0.0 }, { "y", 0.0 }, { "width", 3.0 },
                 { "height", 2.0 } }), half.at("result").at("region"));
+}
+
+TEST(session, widgetScreenshotCropsToTheBoundsOfTheCapturedFrame)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "widget");
+    avg::UniqueId const widget;
+    window.setWidget(std::make_pair(widget, LogicalRect{ 1, 0, 2, 1 }));
+    SessionFixture s("shotwidget", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window,
+                { { "widget", widget.getValue() } }));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    // Once a later request is answered, the captured frame has rendered; the
+    // widget then moves before the pixels arrive.
+    EXPECT_TRUE(s.call("window.list").contains("result"));
+    window.setWidget(std::make_pair(widget, LogicalRect{ 0, 0, 1, 1 }));
+
+    auto frame = syntheticFrame(4, 3, 1);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    auto const& result = reply.at("result");
+    EXPECT_EQ((json{ { "x", 1.0 }, { "y", 0.0 }, { "width", 2.0 },
+                { "height", 1.0 } }), result.at("region"));
+
+    auto png = expectedPng(frame, 1, 2, 2, 1);
+    auto read = s.call("blob.read", { { "id", result.at("blob").at("id") },
+            { "offset", 0 } });
+    EXPECT_EQ(base64Encode(png.data(), png.size()),
+            read.at("result").at("data").get<std::string>());
+}
+
+TEST(session, widgetMissingFromTheCapturedFrameIsInvalidParams)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "widgetgone");
+    avg::UniqueId const widget;
+    window.setWidget(std::make_pair(widget, LogicalRect{ 0, 0, 1, 1 }));
+    window.setWidgetAtNextPresent(std::nullopt);
+    SessionFixture s("shotwidgetgone", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window,
+                { { "widget", widget.getValue() } }));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    // Back by the time the pixels arrive, but not in the frame they show.
+    EXPECT_TRUE(s.call("window.list").contains("result"));
+    window.setWidget(std::make_pair(widget, LogicalRect{ 0, 0, 1, 1 }));
+    armed.front()(syntheticFrame(4, 3, 1));
+
+    auto reply = awaitResponse(*s.client, id);
+    EXPECT_EQ(kInvalidParams, errorCodeOf(reply)) << reply.dump();
 }
 
 TEST(session, screenshotRejectsBadParamsAndUnknownWindows)

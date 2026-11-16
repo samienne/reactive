@@ -105,6 +105,7 @@ public:
     void captureNextFrame(ase::CaptureCallback callback) override;
     void requestFrame() override;
     float scalingFactor() const override;
+    std::uint64_t presentCount() const override;
 
 private:
     pmr::unsynchronized_pool_resource memoryPool_;

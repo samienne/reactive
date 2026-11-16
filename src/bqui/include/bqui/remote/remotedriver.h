@@ -98,6 +98,16 @@ namespace bqui::remote
          * 1 unless overridden.
          */
         virtual float scalingFactor() const;
+
+        /**
+         * @brief How many frames this window has presented.
+         *
+         * A screenshot reads its region and scaling factor right after the
+         * frame that moves this count past the one seen when it was armed.
+         * While it stays 0, as it does unless overridden, they are read when
+         * the capture arrives instead.
+         */
+        virtual std::uint64_t presentCount() const;
     };
 
     /**

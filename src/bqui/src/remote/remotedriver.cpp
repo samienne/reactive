@@ -59,6 +59,11 @@ float RemoteWindow::scalingFactor() const
     return 1.0f;
 }
 
+std::uint64_t RemoteWindow::presentCount() const
+{
+    return 0;
+}
+
 namespace
 {
 
@@ -292,6 +297,29 @@ std::optional<LogicalRect> widgetBounds(widget::Introspection const& node,
     return std::nullopt;
 }
 
+// What a screenshot's plan takes from the frame it captures.
+struct FrameGeometry
+{
+    float scalingFactor = 1.0f;
+    std::optional<LogicalRect> region;
+    bool widgetMissing = false;
+};
+
+FrameGeometry readGeometry(RemoteWindow const& window,
+        ScreenshotRequest const& request)
+{
+    FrameGeometry geometry;
+    geometry.scalingFactor = window.scalingFactor();
+    geometry.region = request.region;
+    if (request.widget)
+    {
+        geometry.region = widgetBounds(window.introspect(), *request.widget);
+        geometry.widgetMissing = !geometry.region;
+    }
+
+    return geometry;
+}
+
 json toJson(LogicalRect const& rect)
 {
     return {
@@ -409,9 +437,10 @@ private:
     struct PendingScreenshot
     {
         ScreenshotRequest request;
-        float scalingFactor = 1.0f;
         Responder responder;
         btl::RunLoop::Timer deadline;
+        std::uint64_t armedAt = 0;
+        std::optional<FrameGeometry> geometry;
         bool framed = false;
     };
 
@@ -638,9 +667,43 @@ private:
         ensureTicking();
     }
 
-    void advanceFrame(std::chrono::microseconds dt)
+    bool stepApp(std::chrono::microseconds dt)
     {
         bool keepRunning = pauseToken_ ? pauseToken_->step(dt) : app_.step(dt);
+        notePresents();
+        return keepRunning;
+    }
+
+    bool finishStep()
+    {
+        bool finished = !pauseToken_ || pauseToken_->finishStep();
+        notePresents();
+        return finished;
+    }
+
+    // A window renders the frame a screenshot captures on this thread, and a
+    // later frame can move the widget before the pixels arrive.
+    void notePresents()
+    {
+        if (screenshots_.empty())
+            return;
+
+        auto windows = app_.liveWindows();
+        for (auto& entry : screenshots_)
+        {
+            PendingScreenshot& shot = entry.second;
+            if (shot.geometry || shot.framed)
+                continue;
+
+            RemoteWindow* window = findWindow(windows, shot.request.window);
+            if (window && window->presentCount() > shot.armedAt)
+                shot.geometry = readGeometry(*window, shot.request);
+        }
+    }
+
+    void advanceFrame(std::chrono::microseconds dt)
+    {
+        bool keepRunning = stepApp(dt);
         ++frame_;
         if (!keepRunning)
             beginShutdown();
@@ -743,7 +806,7 @@ private:
             if (shuttingDown_)
                 return true;
 
-            if (pauseToken_ && !pauseToken_->finishStep())
+            if (!finishStep())
                 return false;
 
             if (remaining <= 0)
@@ -846,8 +909,8 @@ private:
         uint64_t const key = nextScreenshot_++;
         PendingScreenshot& shot = screenshots_[key];
         shot.request = request;
-        shot.scalingFactor = window->scalingFactor();
         shot.responder = std::move(responder);
+        shot.armedAt = window->presentCount();
         shot.deadline = controller_->addTimer(stepTimeout_,
                 [this, key](btl::RunLoop::Controller& controller)
                 {
@@ -876,15 +939,13 @@ private:
     // for a free slot.
     void renderZeroFrame()
     {
-        auto const dt = std::chrono::microseconds(0);
-        bool keepRunning = pauseToken_ ? pauseToken_->step(dt) : app_.step(dt);
-        if (!keepRunning)
+        if (!stepApp(std::chrono::microseconds(0)))
         {
             beginShutdown();
             return;
         }
 
-        if (pauseToken_ && !pauseToken_->finishStep() && !zeroFrameGate_)
+        if (!finishStep() && !zeroFrameGate_)
         {
             zeroFrameGate_ = dispatcher_.holdGate();
             zeroFrameDeadline_ = controller_->addTimer(stepTimeout_,
@@ -898,7 +959,7 @@ private:
 
     void resumeZeroFrame()
     {
-        if (zeroFrameGate_ && pauseToken_->finishStep())
+        if (zeroFrameGate_ && finishStep())
             endZeroFrame();
     }
 
@@ -931,26 +992,33 @@ private:
             return;
         }
 
-        std::optional<LogicalRect> region = shot.request.region;
-        if (shot.request.widget)
+        if (!shot.geometry)
         {
             auto windows = app_.liveWindows();
             RemoteWindow* window = findWindow(windows, shot.request.window);
-            region = window
-                ? widgetBounds(window->introspect(), *shot.request.widget)
-                : std::nullopt;
-            if (!region)
+            if (!window)
             {
-                failScreenshot(key, RpcError{ kInvalidParams,
-                    "widget " + std::to_string(*shot.request.widget)
-                        + " is not in the captured frame" });
+                failScreenshot(key, captureError(
+                            ase::ReadbackError::Cancelled,
+                            shot.request.window));
                 return;
             }
+
+            shot.geometry = readGeometry(*window, shot.request);
+        }
+
+        if (shot.geometry->widgetMissing)
+        {
+            failScreenshot(key, RpcError{ kInvalidParams,
+                "widget " + std::to_string(*shot.request.widget)
+                    + " is not in the captured frame" });
+            return;
         }
 
         ase::FrameCapture capture = std::move(result).value();
-        auto plan = planScreenshot(capture.image.size, shot.scalingFactor,
-                region, shot.request.scale);
+        auto plan = planScreenshot(capture.image.size,
+                shot.geometry->scalingFactor, shot.geometry->region,
+                shot.request.scale);
         if (!plan)
         {
             failScreenshot(key, RpcError{ kInvalidParams,
