@@ -659,8 +659,12 @@ private:
             throw RpcError{ kInvalidParams,
                 "no live window with id " + std::to_string(id) };
 
+        auto asBlob = params.find("asBlob");
+        if (asBlob != params.end() && !asBlob->is_boolean())
+            throw RpcError{ kInvalidParams, "'asBlob' must be a boolean" };
+
         json result = { { "renderTree", toJson(window->snapshot()) } };
-        if (!boolField(params, "asBlob", false))
+        if (asBlob == params.end() || !asBlob->get<bool>())
             return result;
 
         return { { "blob", blobs_.add(result.dump(), "application/json") } };

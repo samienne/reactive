@@ -1510,6 +1510,21 @@ TEST(session, aRenderTreeBlobHoldsTheInlineReply)
             s.result(whole).at("data"));
 }
 
+TEST(session, aNonBooleanAsBlobIsInvalid)
+{
+    BlobSession s;
+    json window = s.window.id().getValue();
+
+    int number = s.send("window.renderTree",
+            { { "window", window }, { "asBlob", 1 } });
+    int text = s.send("window.renderTree",
+            { { "window", window }, { "asBlob", "true" } });
+    ASSERT_TRUE(s.run());
+
+    EXPECT_EQ(kInvalidParams, s.errorCode(number));
+    EXPECT_EQ(kInvalidParams, s.errorCode(text));
+}
+
 TEST(session, describeMarksBlobMethodsAndReportsTheLimits)
 {
     BlobLimits limits;
