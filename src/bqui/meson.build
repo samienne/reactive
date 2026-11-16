@@ -92,7 +92,8 @@ nlohmanndep = dependency('nlohmann_json', include_type: 'system',
 # Deflate for the PNG encoder. Built static where it falls back to the wrap, so
 # it lands inside the bqui library rather than as one more DLL beside it.
 zlibdep = dependency('zlib', include_type: 'system',
-    default_options: subproject_warnings + ['default_library=static'])
+    default_options: subproject_warnings
+      + ['default_library=static', 'tests=disabled'])
 
 # The TCP transport uses Winsock, which needs an explicit link to ws2_32 on
 # Windows; POSIX sockets need no extra link.
