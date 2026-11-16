@@ -153,8 +153,10 @@ result. A deferred one moves the responder out, returns `pending`, and calls
   releasing it dispatches them. A handler holds it for as long as its effect on
   the app is unfinished, which can be shorter than the wait for its reply.
 - **A responder refers to the session weakly.** After the session ended
-  (`Dispatcher::end`, from a disconnect, a shutdown or the driver's destructor)
-  resolving is a no-op and gated requests are discarded. Destroying an
+  (`Dispatcher::end`, from end of input, a shutdown or the driver's
+  destructor) resolving is a no-op and gated requests are discarded. End of
+  input includes a half-close: replies already queued still reach that
+  client, but a deferred one still pending is never sent. Destroying an
   unanswered responder while the session lives sends an internal error, so a
   lost handler cannot hang a client. A request without an `id` is never
   answered, deferred or not.
@@ -172,7 +174,7 @@ posted task that checks the driver is still alive. On the dummy backend fences
 complete inline, so the step answers synchronously as before; the tests reach
 the deferred path with `DummyRenderContext::holdFences`. Nothing bounds the
 wait: a slot that never frees leaves the step pending and the gate held until
-the client disconnects.
+the client closes its sending side or disconnects.
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
