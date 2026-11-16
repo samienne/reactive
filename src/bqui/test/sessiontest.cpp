@@ -2240,6 +2240,28 @@ TEST(session, tooManyScreenshotsInFlightIsBusy)
     EXPECT_EQ(ids, answered);
 }
 
+TEST(session, screenshotWhoseEncodeFailsIsAnInternalError)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "badframe");
+    SessionFixture s("shotbadframe", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    // Fewer pixels than the frame's size claims.
+    auto frame = syntheticFrame(4, 3, 1);
+    frame.image.pixels.resize(4);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    EXPECT_EQ(kInternalError, errorCodeOf(reply)) << reply.dump();
+
+    auto list = s.call("window.list");
+    EXPECT_TRUE(list.contains("result"));
+}
+
 TEST(session, screenshotPastTheBlobCapFails)
 {
     CapturableFakeWindow window(btl::makeUniqueId(), "cap");
