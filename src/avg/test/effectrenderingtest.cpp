@@ -742,8 +742,6 @@ TEST(EffectRendering, aGlassSurfaceInAStackDrawsOverTheChildrenBelowIt)
                 std::nullopt,
                 avg::makeShapeFunction(&surfaceBox),
                 std::make_optional(avg::Brush(white)),
-                std::make_optional(avg::SurfaceShadow{
-                        avg::Vector2f(2.0f, -2.0f), 0.0f, avg::Brush(black) }),
                 std::make_optional(avg::Animated<avg::Brush>(
                         avg::Brush(avg::frostedGlass(options)))),
                 std::make_shared<avg::RectNode>(
@@ -757,25 +755,64 @@ TEST(EffectRendering, aGlassSurfaceInAStackDrawsOverTheChildrenBelowIt)
     avg::DrawContext context(pmr::new_delete_resource());
     auto d = tree.draw(context, avg::Obb(avg::Vector2f(400.0f, 300.0f)),
             std::chrono::milliseconds(0)).first;
-    ASSERT_TRUE(d.getPendingShadows().empty());
 
-    // The shadow and the background, then the surface's snapshot, its
-    // passes and its fill with the child over it
+    // The background, then the surface's snapshot, its passes and its
+    // fill with the child over it
     auto const& frame = f.frame(d);
     EXPECT_EQ("CD|S|P|P|P|F|D", f.picture(frame));
 
     auto finals = f.draws(frame, "F");
     ASSERT_EQ(1u, finals.size());
     expectScissor(glassBounds, *finals[0]);
+}
 
-    // The shadow's black is in the draw before the snapshot, not in the
-    // one after the final pass
-    auto content = f.draws(frame, "D");
-    ASSERT_EQ(2u, content.size());
-    EXPECT_EQ(std::make_pair(0.0f, 1.0f),
-            xRange(verticesOf(frame, *content[0]), 7, 0));
-    EXPECT_EQ(std::make_pair(1.0f, 1.0f),
-            xRange(verticesOf(frame, *content[1]), 7, 0));
+TEST(EffectRendering, glassInTheCombinedBoundarySnapshotsTheShadow)
+{
+    Fixture f;
+
+    auto stack = std::make_shared<avg::ContainerNode>(
+            avg::Obb(avg::Vector2f(400.0f, 300.0f)),
+            avg::ContainerNode::Stacking::stacked);
+    stack->addChild(std::make_shared<avg::SurfaceNode>(
+                avg::Obb(avg::Vector2f(100.0f, 50.0f),
+                    avg::translate(60.0f, 60.0f)),
+                std::nullopt,
+                avg::makeShapeFunction(&surfaceBox),
+                std::make_optional(avg::Brush(white)),
+                std::nullopt,
+                nullptr));
+
+    avg::FrostedGlassOptions options;
+    options.radius = 24.0f;
+    stack->addChild(std::make_shared<avg::SurfaceNode>(
+                avg::Obb(avg::Vector2f(200.0f, 40.0f),
+                    avg::translate(100.0f, 80.0f)),
+                std::nullopt,
+                avg::makeShapeFunction(&surfaceBox),
+                std::make_optional(avg::Brush(
+                        avg::Color(1.0f, 1.0f, 1.0f, 0.5f))),
+                std::make_optional(avg::Animated<avg::Brush>(
+                        avg::Brush(avg::frostedGlass(options)))),
+                nullptr));
+
+    avg::RenderTree tree(std::make_shared<avg::ShadowBoundaryNode>(
+                std::nullopt,
+                avg::ShadowLight{
+                    avg::Animated<avg::Vector2f>(avg::Vector2f(4.0f, -4.0f)),
+                    avg::Animated<float>(8.0f),
+                    avg::Animated<avg::Color>(avg::Color(0.0f, 0.0f, 0.0f,
+                            0.5f))
+                },
+                avg::ShadowBoundaryNode::Content::scoped,
+                std::move(stack)));
+    avg::DrawContext context(pmr::new_delete_resource());
+    auto d = tree.draw(context, avg::Obb(avg::Vector2f(400.0f, 300.0f)),
+            std::chrono::milliseconds(0)).first;
+
+    // The shadow's fill and blur, the caster, then the glass's snapshot,
+    // its passes and its final pass, and its translucent fill
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("C|cd|P|P|P|F|D|S|P|P|P|F|F", f.picture(frame));
 }
 
 TEST(EffectRendering, aBackdropElementDrawsLikeAnEffectBrush)

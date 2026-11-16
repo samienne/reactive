@@ -4,7 +4,6 @@
 
 #include "brush.h"
 #include "obb.h"
-#include "pen.h"
 #include "shape.h"
 
 #include <cassert>
@@ -25,32 +24,6 @@ SurfaceNode const& asSurface(std::shared_ptr<RenderTreeNode> const& node)
     return reinterpret_cast<SurfaceNode const&>(*node);
 }
 
-std::optional<SurfaceShadow> updatedShadow(
-        std::optional<SurfaceShadow> const& oldShadow,
-        std::optional<SurfaceShadow> const& newShadow,
-        std::optional<AnimationOptions> const& options,
-        std::chrono::milliseconds time
-        )
-{
-    if (!oldShadow || !newShadow)
-        return newShadow;
-
-    return SurfaceShadow{
-        oldShadow->offset.updated(newShadow->offset, options, time),
-        oldShadow->spread.updated(newShadow->spread, options, time),
-        oldShadow->brush.updated(newShadow->brush, options, time)
-    };
-}
-
-bool hasShadowAnimationEnded(std::optional<SurfaceShadow> const& shadow,
-        std::chrono::milliseconds time)
-{
-    return !shadow
-        || (shadow->offset.hasAnimationEnded(time)
-                && shadow->spread.hasAnimationEnded(time)
-                && shadow->brush.hasAnimationEnded(time));
-}
-
 std::optional<Animated<Brush>> updatedBrush(
         std::optional<Animated<Brush>> const& oldBrush,
         std::optional<Animated<Brush>> const& newBrush,
@@ -62,6 +35,12 @@ std::optional<Animated<Brush>> updatedBrush(
         return newBrush;
 
     return oldBrush->updated(*newBrush, options, time);
+}
+
+bool isOpaqueColour(std::optional<Brush> const& brush)
+{
+    return brush && !brush->getEffect()
+        && brush->getColor().getAlpha() >= 1.0f;
 }
 
 bool hasBrushAnimationEnded(std::optional<Animated<Brush>> const& brush,
@@ -77,7 +56,6 @@ SurfaceNode::SurfaceNode(
         std::optional<AnimationOptions> animationOptions,
         ShapeFunction shape,
         Animated<std::optional<Brush>> fill,
-        std::optional<SurfaceShadow> shadow,
         std::optional<Animated<Brush>> brush,
         std::shared_ptr<RenderTreeNode> childNode
         ) :
@@ -85,7 +63,6 @@ SurfaceNode::SurfaceNode(
     animationOptions_(std::move(animationOptions)),
     shape_(std::move(shape)),
     fill_(std::move(fill)),
-    shadow_(std::move(shadow)),
     brush_(std::move(brush)),
     childNode_(std::move(childNode))
 {
@@ -120,7 +97,6 @@ UpdateResult SurfaceNode::update(
                     surface.animationOptions_,
                     surface.shape_,
                     surface.fill_,
-                    surface.shadow_,
                     surface.brush_,
                     std::move(child)
                     ),
@@ -145,7 +121,6 @@ UpdateResult SurfaceNode::update(
                     surface.animationOptions_,
                     surface.shape_,
                     surface.fill_,
-                    surface.shadow_,
                     surface.brush_,
                     std::move(child)
                     ),
@@ -174,8 +149,6 @@ UpdateResult SurfaceNode::update(
                 newSurface.animationOptions_,
                 oldSurface.shape_.updated(newSurface.shape_, options, time),
                 oldSurface.fill_.updated(newSurface.fill_, options, time),
-                updatedShadow(oldSurface.shadow_, newSurface.shadow_,
-                    options, time),
                 updatedBrush(oldSurface.brush_, newSurface.brush_,
                     options, time),
                 std::move(child)
@@ -195,27 +168,17 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
     Shape shape = shape_(time, context, local.getSize());
     Drawing result = context.drawing();
 
-    if (shadow_)
-    {
-        float spread = shadow_->spread.getValue(time);
-        Brush brush = shadow_->brush.getValue(time);
-
-        result.addShadow(Drawing::ShapeElement{
-                Shape(shape).translate(shadow_->offset.getValue(time)),
-                brush,
-                spread > 0.0f
-                    ? std::make_optional(Pen(brush, 2.0f * spread))
-                    : std::nullopt
-                });
-    }
-
     if (brush_)
     {
         result += Drawing::ShapeElement{ shape, brush_->getValue(time),
             std::nullopt };
     }
 
-    if (auto fill = fill_.getValue(time))
+    auto fill = fill_.getValue(time);
+    if (!brush_ && isOpaqueColour(fill))
+        result.addOutline(shape);
+
+    if (fill)
         result += Drawing::ShapeElement{ std::move(shape), std::move(fill),
             std::nullopt };
 
@@ -224,7 +187,6 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
     bool cont = !getObb().hasAnimationEnded(time)
         || !shape_.hasAnimationEnded(time)
         || !fill_.hasAnimationEnded(time)
-        || !hasShadowAnimationEnded(shadow_, time)
         || !hasBrushAnimationEnded(brush_, time)
         ;
 
@@ -275,11 +237,6 @@ ShapeFunction const& SurfaceNode::getShape() const
 Animated<std::optional<Brush>> const& SurfaceNode::getFill() const
 {
     return fill_;
-}
-
-std::optional<SurfaceShadow> const& SurfaceNode::getShadow() const
-{
-    return shadow_;
 }
 
 std::optional<Animated<Brush>> const& SurfaceNode::getBrush() const

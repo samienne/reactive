@@ -32,38 +32,27 @@ outgrows one file.
   `BackdropScope` / `EffectElement`, painted in list order. **Clipping is
   rectangular only**: `Drawing::clip` takes `Rect`/`Obb`, and there is no
   region/shape clip. (Path-level clipping is deferred — `docs/decisions.md`.)
-- **Pending shadows.** A `Drawing` carries a second element list, the pending
-  shadows: elements that belong *under* the content of whatever container ends
-  up holding the drawing. `+=` concatenates both lists, `clip`/`transform`/
-  `filterByRect` apply to both, `getControlBb` covers both, and `flush()` moves
-  the shadows ahead of the main list. `RenderTree::draw` flushes the root
-  drawing; anything that renders a node's drawing directly (tests, snapshot
-  paths) must flush it first, or the shadows are silently dropped (`render`
-  only sees the main list).
 - **Outlines.** A `Drawing` also holds an `Outlines` value (`outlines.h`,
-  `src/outlines.cpp`): a list of `Shape`s, the casters of a later shadow
-  boundary. They are not elements and the renderer never reads them;
-  `getControlBb` does not cover them. Every operation that maps or
-  combines drawings applies to them in its own body: `+=` (copy and move),
-  `over`, `transform`/`operator*`, scaling, `filterByRect`, and `clip`,
-  which keeps a shape whose bounds lie inside, drops one outside and
-  intersects the rest with the clip rect (a lazy `Shape::intersect`, the
-  same Obb-inverse maths as the elements); a zero-area clip drops them
-  all. `clip` checks the outlines even
-  when the elements fit, since an added outline may be larger than the
-  painted bounds. **Invariant: only the outermost drawing holds
-  outlines.** `SubDrawing` has no outline list; an element that wraps
-  another `Drawing` takes it through `liftSubDrawing(inner, transform)`,
-  which moves inner's outlines and pending shadows, mapped by the
-  element's transform, onto the holder. `scope()` and `Drawing::effect`
-  use it; a new wrapping element must too. `clip` wraps a drawing's own
-  lists in `ClipElement`s and keeps the clipped outlines on that same
-  drawing, so it lifts nothing.
+  `src/outlines.cpp`): a list of `Shape`s, the casters of the enclosing shadow
+  boundary (`ShadowBoundaryNode`, *Render tree*). They are not elements and the
+  renderer never reads them; `getControlBb` does not cover them. Every operation
+  that maps or combines drawings applies to them in its own body: `+=` (copy and
+  move), `over`, `transform`/`operator*`, scaling, `filterByRect`, and `clip`,
+  which keeps a shape whose bounds lie inside, drops one outside and intersects
+  the rest with the clip rect (a lazy `Shape::intersect`, the same Obb-inverse
+  maths as the elements); a zero-area clip drops them all. `clip` checks the
+  outlines even when the elements fit, since an added outline may be larger than
+  the painted bounds. **Invariant: only the outermost drawing holds outlines.**
+  `SubDrawing` has no outline list; an element that wraps another `Drawing`
+  takes it through `liftSubDrawing(inner, transform)`, which moves inner's
+  outlines, mapped by the element's transform, onto the holder. `scope()` and
+  `Drawing::effect` use it; a new wrapping element must too. `clip` wraps a
+  drawing's own lists in `ClipElement`s and keeps the clipped outlines on that
+  same drawing, so it lifts nothing.
 - **`BackdropScope`** is a sub-drawing with its own transform, shaped like
   `ClipElement` without the clip; `scope()` wraps the main list into one, and
   `over(below, above)` is the one composition for painting a child over
-  another: below's main list, above's pending shadows, then above's main list
-  in a scope (below's shadows stay pending). Scopes nest and `+=` never
+  another: below's elements, then above's in a scope. Scopes nest and `+=` never
   flattens them. A scope caches its contents' bounds (`controlBb`, in scope
   space, strokes included) so bounds queries do not recurse. The renderer
   (`rendering.cpp`, next to the `ClipElement` case) recurses into a scope
@@ -75,51 +64,47 @@ outgrows one file.
   outside the clip would show, so the renderer asserts, as it does for a
   rotated `ClipElement`. The snapshot text collector
   (`rendertree/snapshot.cpp`) recurses into scopes like clips.
-- **`EffectElement`** runs one pass over a list of inputs: an
-  `ElementPass` (`effect.h`, opaque like `Effect`, made through
-  `makeElementPass` in the private `src/effectfactory.h`; it holds the
-  shader, padding, parameters and the output scale and format), inputs
-  that are each a sub-drawing or the backdrop of the enclosing scope, an
-  optional shape, a transform and a `controlBb`. With a shape the pass
-  paints it; without one it covers `controlBb` and its premultiplied
-  result is composited over what is below. A multi-pass effect is nested
-  elements: a sub-drawing input holding nothing but an element without a
-  shape is lowered as that element's Region pass writing at its output,
-  not drawn into a target of its own. `Drawing::effect` is the one
-  construction path: it takes the inputs as `Drawing`s (an empty one is
-  the backdrop), lifts their pending shadows and outlines onto the result, and sets
-  `controlBb` to the shape's bounds or to the sub-drawing inputs' painted
-  bounds grown by the pass's reach (`getReach()`, per axis, times its
-  output divisor, in logical units; it is the padding unless the factory
-  gives less, as `contentBlur`'s one-axis blurs do, since the planner's
-  padding is the same in both axes); a shapeless element with no sub-drawing input throws,
-  having nothing to bound it. **An element's sizes follow its content**:
-  the renderer lowers the pass at the scaling factor times the scale of
-  the element's transform to the root, the scale its sub-drawings are
-  drawn at, and bounds it by their content grown by the lowered pass's
-  reach, not by `controlBb`. `controlBb` is that bound at a pixel scale
-  of one; at another scale the lowered reach is rounded to whole texels
-  and can exceed it by less than one output divisor in pixels, which is
-  what culling a `Drawing` by it may cut. The inputs and shape stay in the element's
-  space, so `transform`, `translate` and `operator*` compose into the
-  element's transform, moving the element and its sub-drawings together,
-  and `clip` wraps it like any element. The renderer turns it into an
-  element draw (*Effects*); the snapshot text collector recurses into its
-  sub-drawing inputs. An effect brush (below) is the short form for an
-  effect over the backdrop painted through a geometry; it keeps the
-  multi-pass `Effect`.
-- **A `Brush` is a colour or an `Effect`** (`brush.h`, `src/brush.cpp`),
-  held in a variant; `getColor` is only valid for a colour brush. A
-  `ShapeElement` fill or pen, a `RegionFill` or a `TextEntry` with an
-  effect brush paints the effect through that geometry: the
-  renderer lowers it to an effect draw (*Effects*), so it reads the
-  enclosing scope's backdrop and never batches with colour meshes. `lerp`
-  interpolates colour to colour and effect to effect of one kind
-  (`isSameKind(Brush, Brush)`), and any other pair returns the second
-  brush at every t. `operator<` orders colours among themselves and before
-  every effect, with all effect brushes equivalent, which is a valid
-  strict weak ordering; the hash of an effect brush covers only its pass
-  count, so equal brushes hash equally but effect brushes collide often.
+- **`EffectElement`** runs one pass over a list of inputs: an `ElementPass`
+  (`effect.h`, opaque like `Effect`, made through `makeElementPass` in the
+  private `src/effectfactory.h`; it holds the shader, padding, parameters and
+  the output scale and format), inputs that are each a sub-drawing or the
+  backdrop of the enclosing scope, an optional shape, a transform and a
+  `controlBb`. With a shape the pass paints it; without one it covers
+  `controlBb` and its premultiplied result is composited over what is below. A
+  multi-pass effect is nested elements: a sub-drawing input holding nothing but
+  an element without a shape is lowered as that element's Region pass writing at
+  its output, not drawn into a target of its own. `Drawing::effect` is the one
+  construction path: it takes the inputs as `Drawing`s (an empty one is the
+  backdrop), lifts their outlines onto the result, and sets `controlBb` to the
+  shape's bounds or to the sub-drawing inputs' painted bounds grown by the
+  pass's reach (`getReach()`, per axis, times its output divisor, in logical
+  units; it is the padding unless the factory gives less, as `contentBlur`'s
+  one-axis blurs do, since the planner's padding is the same in both axes); a
+  shapeless element with no sub-drawing input throws, having nothing to bound
+  it. **An element's sizes follow its content**: the renderer lowers the pass at
+  the scaling factor times the scale of the element's transform to the root, the
+  scale its sub-drawings are drawn at, and bounds it by their content grown by
+  the lowered pass's reach, not by `controlBb`. `controlBb` is that bound at a
+  pixel scale of one; at another scale the lowered reach is rounded to whole
+  texels and can exceed it by less than one output divisor in pixels, which is
+  what culling a `Drawing` by it may cut. The inputs and shape stay in the
+  element's space, so `transform`, `translate` and `operator*` compose into the
+  element's transform, moving the element and its sub-drawings together, and
+  `clip` wraps it like any element. The renderer turns it into an element draw
+  (*Effects*); the snapshot text collector recurses into its sub-drawing inputs.
+  An effect brush (below) is the short form for an effect over the backdrop
+  painted through a geometry; it keeps the multi-pass `Effect`.
+- **A `Brush` is a colour or an `Effect`** (`brush.h`, `src/brush.cpp`), held in
+  a variant; `getColor` is only valid for a colour brush. A `ShapeElement` fill
+  or pen, a `RegionFill` or a `TextEntry` with an effect brush paints the effect
+  through that geometry: the renderer lowers it to an effect draw (*Effects*),
+  so it reads the enclosing scope's backdrop and never batches with colour
+  meshes. `lerp` interpolates colour to colour and effect to effect of one kind
+  (`isSameKind(Brush, Brush)`), and any other pair returns the second brush at
+  every t. `operator<` orders colours among themselves and before every effect,
+  with all effect brushes equivalent, which is a valid strict weak ordering; the
+  hash of an effect brush covers only its pass count, so equal brushes hash
+  equally but effect brushes collide often.
 - `btl/optional.h` prints `std::optional` through an `operator<<` at
   global scope, which unqualified lookup only reaches when no
   `avg::operator<<` is declared first. `effect.h` declares several, so
@@ -136,15 +121,16 @@ outgrows one file.
   `ContainerNode` (matches children by id; diffs insert/remove/reorder),
   `ShapeNode`/`RectNode` (animated leaves), `TransitionNode` (enter/leave),
   `ClipNode` (clips a child to an `Animated<Obb>` — **rectangle only**),
-  `IdNode` (stable identity for matching), `SurfaceNode` (a filled shape with
-  a shadow and an optional backdrop effect under a child subtree),
-  `OutlineNode` (replaces or adds to its child's outlines).
+  `IdNode` (stable identity for matching), `SurfaceNode` (a filled shape with an
+  optional backdrop effect under a child subtree), `OutlineNode` (replaces or
+  adds to its child's outlines), `ShadowBoundaryNode` (casts its child's
+  outlines as one shadow).
 - `oldTree.update(newTree, options, time)` splices trees (creating animated
   transitions); `draw(context, obb, time)` is a **pure** function of the
   timestamp and returns whether animation continues, so nodes report when they
-  next need a redraw. `RenderTree::draw` is the root: it flushes the drawing
-  (pending shadows ahead of the content) and drops its outlines before
-  returning it; `getRoot()->draw` keeps them, which is what tests read.
+  next need a redraw. `RenderTree::draw` is the root: it drops the drawing's
+  outlines before returning it; `getRoot()->draw` keeps them, which is what
+  tests read.
 - **`OutlineNode`** (`rendertree/outlinenode.h`) exists for bqui's outline
   modifiers only; shape widgets put their outline in the drawing their
   `ShapeNode` returns. Its own obb starts as `Obb()` and only carries the
@@ -154,38 +140,50 @@ outgrows one file.
   as the `ShapeNode` beside it does; the outline function's parameters
   animate with the same options (`ShapeFunction::updated`). Its child is
   paired through `updateNode`, like any single-child node's.
+- **`ShadowBoundaryNode`** (`rendertree/shadowboundarynode.h`) takes the
+  outlines out of its child's drawing (`takeOutlines`, so they never reach an
+  outer boundary) and draws `shadowOf` them under the child: the shadow
+  element(s) first, then the child's elements, or with `Content::scoped` the
+  child's elements in one `BackdropScope` after the shadow, so glass inside sees
+  the shadow (bqui's combined modifier). `ShadowLight` is an animated offset,
+  blur radius and colour, all in logical units: the offset is geometry and the
+  blur is `contentBlur`, whose recipe the renderer scales (`toPixels`), so
+  nothing converts at the node. Obb and pairing follow `OutlineNode`, with no
+  `area`: the node neither clips nor culls the shadow, since content may
+  overflow the widget; the renderer culls it against the target like any
+  element. No shadow is drawn under anything outside the boundary's subtree, and
+  the shadow lies under the boundary's whole content, including any background
+  inside it.
 - **Stacking.** `ContainerNode` takes a `Stacking` flag. `flat` (the default,
-  what vbox/hbox/grid use) concatenates the children's drawings with `+=` and
-  passes their pending shadows up unchanged, so nested flat containers draw
-  the same elements as one flat container. `stacked` paints the first child
-  flat and each later child with `Drawing::over`, i.e. its pending shadows
-  then its content in a `BackdropScope`, so a child's backdrop effects sample
-  the children below it and their shadows but nothing of itself, and a nested
-  stack's scopes stay inside its own scope. `update` keeps the new tree's
-  flag; the snapshot still reports a stacked container as `ContainerNode`.
-- **`SurfaceNode`** (`rendertree/surfacenode.h`) holds a `ShapeFunction`
-  (the shape for the node's size, animated like a `ShapeNode`'s parameters),
-  an `Animated<std::optional<Brush>>` fill, an optional `SurfaceShadow`
-  (animated offset, spread and brush), an optional `Animated<Brush>`
-  effect and a child. `draw` adds the shadow as a **pending shadow** (the shape translated
-  by the offset, filled with the shadow brush and, for a positive spread,
-  stroked with a pen of width `2 * spread` in the same brush), then the
-  shape filled with the effect brush, the fill and the child's drawing in
-  the main list, in that order. The node's own animation options drive its obb, shape, fill, shadow
-  and effect only; like every other node it hands the inherited options to
-  its child. It never adds a scope: that would give every card in a vbox a
-  private backdrop.
+  what vbox/hbox/grid use) concatenates the children's drawings with `+=`, so
+  nested flat containers draw the same elements as one flat container. `stacked`
+  paints the first child flat and each later child with `Drawing::over`, i.e.
+  its content in a `BackdropScope`, so a child's backdrop effects sample the
+  children below it but nothing of itself, and a nested stack's scopes stay
+  inside its own scope. `update` keeps the new tree's flag; the snapshot still
+  reports a stacked container as `ContainerNode`.
+- **`SurfaceNode`** (`rendertree/surfacenode.h`) holds a `ShapeFunction` (the
+  shape for the node's size, animated like a `ShapeNode`'s parameters), an
+  `Animated<std::optional<Brush>>` fill, an optional `Animated<Brush>` effect
+  and a child. `draw` adds the shape filled with the effect brush, the fill and
+  the child's drawing, in that order. Without an effect an opaque colour fill
+  also makes the shape an outline (a card casts); with one the surface casts
+  nothing, however it is filled (glass, decision 8 of the effect-brush design).
+  The node's own animation options drive its obb, shape, fill and effect only;
+  like every other node it hands the inherited options to its child. It never
+  adds a scope: that would give every card in a vbox a private backdrop.
 - **The surface's effect is an `Animated<Brush>`**, normally an effect
   brush, so effect parameters animate as values and never change the
   drawing's structure. `draw` takes the value at the frame's time as the
   brush of a `ShapeElement`; a static effect is built once, an animating
   one is rebuilt by its factory every frame. `update` animates when the
-  old final value and the new value are of the same kind (`isSameKind`)
-  and takes the new value at once otherwise, so a change of kind asks for
-  no frames. `lerp(Effect, Effect, t)` interpolates through the factory's
-  recipe (see *Effects*). The fill is also an `Animated` brush but has no
-  such check: a fill changing kind returns the new brush at once yet
-  still asks for frames for the animation's length.
+  current value and the new value are of the same kind and takes the new
+  value at once otherwise, so a change of kind asks for no frames. The
+  check is not the surface's: `Animated::updated` makes it for every
+  animated value (`isInstantLerp`, `lerp.h`), so a fill changing kind, or
+  a pen whose brush changes kind at the same width, ends at once too.
+  `lerp(Effect, Effect, t)` interpolates through the factory's recipe (see
+  *Effects*).
 - **Pairing old and new nodes.** Each node's `update` casts the old node to
   its own type unchecked, so an old and a new node are paired only when
   `canUpdate` holds (same id and `getType()`). Containers pair unnamed
@@ -386,16 +384,20 @@ rejected alternatives and the places the code departed from it;
   an approximation that an SDF would replace, kept as the
   parameter slot for one.
 - **Built-in elements** (`src/builtinelements.h`, private, implemented in
-  `builtineffects.cpp`): `groupOpacity` is one shapeless element whose
-  pass multiplies the premultiplied input by alpha; `contentBlur` nests
-  four shapeless elements around the content: a downsample copy, a
-  horizontal and a vertical Gaussian at `frostedGlassDivisor(radius)` in
-  `FORMAT_RGBA16F`, and a composite copy with padding divisor / 2; at
-  radius zero it returns the content itself, since even the smallest
-  divisor would soften it. Their passes carry an `ElementPassRecipe` so
-  the renderer rebuilds them at the scale the element is drawn at
-  (`toPixels`). None of their Region passes reads
-  `pass.region`, so equal ones may merge.
+  `builtineffects.cpp`): `groupOpacity` is one shapeless element whose pass
+  multiplies the premultiplied input by alpha; `contentBlur` nests four
+  shapeless elements around the content: a downsample copy, a horizontal and a
+  vertical Gaussian at `frostedGlassDivisor(radius)` in `FORMAT_RGBA16F`, and a
+  composite copy with padding divisor / 2; at radius zero it returns the content
+  itself, since even the smallest divisor would soften it. Their passes carry an
+  `ElementPassRecipe` so the renderer rebuilds them at the scale the element is
+  drawn at (`toPixels`). None of their Region passes reads `pass.region`, so
+  equal ones may merge. `shadowOf` turns a set of outlines into one shadow:
+  unions them with `Shape::add` (lazy: Clipper runs when the renderer fills the
+  shape, in CPU zone "Shape operation fill"), fills the union moved by the
+  offset with the colour and wraps it in `contentBlur(radius)`; no blur for a
+  radius of zero or less, nothing for no outline or a transparent colour. The
+  union is redone every frame; nothing caches it.
 - **`tint`** is one Shape pass reading the backdrop and mixing a colour in
   by strength times the colour's alpha; result alpha is always 1, as the
   final pass is opaque by design.
@@ -691,8 +693,7 @@ pushes the present quad and flushes first) submits.
   through, and tests call it directly with their own command buffer; it
   opens a painter frame only when the drawing has effects (through
   `makeEffectEmitter`), so a test that needs the uniform path drives the
-  painter and reads the dummy queue's recorded submissions. It asserts that
-  the drawing has no pending shadows: whoever renders a drawing flushes it.
+  painter and reads the dummy queue's recorded submissions.
 
 ## Vendored Clipper
 

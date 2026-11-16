@@ -21,16 +21,10 @@ namespace avg
     /**
      * @brief The flat, ordered list of elements a frame rasterises.
      *
-     * Elements paint in list order. Besides that main list a drawing carries
-     * pending shadows: elements that belong under the content of the
-     * container that will eventually hold them. Pending shadows ride along
-     * through concatenation, clipping and transforms, and flush() moves them
-     * ahead of the main list. Whoever renders a drawing flushes it first: an
-     * unflushed drawing's shadows are silently dropped.
-     *
-     * A drawing also carries outlines, the shapes its content casts shadows
-     * with. They are not elements and the renderer never reads them, but
-     * every operation that maps or combines drawings applies to them too.
+     * Elements paint in list order. A drawing also carries outlines, the
+     * shapes its content casts shadows with. They are not elements and the
+     * renderer never reads them, but every operation that maps or combines
+     * drawings applies to them too.
      * Only the outermost drawing holds outlines (see liftSubDrawing()).
      */
     class AVG_EXPORT Drawing final
@@ -137,8 +131,8 @@ namespace avg
         Drawing& operator+=(Element&& element);
 
         /**
-         * @brief Appends the other drawing's elements and pending shadows to
-         * this one's.
+         * @brief Appends the other drawing's elements and outlines to this
+         * one's.
          */
         [[nodiscard]]
         Drawing operator+(Drawing const& drawing) &&;
@@ -148,22 +142,8 @@ namespace avg
         Drawing& operator+=(Drawing&& drawing);
 
         /**
-         * @brief Adds a pending shadow, an element painted under the content
-         * of the enclosing container once the drawing is flushed.
-         */
-        [[nodiscard]]
-        Drawing addShadow(Element&& shadow) &&;
-        Drawing& addShadow(Element&& shadow) &;
-
-        /**
-         * @brief Moves the pending shadows ahead of the main list.
-         */
-        [[nodiscard]]
-        Drawing flush() &&;
-
-        /**
-         * @brief Wraps the main list into one BackdropScope. Pending shadows
-         * stay pending, outside the scope. An empty main list stays empty.
+         * @brief Wraps the elements into one BackdropScope; the outlines stay
+         * on the result. An empty drawing stays empty.
          */
         [[nodiscard]]
         Drawing scope() &&;
@@ -171,11 +151,10 @@ namespace avg
         /**
          * @brief Paints above on top of below.
          *
-         * The result is below's main list, then above's pending shadows, then
-         * above's main list in a BackdropScope, so above's backdrop effects
-         * see below and the shadows but nothing of above itself. below's
-         * pending shadows stay pending. The outlines of both end on the
-         * result. Use it wherever one child is painted over another.
+         * The result is below's elements, then above's in a BackdropScope, so
+         * above's backdrop effects see below but nothing of above itself.
+         * The outlines of both end on the result. Use it wherever one child
+         * is painted over another.
          */
         [[nodiscard]]
         static Drawing over(Drawing below, Drawing above);
@@ -185,8 +164,8 @@ namespace avg
          * inputs, painting shape when there is one.
          *
          * An empty input is the backdrop of the enclosing scope; any other
-         * becomes a sub-drawing of the element, and its pending shadows
-         * and outlines move onto the result. Throws std::invalid_argument when the
+         * becomes a sub-drawing of the element, and its outlines move onto
+         * the result. Throws std::invalid_argument when the
          * number of inputs is not the pass's, or when neither a shape nor a
          * sub-drawing input bounds the result.
          */
@@ -205,7 +184,6 @@ namespace avg
         Drawing clip(Obb const& obb) &&;
 
         pmr::vector<Element> const& getElements() const;
-        pmr::vector<Element> const& getPendingShadows() const;
         Outlines const& getOutlines() const;
 
         [[nodiscard]]
@@ -229,16 +207,15 @@ namespace avg
          * @brief Turns @p inner into the sub-drawing of an element this
          * drawing will hold.
          *
-         * inner's outlines and pending shadows, mapped by @p transform (the
-         * element's transform), move onto this drawing.
+         * inner's outlines, mapped by @p transform (the element's
+         * transform), move onto this drawing.
          */
         [[nodiscard]]
         pmr::heap<SubDrawing> liftSubDrawing(Drawing&& inner,
                 Transform const& transform);
 
         /**
-         * @brief The bounds of the elements and the pending shadows, not
-         * of the outlines.
+         * @brief The bounds of the elements, not of the outlines.
          *
          * An effect element counts as its controlBb; the margin its passes
          * sample beyond that is added when the frame is rendered.
@@ -258,7 +235,6 @@ namespace avg
 
     private:
         pmr::vector<Element> elements_;
-        pmr::vector<Element> shadows_;
         Outlines outlines_;
         Rect controlBb_;
     };

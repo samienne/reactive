@@ -18,33 +18,21 @@
 namespace avg
 {
     /**
-     * @brief The shadow a surface casts: its shape moved by offset, grown
-     * outward by spread and filled with brush.
-     */
-    struct SurfaceShadow
-    {
-        Animated<Vector2f> offset;
-        Animated<float> spread;
-        Animated<Brush> brush;
-    };
-
-    /**
-     * @brief A filled shape with a child subtree on it, an optional shadow
-     * under it and an optional backdrop effect behind its fill.
+     * @brief A filled shape with a child subtree on it and an optional
+     * brush behind its fill.
      *
      * The shape is produced for the node's size, so
-     * `SurfaceNode(obb, options, roundedRect, Brush(white), shadow,
-     * std::nullopt, child)` paints a white card that casts the shadow and
-     * shows child on top; a brush in place of the std::nullopt paints the
-     * shape before the fill, so an effect brush under a translucent fill
-     * shows frosted glass. The effect brush animates through lerp(): two
-     * brushes of the same kind (isSameKind) interpolate, and a change of
-     * kind switches at once. The shadow is a pending shadow of the
-     * drawing: the container holding the surface paints it under all of
-     * its content, not under the surface alone. A surface adds no backdrop
-     * scope; stack surfaces with a stacking ContainerNode to layer them.
-     * The animation options apply to the surface's own obb, shape, fill,
-     * shadow and effect, not to child.
+     * `SurfaceNode(obb, options, roundedRect, Brush(white), std::nullopt,
+     * child)` paints a white card that shows child on top; a brush in place
+     * of the std::nullopt paints the shape before the fill, so an effect
+     * brush under a translucent fill shows frosted glass. The brush
+     * animates through lerp(): two brushes of the same kind (isSameKind)
+     * interpolate, and a change of kind switches at once. An opaque colour
+     * fill makes the shape the drawing's outline; a surface with a brush
+     * has none, however it is filled. A surface adds no backdrop scope;
+     * stack surfaces with a stacking ContainerNode to layer them. The
+     * animation options apply to the surface's own obb, shape, fill and
+     * brush, not to child.
      */
     class AVG_EXPORT SurfaceNode : public RenderTreeNode
     {
@@ -54,7 +42,6 @@ namespace avg
                 std::optional<AnimationOptions> animationOptions,
                 ShapeFunction shape,
                 Animated<std::optional<Brush>> fill,
-                std::optional<SurfaceShadow> shadow,
                 std::optional<Animated<Brush>> brush,
                 std::shared_ptr<RenderTreeNode> childNode
                 );
@@ -87,7 +74,6 @@ namespace avg
         std::optional<AnimationOptions> const& getAnimationOptions() const;
         ShapeFunction const& getShape() const;
         Animated<std::optional<Brush>> const& getFill() const;
-        std::optional<SurfaceShadow> const& getShadow() const;
         std::optional<Animated<Brush>> const& getBrush() const;
         std::shared_ptr<RenderTreeNode> const& getChild() const;
 
@@ -95,7 +81,6 @@ namespace avg
         std::optional<AnimationOptions> animationOptions_;
         ShapeFunction shape_;
         Animated<std::optional<Brush>> fill_;
-        std::optional<SurfaceShadow> shadow_;
         std::optional<Animated<Brush>> brush_;
         std::shared_ptr<RenderTreeNode> childNode_;
     };

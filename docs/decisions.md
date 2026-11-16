@@ -11,6 +11,22 @@ Vulkan work; the five backdrop-effect entries against `4d8e996e`
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Shadows are one union and one blur per shadow boundary; casting is opt-out
+
+A shadow boundary takes the outlines that reach it, moves them by the
+light's offset, unions them with `Shape::add` and paints the union as one
+fill blurred by `contentBlur` under all of its content. The light is an
+offset, a radius and a colour, in logical units, with no spread. Every
+outline casts: opaque colour fills and pens set one in `bqui`, and only the
+toolkit's window background opts out. No surface or widget paints a shadow
+of its own. `docs/design/effect-brushes-and-shadows.md` is the full design.
+
+**Why:** one unioned shape cannot darken where two shadows overlap or
+blend twice along its own edge, which the per-surface shadow (a fill plus
+a spread stroke, each blended) did. Opt-out keeps a plain card casting
+without a modifier. Rejected: pending shadows placed by `Drawing::over`
+(no blur, no knowledge of each other).
+
 ## Outlines are carried inside the `Drawing` and lifted out of sub-drawings
 
 A `Drawing` carries the outline shapes of the widgets that produced it
@@ -280,23 +296,20 @@ synchronisation needed).
 A `ContainerNode` carries a stacking flag. A flat container (vbox, hbox,
 grid) concatenates its children's drawings; a stacked one paints its first
 child flat and each later child through `Drawing::over`, which puts the
-child's pending shadows then its content in a `BackdropScope`. A
-`SurfaceNode` adds its shadow, effect, fill and child to the lists and
-never a scope. In `bqui` every modifier that paints behind or over its
-widget builds a stacked container, so the rule in `conventions.md` is
-"whoever paints one child over another is a stack", applied
-unconditionally.
+child's content in a `BackdropScope`. A `SurfaceNode` adds its effect,
+fill and child to the drawing and never a scope. In `bqui` every modifier
+that paints behind or over its widget builds a stacked container, so the
+rule in `conventions.md` is "whoever paints one child over another is a
+stack", applied unconditionally.
 
 **Why:** a scope's meaning is "effects in here see what was painted before
 the scope", and only the code that places one child over another knows
 that relation; a surface placing a scope around itself would give every
 card in a vbox a private snapshot and no backdrop. Scopes are free when no
 effect is inside, so the rule needs no "only when glass is present"
-exception, which a container author could not evaluate anyway. Shadows go
-before the scope so a glass sibling samples the shadow rings; placing them
-after the scope was considered and not chosen. Rejected: a separate stack
-node class (the flag is the only difference); inferring stacking from
-geometric overlap (see the next entry).
+exception, which a container author could not evaluate anyway. Rejected:
+a separate stack node class (the flag is the only difference); inferring
+stacking from geometric overlap (see the next entry).
 
 ## Backdrop visibility is a scope in a flat drawing, not a z
 
@@ -304,8 +317,7 @@ A `Drawing` stays a flat, ordered list and elements carry no ordering
 data. One nesting element, `BackdropScope`, wraps a sub-drawing: an effect
 directly inside it samples the frame as it stood when the scope was
 entered, the root is an implicit scope, scopes nest, and concatenation
-keeps them whole. A `Drawing` also carries pending shadows as a second
-list that `flush` moves ahead of the content.
+keeps them whole.
 
 **Why:** a glass surface must see what lies below it and never its own
 content or its siblings, and a nested stack must not change what the

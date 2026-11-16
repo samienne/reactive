@@ -1,9 +1,42 @@
 #include "windowbridge.h"
 
+#include "bqui/modifier/outline.h"
+
+#include "bqui/provider/providetheme.h"
+
+#include "bqui/shape/rectangle.h"
+
+#include "bqui/theme.h"
+
+#include <avg/brush.h>
+
 #include <tracy/Tracy.hpp>
 
 namespace bqui
 {
+
+namespace
+{
+    // The theme's background without an outline: the window does not cast
+    modifier::AnyWidgetModifier windowBackground()
+    {
+        return modifier::makeWidgetModifier([](auto widget, auto theme)
+            {
+                auto brush = std::move(theme).map([](Theme const& theme)
+                    {
+                        return avg::Brush(theme.getBackground());
+                    });
+
+                return std::move(widget)
+                    | modifier::background(shape::rectangle()
+                            .fill(std::move(brush))
+                            | modifier::noOutline())
+                    ;
+            },
+            provider::provideTheme()
+            );
+    }
+} // anonymous namespace
 
 WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         Window window, widget::AnyWidget widget, bool headless)
@@ -15,7 +48,7 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     painter_(memory_, aseWindow.getRenderContext()),
     size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
     widgetInstanceSignal_((std::move(widget)
-                | modifier::background())(
+                | windowBackground())(
                 BuildParams{}
                 )(std::move(size_.signal)).getInstance()),
     widgetInstance_(widgetInstanceSignal_.evaluate<0>().get<0>()),

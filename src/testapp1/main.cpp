@@ -17,6 +17,7 @@
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
 #include <bqui/modifier/transform.h>
+#include <bqui/modifier/shadowboundary.h>
 #include <bqui/modifier/surface.h>
 
 #include <bqui/widget/scrollbar.h>
@@ -52,12 +53,15 @@
 #include <avg/builtineffects.h>
 #include <avg/color.h>
 #include <avg/curve/curves.h>
+#include <avg/transform.h>
+#include <avg/vector.h>
 
 #include <ase/vector.h>
 
 #include <btl/future.h>
 
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -83,7 +87,8 @@ std::vector<std::pair<std::string, avg::Curve>> curves = {
 };
 
 /**
- * @brief A frosted-glass card over a colourful background.
+ * @brief Two overlapping cards and a frosted-glass panel over a colourful
+ * background, sharing one shadow boundary.
  */
 widget::AnyWidget frostedCard()
 {
@@ -96,28 +101,53 @@ widget::AnyWidget frostedCard()
         shape::rectangle().fill(avg::Color(0.95f, 0.8f, 0.2f))
     });
 
+    auto card = [](std::string text, avg::Color colour, float dx, float dy)
+    {
+        return widget::label(std::move(text))
+            | modifier::margin(12.0f)
+            | modifier::surface(
+                    shape::rectangle(constant(12.0f)),
+                    constant(avg::Brush(colour)),
+                    std::nullopt
+                    )
+            | modifier::margin(40.0f)
+            | modifier::transform(constant(avg::translate(dx, dy)))
+            ;
+    };
+
     avg::FrostedGlassOptions glass;
     glass.radius = 24.0f;
     glass.tint = avg::Color(1.0f, 1.0f, 1.0f, 1.0f);
     glass.tintStrength = 0.15f;
 
-    auto card = widget::label("Frosted glass")
+    auto panel = widget::label("Frosted glass")
         | modifier::margin(20.0f)
         | modifier::surface(
                 shape::rectangle(constant(12.0f)),
                 constant(avg::Brush(avg::Color(1.0f, 1.0f, 1.0f, 0.25f))),
-                modifier::SurfaceShadow{
-                    constant(avg::Vector2f(0.0f, -4.0f)),
-                    constant(6.0f),
-                    constant(avg::Brush(avg::Color(0.0f, 0.0f, 0.0f, 0.4f)))
-                },
                 constant(avg::frostedGlass(glass))
                 )
         | modifier::margin(30.0f)
+        | modifier::transform(constant(avg::translate(90.0f, 0.0f)))
         ;
 
-    return widget::stack({ std::move(stripes), std::move(card) })
-        | modifier::setSizeHint({ 300, 150 })
+    modifier::ShadowLight light{
+        constant(avg::Vector2f(0.0f, -6.0f)),
+        constant(10.0f),
+        constant(avg::Color(0.0f, 0.0f, 0.0f, 0.4f))
+    };
+
+    auto layer = widget::stack({
+            card("Card", avg::Color(1.0f, 1.0f, 1.0f), -80.0f, 15.0f),
+            card("Overlapping", avg::Color(0.85f, 0.85f, 0.9f), -40.0f,
+                    -15.0f),
+            std::move(panel)
+            })
+        | modifier::shadowAndBackdropBoundary(std::move(light))
+        ;
+
+    return widget::stack({ std::move(stripes), std::move(layer) })
+        | modifier::setSizeHint({ 420, 180 })
         ;
 }
 

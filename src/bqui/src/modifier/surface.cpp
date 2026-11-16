@@ -29,43 +29,6 @@ namespace bqui::modifier
 
 namespace
 {
-    struct ShadowValue
-    {
-        avg::Vector2f offset;
-        float spread;
-        avg::Brush brush;
-    };
-
-    bq::signal::AnySignal<std::optional<ShadowValue>> shadowValues(
-            std::optional<SurfaceShadow> shadow)
-    {
-        if (!shadow)
-            return bq::signal::constant(std::optional<ShadowValue>());
-
-        return bq::signal::merge(
-                std::move(shadow->offset),
-                std::move(shadow->spread),
-                std::move(shadow->brush)
-                ).map([](avg::Vector2f offset, float spread, avg::Brush brush)
-                {
-                    return std::make_optional(ShadowValue{
-                            offset, spread, std::move(brush) });
-                });
-    }
-
-    std::optional<avg::SurfaceShadow> toNodeShadow(
-            std::optional<ShadowValue> const& shadow)
-    {
-        if (!shadow)
-            return std::nullopt;
-
-        return avg::SurfaceShadow{
-            avg::Animated<avg::Vector2f>(shadow->offset),
-            avg::Animated<float>(shadow->spread),
-            avg::Animated<avg::Brush>(shadow->brush)
-        };
-    }
-
     std::optional<avg::Animated<avg::Brush>> toNodeEffect(
             std::optional<avg::Effect> const& effect)
     {
@@ -79,7 +42,6 @@ namespace
             std::optional<avg::AnimationOptions> const& animation,
             avg::ShapeFunction const& shape,
             std::optional<avg::Brush> const& fill,
-            std::optional<ShadowValue> const& shadow,
             std::optional<avg::Effect> const& effect)
     {
         auto node = std::make_shared<avg::SurfaceNode>(
@@ -87,7 +49,6 @@ namespace
                 animation,
                 shape,
                 avg::Animated<std::optional<avg::Brush>>(fill),
-                toNodeShadow(shadow),
                 toNodeEffect(effect),
                 instance.getRenderTree().getRoot()
                 );
@@ -101,12 +62,11 @@ namespace
 AnyWidgetModifier surface(
         shape::AnyShape shape,
         std::optional<bq::signal::AnySignal<avg::Brush>> fill,
-        std::optional<SurfaceShadow> shadow,
         std::optional<bq::signal::AnySignal<avg::Effect>> effect
         )
 {
     return makeWidgetModifier([](auto widget, auto animation, auto shape,
-                auto fill, auto shadow, auto effect)
+                auto fill, auto effect)
         {
             return std::move(widget)
                 | makeWidgetModifier(makeInstanceModifier(
@@ -114,7 +74,6 @@ AnyWidgetModifier surface(
                             std::move(animation),
                             std::move(shape),
                             std::move(fill),
-                            std::move(shadow),
                             std::move(effect)
                             ))
                 ;
@@ -122,7 +81,6 @@ AnyWidgetModifier surface(
         provider::provideAnimation(),
         std::move(shape).getShapeFunction(),
         bq::signal::fromOptional(std::move(fill)),
-        shadowValues(std::move(shadow)),
         bq::signal::fromOptional(std::move(effect))
         );
 }
@@ -130,8 +88,7 @@ AnyWidgetModifier surface(
 AnyWidgetModifier backdrop(shape::AnyShape shape,
         bq::signal::AnySignal<avg::Effect> effect)
 {
-    return surface(std::move(shape), std::nullopt, std::nullopt,
-            std::move(effect));
+    return surface(std::move(shape), std::nullopt, std::move(effect));
 }
 
 AnyWidgetModifier frostedGlass(

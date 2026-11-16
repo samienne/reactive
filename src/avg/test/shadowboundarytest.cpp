@@ -325,7 +325,6 @@ TEST(ShadowBoundary, glassCastsNothing)
             placed(10.0f, 20.0f, 100.0f, 50.0f), std::nullopt,
             avg::makeShapeFunction(&box),
             std::make_optional(avg::Brush(white)),
-            std::nullopt,
             std::make_optional(avg::Animated<avg::Brush>(
                     avg::Brush(avg::frostedGlass(options)))),
             nullptr);

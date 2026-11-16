@@ -77,7 +77,7 @@ std::pair<Drawing, bool> RenderTree::draw(
 
     auto [drawing, cont] = root_->draw(context, obb, time);
 
-    return std::make_pair(std::move(drawing).flush().clearOutlines(), cont);
+    return std::make_pair(std::move(drawing).clearOutlines(), cont);
 }
 
 Snapshot RenderTree::snapshot(

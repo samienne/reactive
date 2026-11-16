@@ -34,27 +34,27 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 
 **Outlines.** The three terminators draw through `detail::drawShape`
 (`src/shape/shape.cpp`), which returns the filled/stroked element plus the
-outline in the drawing's outline list, from the same animated shape, brush
-and pen, so the outline follows the animation and the placement for free.
-Rules: an opaque colour fill casts the shape (grown by the stroke via
-`Shape::add` + `strokeToShape` when there is a pen); otherwise an opaque
-colour pen casts the stroke geometry; translucent and effect brushes cast
-nothing. `onDraw`, text and `modifier::surface` set none (glass and cards
-alike, decision 8 of `docs/design/effect-brushes-and-shadows.md`).
-`modifier::outline` (replace) and `addOutline` (add), each taking a
-`shape::Shape` or a signal of shape functions, and `noOutline`
-(`modifier/outline.h`) wrap the render tree in an `avg::OutlineNode` over
-the widget's obb. The cost per
-opaque shape widget and frame is one or two `Shape` copies (a `Path` copy
-is a shared-pointer copy) and a vector push; nothing is triangulated.
+outline in the drawing's outline list, from the same animated shape, brush and
+pen, so the outline follows the animation and the placement for free. Rules: an
+opaque colour fill casts the shape (grown by the stroke via `Shape::add` +
+`strokeToShape` when there is a pen); otherwise an opaque colour pen casts the
+stroke geometry; translucent and effect brushes cast nothing. `onDraw` and text
+set none. `modifier::surface` gets its outline from `avg::SurfaceNode`: an
+opaque colour fill casts the shape, and any surface with an effect casts
+nothing, however it is filled (decision 8 of
+`docs/design/effect-brushes-and-shadows.md`). `modifier::outline` (replace) and
+`addOutline` (add), each taking a `shape::Shape` or a signal of shape functions,
+and `noOutline` (`modifier/outline.h`) wrap the render tree in an
+`avg::OutlineNode` over the widget's obb. The cost per opaque shape widget and
+frame is one or two `Shape` copies (a `Path` copy is a shared-pointer copy) and
+a vector push; nothing is triangulated.
 
 ## Surfaces and stacking
 
-Depth is element order in a flat `avg::Drawing`, and a backdrop effect
-samples only what its enclosing `BackdropScope` had painted before it
-(`docs/design/backdrop-effects.md` is the design). bqui never builds a
-scope by hand; it chooses the `avg::ContainerNode` stacking
-flag:
+Depth is element order in a flat `avg::Drawing`, and a backdrop effect samples
+only what its enclosing `BackdropScope` had painted before it
+(`docs/design/backdrop-effects.md` is the design). bqui never builds a scope by
+hand; it chooses the `avg::ContainerNode` stacking flag:
 
 - **Whoever paints one child over another is a stack.** `addWidgets`
   (`modifier/addwidgets.h`) and `widget::layout` take
@@ -70,29 +70,44 @@ flag:
   (the rule is in `docs/conventions.md`). A scope with no effect inside
   costs nothing, which is why this is unconditional.
 - **`modifier::surface`** (`modifier/surface.h`, `src/modifier/surface.cpp`)
-  wraps the widget's render tree in an `avg::SurfaceNode`. The
-  `shape::AnyShape` gives up its shape-function signal through
-  `Shape::getShapeFunction()`; the fill, shadow and effect signals are
-  merged into one instance modifier, and each value is handed to the node
-  as a fresh `Animated`, so the render tree interpolates it the way it does
-  a `ShapeNode`'s parameters. Which of fill, shadow and effect exist is
-  fixed when the modifier is built; only their values animate. The effect
-  is a signal of `avg::Effect`, made by the avg factories; `backdrop`,
-  `frostedGlass` and `tint` are shorthands for an effect alone, the last
-  two mapping their option signals through `avg::frostedGlass` and
-  `avg::tint` after clamping the values into the range those accept
-  (`avg::clampToValid`, and [0, 1] for the strength), since the factories
-  throw and a throw inside a signal map has no caller to catch it. The
-  node holds the effect as an effect brush. A surface
-  adds no scope of its own: it is layered by the `stack` or `background`
+  wraps the widget's render tree in an `avg::SurfaceNode`. The `shape::AnyShape`
+  gives up its shape-function signal through `Shape::getShapeFunction()`; the
+  fill and effect signals are merged into one instance modifier, and each value
+  is handed to the node as a fresh `Animated`, so the render tree interpolates
+  it the way it does a `ShapeNode`'s parameters. Which of fill and effect exist
+  is fixed when the modifier is built; only their values animate. The effect is
+  a signal of `avg::Effect`, made by the avg factories; `backdrop`,
+  `frostedGlass` and `tint` are shorthands for an effect alone, the last two
+  mapping their option signals through `avg::frostedGlass` and `avg::tint` after
+  clamping the values into the range those accept (`avg::clampToValid`, and [0,
+  1] for the strength), since the factories throw and a throw inside a signal
+  map has no caller to catch it. The node holds the effect as an effect brush. A
+  surface adds no scope of its own: it is layered by the `stack` or `background`
   it sits in.
-- The window root is `widget | background()` (`src/windowbridge.cpp`), so a
-  window's content already sits in one scope over the window background.
-- `test/surfacetest.cpp` realises a widget with `BuildParams()` and a
-  constant size, draws its render tree through `RenderTree::draw` (which
-  flushes the pending shadows) and asserts on the `Drawing`'s elements: the
-  node a modifier yields, the shadow-effect-fill-child order, and which
-  modifiers put a scope around their child.
+- The window root is the widget over the theme's background with no
+  outline (`windowBackground` in `src/windowbridge.cpp`), so a window's
+  content already sits in one scope over the window background.
+- **Shadow boundaries.** `modifier::shadowBoundary(light)`
+  (`modifier/shadowboundary.h`, `src/modifier/shadowboundary.cpp`) wraps the
+  render tree in an `avg::ShadowBoundaryNode`; the light's offset, radius and
+  colour signals become fresh `Animated` values, so the light animates with the
+  widget's animation. `shadowAndBackdropBoundary` is the same node with
+  `Content::scoped`: the shadow first, then the widget in a scope, so glass
+  inside sees its neighbours' shadows. There is no standalone backdrop-boundary
+  modifier; a `stack` or `background` around a `shadowBoundary` gives the other
+  nesting. The no-argument forms use one default light. The shadow goes under
+  everything inside the boundary, so a background inside it hides the shadow.
+- **What the toolkit opts out.** Only the window background
+  (`src/windowbridge.cpp`) adds `noOutline()` to its rectangle.
+  `background(brush)` and `background()` cast like any opaque fill, and
+  `background(widget)` leaves the user's widget alone, so `frame`'s
+  stroke ring casts like any opaque stroke. The built-in widgets that
+  paint through `onDraw` (button, scrollbar, textedit) set no outline at
+  all.
+- `test/surfacetest.cpp` realises a widget with `BuildParams()` and a constant
+  size, draws its render tree through `RenderTree::draw` and asserts on the
+  `Drawing`'s elements: the node a modifier yields, the effect-fill-child order,
+  and which modifiers put a scope around their child.
 
 ## Layout, environment, animation
 

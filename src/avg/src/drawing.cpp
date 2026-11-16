@@ -107,17 +107,6 @@ namespace
         return r;
     }
 
-    Rect combineDrawingRects(
-            pmr::vector<Drawing::Element> const& elements,
-            pmr::vector<Drawing::Element> const& shadows
-            )
-    {
-        return combineRects(
-                combineDrawingRects(elements),
-                combineDrawingRects(shadows)
-                );
-    }
-
     void filterElementsByRect(pmr::vector<Drawing::Element>& elements, Rect const& r)
     {
         elements.erase(
@@ -406,14 +395,12 @@ namespace
 
 Drawing::Drawing(pmr::memory_resource* memory) :
     elements_(memory),
-    shadows_(memory),
     outlines_(memory)
 {
 }
 
 Drawing::Drawing(pmr::memory_resource* memory, Element element) :
     elements_(memory),
-    shadows_(memory),
     outlines_(memory)
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
@@ -423,7 +410,6 @@ Drawing::Drawing(pmr::memory_resource* memory, Element element) :
 
 Drawing::Drawing(pmr::vector<Element> const& elements) :
     elements_(elements),
-    shadows_(elements_.get_allocator().resource()),
     outlines_(elements_.get_allocator().resource()),
     controlBb_(combineDrawingRects(elements_))
 {
@@ -431,7 +417,6 @@ Drawing::Drawing(pmr::vector<Element> const& elements) :
 
 Drawing::Drawing(pmr::vector<Element>&& elements) :
     elements_(std::move(elements)),
-    shadows_(elements_.get_allocator().resource()),
     outlines_(elements_.get_allocator().resource()),
     controlBb_(combineDrawingRects(elements_))
 {
@@ -473,7 +458,6 @@ Drawing& Drawing::operator+=(Drawing const& drawing)
     controlBb_ = combineRects(controlBb_, drawing.controlBb_);
 
     appendElements(elements_, drawing.elements_);
-    appendElements(shadows_, drawing.shadows_);
     outlines_ += drawing.outlines_;
 
     return *this;
@@ -492,36 +476,9 @@ Drawing& Drawing::operator+=(Drawing&& drawing)
     controlBb_ = combineRects(controlBb_, drawing.controlBb_);
 
     appendElements(elements_, std::move(drawing.elements_));
-    appendElements(shadows_, std::move(drawing.shadows_));
     outlines_ += std::move(drawing.outlines_);
 
     return *this;
-}
-
-Drawing Drawing::addShadow(Element&& shadow) &&
-{
-    return std::move(addShadow(std::move(shadow)));
-}
-
-Drawing& Drawing::addShadow(Element&& shadow) &
-{
-    controlBb_ = combineRects(controlBb_, getElementRect(shadow));
-
-    appendElement(shadows_, std::move(shadow));
-
-    return *this;
-}
-
-Drawing Drawing::flush() &&
-{
-    if (shadows_.empty())
-        return std::move(*this);
-
-    appendElements(shadows_, std::move(elements_));
-    elements_ = std::move(shadows_);
-    shadows_ = pmr::vector<Element>(getResource());
-
-    return std::move(*this);
 }
 
 Drawing Drawing::scope() &&
@@ -602,8 +559,7 @@ Drawing Drawing::effect(pmr::memory_resource* memory, ElementPass pass,
             Transform(),
             controlBb
             });
-    result.controlBb_ = combineDrawingRects(result.elements_,
-            result.shadows_);
+    result.controlBb_ = combineDrawingRects(result.elements_);
 
     return result;
 }
@@ -611,8 +567,6 @@ Drawing Drawing::effect(pmr::memory_resource* memory, ElementPass pass,
 Drawing Drawing::over(Drawing below, Drawing above)
 {
     below.controlBb_ = combineRects(below.controlBb_, above.controlBb_);
-
-    appendElements(below.elements_, std::move(above.shadows_));
 
     Drawing scoped = std::move(above).scope();
     appendElements(below.elements_, std::move(scoped.elements_));
@@ -626,9 +580,6 @@ Drawing Drawing::operator*(float scale) &&
     controlBb_ = controlBb_.scaled(scale);
 
     for (auto& e : elements_)
-        scaleElement(scale, e);
-
-    for (auto& e : shadows_)
         scaleElement(scale, e);
 
     outlines_ = std::move(outlines_) * scale;
@@ -646,7 +597,6 @@ Drawing Drawing::clip(Rect const& r) &&
     Drawing result(getResource());
 
     result.elements_ = clipElements(std::move(elements_), r);
-    result.shadows_ = clipElements(std::move(shadows_), r);
     result.outlines_ = std::move(outlines_);
     result.controlBb_ = r;
 
@@ -678,11 +628,6 @@ Drawing Drawing::clip(Obb const& obb) &&
 pmr::vector<Drawing::Element> const& Drawing::getElements() const
 {
     return elements_;
-}
-
-pmr::vector<Drawing::Element> const& Drawing::getPendingShadows() const
-{
-    return shadows_;
 }
 
 Outlines const& Drawing::getOutlines() const
@@ -731,20 +676,10 @@ Outlines Drawing::takeOutlines()
 pmr::heap<Drawing::SubDrawing> Drawing::liftSubDrawing(Drawing&& inner,
         Transform const& transform)
 {
-    bool const moved = transform != Transform();
-
-    if (moved)
+    if (transform != Transform())
         outlines_ += std::move(inner.outlines_).transform(transform);
     else
         outlines_ += std::move(inner.outlines_);
-
-    for (auto& shadow : inner.shadows_)
-    {
-        if (moved)
-            transformElement(transform, shadow);
-
-        addShadow(std::move(shadow));
-    }
 
     SubDrawing subDrawing{ std::move(inner.elements_) };
 
@@ -762,10 +697,9 @@ Rect Drawing::getControlBb() const
 Drawing Drawing::filterByRect(Rect const& r) &&
 {
     filterElementsByRect(elements_, r);
-    filterElementsByRect(shadows_, r);
     outlines_ = std::move(outlines_).filterByRect(r);
 
-    controlBb_ = combineDrawingRects(elements_, shadows_);
+    controlBb_ = combineDrawingRects(elements_);
 
     return std::move(*this);
 }
@@ -785,13 +719,9 @@ Drawing operator*(Transform const& t, Drawing&& drawing)
     for (auto&& e : drawing.elements_)
         transformElement(t, e);
 
-    for (auto&& e : drawing.shadows_)
-        transformElement(t, e);
-
     drawing.outlines_ = std::move(drawing.outlines_).transform(t);
 
-    drawing.controlBb_ = combineDrawingRects(drawing.elements_,
-            drawing.shadows_);
+    drawing.controlBb_ = combineDrawingRects(drawing.elements_);
 
     return std::move(drawing);
 }
