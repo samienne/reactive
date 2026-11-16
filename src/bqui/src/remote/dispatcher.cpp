@@ -78,8 +78,10 @@ std::shared_ptr<DispatchState> claim(PendingRequest& request)
 void answerError(PendingRequest& request, RpcError const& error)
 {
     if (auto state = claim(request))
+    {
         state->send(errorFrame(request.id, error.code, error.message,
                     error.data));
+    }
 }
 
 void answerResult(PendingRequest& request, json const& result)
@@ -109,17 +111,21 @@ void checkRequiredParams(Method const& method, json const& params)
             continue;
 
         if (!params.is_object() || !params.contains(param.name))
+        {
             throw RpcError{ kInvalidParams,
                 std::string("missing required parameter '")
                     + param.name + "'" };
+        }
     }
 }
 
 Method const* findMethod(DispatchState const& state, std::string const& name)
 {
     for (auto const& method : state.methods)
+    {
         if (method.name == name)
             return &method;
+    }
 
     return nullptr;
 }
@@ -250,8 +256,9 @@ void Dispatcher::dispatch(std::string frame)
     if (state_->stopped)
         return;
 
-    state_->held.push_back(std::move(frame));
-    pump(state_);
+    auto state = state_;
+    state->held.push_back(std::move(frame));
+    pump(state);
 }
 
 DispatchGate Dispatcher::holdGate()

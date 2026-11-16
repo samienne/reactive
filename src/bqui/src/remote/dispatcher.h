@@ -131,9 +131,8 @@ namespace bqui::remote
      *
      * Requests are dispatched in the order they arrive, one handler returning
      * before the next is called. Replies need not come in that order: a
-     * deferred one may be overtaken, and the `id` tells them apart. A private
-     * remote-layer header, exported so the remote tests can drive it without a
-     * transport. Loop thread only.
+     * deferred one may be overtaken, and the `id` tells them apart. Loop
+     * thread only.
      */
     class BQUI_EXPORT Dispatcher
     {

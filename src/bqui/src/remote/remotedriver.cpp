@@ -11,6 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cassert>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -317,12 +318,8 @@ private:
             return;
         }
 
-        // A responder may answer from a loop callback that is not the
-        // driver's, where there is no Controller to register a source with.
-        if (controller_)
-            flushQueued();
-        else
-            post([this] { flushQueued(); });
+        assert(controller_);
+        flushQueued();
     }
 
     void flushQueued()

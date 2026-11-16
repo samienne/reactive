@@ -308,3 +308,21 @@ TEST(dispatcher, stopDiscardsHeldRequestsButLetsRepliesOut)
 
     EXPECT_EQ((std::vector<int>{ 1 }), f.sentIds());
 }
+
+TEST(dispatcher, handlerMayDestroyTheDispatcher)
+{
+    DispatcherFixture f;
+    f.dispatcher->add({ "end", "", {},
+        [&f](json const&, Responder&)
+        {
+            f.dispatcher->dispatch(request(2, "fast"));
+            f.dispatcher.reset();
+            return json::object();
+        } });
+
+    f.dispatcher->dispatch(request(1, "end"));
+
+    EXPECT_FALSE(f.dispatcher);
+    EXPECT_TRUE(f.sent.empty());
+    EXPECT_TRUE(f.effects.empty());
+}
