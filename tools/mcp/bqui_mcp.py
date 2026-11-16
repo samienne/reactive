@@ -290,10 +290,14 @@ async def selftest(conn: AppConnection, methods: list[dict],
         wid = wl["windows"][0]["id"]
         intro = await conn.request("window.introspect", {"window": wid})
         print("introspect ok, root type:", intro["introspection"].get("role") or intro["introspection"].get("name"))
-        tree = await conn.request("window.renderTree", {"window": wid, "asBlob": True})
+        # Paused, so both fetches see the same frame.
+        await conn.request("app.pause")
+        tree = await conn.request("window.renderTree",
+                                  {"window": wid, "asBlob": True})
         data = await fetch_blob(conn, tree["blob"], read_length)
         inline = await conn.request("window.renderTree", {"window": wid})
-        assert json.loads(data) == inline, "renderTree blob differs from the inline reply"
+        if json.loads(data) != inline:
+            raise RuntimeError("renderTree blob differs from the inline reply")
         print("renderTree blob ok,", len(data), "bytes, same as the inline reply")
     print("SELFTEST OK")
     return 0
