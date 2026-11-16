@@ -199,6 +199,15 @@ public:
 #endif
         buildRegistry();
 
+        if (pauseToken_)
+        {
+            pauseToken_->onWake([this]
+                {
+                    if (pendingStep_)
+                        post([this] { resumeStep(); });
+                });
+        }
+
         loop_.post([this](btl::RunLoop::Controller& controller)
         {
             ControllerScope scope(controller_, controller);
@@ -220,6 +229,15 @@ public:
 
 private:
     enum class State { Paused, Running };
+
+    // An `app.step` whose frames are not all rendered yet.
+    struct PendingStep
+    {
+        int64_t remaining;
+        std::chrono::microseconds dt;
+        Responder responder;
+        DispatchGate gate;
+    };
 
     // The loop-thread Controller, valid only during a callback.
     struct ControllerScope
@@ -351,6 +369,7 @@ private:
     {
         shuttingDown_ = true;
         dispatcher_.end();
+        pendingStep_.reset();
     }
 
     void close(char const* reason)
@@ -483,7 +502,7 @@ private:
         return { { "state", "paused" }, { "frame", frame_ } };
     }
 
-    json step(json const& params)
+    Reply step(json const& params, Responder& responder)
     {
         auto count = static_cast<int64_t>(numberField(params, "count", 1.0));
         if (count < 0)
@@ -493,11 +512,56 @@ private:
                 numberField(params, "dt_us",
                     static_cast<double>(kNominalFrameUs))));
 
-        for (int64_t i = 0; i < count && !shuttingDown_; ++i)
-            advanceFrame(dt);
-
         // A step always leaves the app paused, whichever state it started from.
         state_ = State::Paused;
+
+        if (advanceSteps(count, dt))
+            return stepResult();
+
+        pendingStep_.emplace(PendingStep{ count, dt, std::move(responder),
+                dispatcher_.holdGate() });
+        return pending;
+    }
+
+    // Advances `remaining` frames, each only once the one before it has
+    // rendered every window it was due in. Reports false when it has to stop
+    // for a window with no free in-flight slot; the platform's wake resumes it.
+    bool advanceSteps(int64_t& remaining, std::chrono::microseconds dt)
+    {
+        for (;;)
+        {
+            if (shuttingDown_)
+                return true;
+
+            if (pauseToken_ && !pauseToken_->finishStep())
+                return false;
+
+            if (remaining <= 0)
+                return true;
+
+            --remaining;
+            advanceFrame(dt);
+        }
+    }
+
+    void resumeStep()
+    {
+        if (!pendingStep_
+                || !advanceSteps(pendingStep_->remaining, pendingStep_->dt))
+            return;
+
+        PendingStep step = std::move(*pendingStep_);
+        pendingStep_.reset();
+
+        step.responder.resolve(stepResult());
+        step.gate.release();
+
+        if (shuttingDown_)
+            finish();
+    }
+
+    json stepResult() const
+    {
         return { { "state", "paused" }, { "frame", frame_ } };
     }
 
@@ -598,7 +662,7 @@ private:
                 { "count", "number", false },
                 { "dt_us", "number", false },
             },
-            [this](json const& p, Responder&) { return step(p); } });
+            [this](json const& p, Responder& r) { return step(p, r); } });
 
         dispatcher_.add({ "app.shutdown",
             "End the session and let the app release its windows.",
@@ -650,6 +714,7 @@ private:
     RemoteApp app_;
     std::optional<ase::PauseToken> pauseToken_;
     Dispatcher dispatcher_;
+    std::optional<PendingStep> pendingStep_;
     std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
     uint64_t frame_ = 0;
     State state_ = State::Paused;
