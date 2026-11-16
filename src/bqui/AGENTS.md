@@ -124,10 +124,17 @@ resumes where it stopped. The driver registers a writable source only while
   on one socket cannot coexist.
 - The queue is capped (`kMaxQueuedBytes`). Passing the cap, like a write error,
   drops the queue and ends the session with a logged reason; nothing is dropped
-  silently to make room.
-- An orderly end (`app.shutdown`, the app finishing) waits a bounded time
-  (`kShutdownFlushTimeout`) for queued replies to drain to a connected client
-  before the loop stops; commands arriving meanwhile are discarded.
+  silently to make room. A single frame larger than the cap ends the session
+  too. Once its queue is dropped, a transport takes no more frames, since the
+  peer may be left mid-frame.
+- An orderly end (`app.shutdown`, the app finishing, or the client closing its
+  sending side) keeps flushing queued replies until the queue drains, a write
+  fails, or the client takes nothing for `kShutdownFlushTimeout`; commands
+  arriving meanwhile are discarded. End of input alone does not end the
+  writing: a half-closed client still reads.
+- Queue and driver tests script the channel with `testkit::ScriptedTransport`
+  (`test/scriptedtransport.h`), so ordering, short writes, the cap, write
+  errors and the shutdown bound need no real channel or large payloads.
 - The blocking `send`/`receive` remain for the client role and tests. A
   transport is used one way or the other, never both.
 
