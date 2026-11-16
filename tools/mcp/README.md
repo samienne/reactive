@@ -1,7 +1,8 @@
 # bqui MCP bridge
 
 `bqui_mcp.py` bridges the bqui **inspector protocol** (JSON-RPC 2.0 over a
-framed stream, see [`docs/design/inspector-protocol.md`](../../docs/design/inspector-protocol.md))
+framed stream; the app lists its methods with `system.describe`, and
+[`src/bqui/AGENTS.md`](../../src/bqui/AGENTS.md) covers the driver side)
 to **MCP**, so an MCP client such as Claude Code can drive a headless bqui app
 as a set of tools: list windows, read a window's widget tree, inject input, and
 step frames.
@@ -22,6 +23,11 @@ such as a screenshot's size and region, follow as JSON text.
 The app *connects* to an endpoint the client *listens* on. The bridge therefore
 opens a loopback TCP listener, launches `inspectorapp` pointed at it, accepts the
 connection, calls `system.describe`, and serves MCP over stdio.
+
+`inspectorapp` renders offscreen on the real GPU backend, so screenshots work.
+On a machine with no GPU, set `REACTIVE_PLATFORM=dummy`: everything but
+`window.screenshot` works, and `window.list` reports `canCapture` false. The
+app's stderr goes to the bridge's.
 
 ## Requirements
 
@@ -44,8 +50,9 @@ BQUI_BUILD_DIR=/path/to/build python tools/mcp/bqui_mcp.py --selftest
 ```
 Launches the app, prints the generated tools, queries `window.list` /
 `window.introspect`, pulls `window.renderTree` as a blob and checks it against
-the inline reply, takes a `window.screenshot` when the app has the method and
-the window can capture, and exits.
+the inline reply, and exits. When the window can capture it also takes a
+`window.screenshot`, decodes the PNG, and checks its size against the reply and
+that it is not one flat colour; `--save-screenshot <path>` writes it out.
 
 ## Register with Claude Code
 
