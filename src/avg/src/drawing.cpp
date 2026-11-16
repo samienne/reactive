@@ -8,6 +8,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace avg
 {
@@ -405,13 +406,15 @@ namespace
 
 Drawing::Drawing(pmr::memory_resource* memory) :
     elements_(memory),
-    shadows_(memory)
+    shadows_(memory),
+    outlines_(memory)
 {
 }
 
 Drawing::Drawing(pmr::memory_resource* memory, Element element) :
     elements_(memory),
-    shadows_(memory)
+    shadows_(memory),
+    outlines_(memory)
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
 
@@ -421,6 +424,7 @@ Drawing::Drawing(pmr::memory_resource* memory, Element element) :
 Drawing::Drawing(pmr::vector<Element> const& elements) :
     elements_(elements),
     shadows_(elements_.get_allocator().resource()),
+    outlines_(elements_.get_allocator().resource()),
     controlBb_(combineDrawingRects(elements_))
 {
 }
@@ -428,6 +432,7 @@ Drawing::Drawing(pmr::vector<Element> const& elements) :
 Drawing::Drawing(pmr::vector<Element>&& elements) :
     elements_(std::move(elements)),
     shadows_(elements_.get_allocator().resource()),
+    outlines_(elements_.get_allocator().resource()),
     controlBb_(combineDrawingRects(elements_))
 {
 }
@@ -462,10 +467,33 @@ Drawing Drawing::operator+(Drawing const& drawing) &&
 
 Drawing& Drawing::operator+=(Drawing const& drawing)
 {
+    if (&drawing == this)
+        return *this += Drawing(drawing);
+
     controlBb_ = combineRects(controlBb_, drawing.controlBb_);
 
     appendElements(elements_, drawing.elements_);
     appendElements(shadows_, drawing.shadows_);
+    outlines_ += drawing.outlines_;
+
+    return *this;
+}
+
+Drawing Drawing::operator+(Drawing&& drawing) &&
+{
+    return std::move(*this += std::move(drawing));
+}
+
+Drawing& Drawing::operator+=(Drawing&& drawing)
+{
+    if (&drawing == this)
+        return *this += Drawing(drawing);
+
+    controlBb_ = combineRects(controlBb_, drawing.controlBb_);
+
+    appendElements(elements_, std::move(drawing.elements_));
+    appendElements(shadows_, std::move(drawing.shadows_));
+    outlines_ += std::move(drawing.outlines_);
 
     return *this;
 }
@@ -502,15 +530,16 @@ Drawing Drawing::scope() &&
         return std::move(*this);
 
     Rect bb = combinePaintedRects(elements_);
+    Rect controlBb = controlBb_;
 
     Drawing result(getResource());
+    auto subDrawing = result.liftSubDrawing(std::move(*this), Transform());
     result.elements_.push_back(BackdropScope{
-            pmr::make_heap<SubDrawing>(getResource(), std::move(elements_)),
+            std::move(subDrawing),
             bb,
             avg::Transform()
             });
-    result.shadows_ = std::move(shadows_);
-    result.controlBb_ = controlBb_;
+    result.controlBb_ = controlBb;
 
     return result;
 }
@@ -538,15 +567,12 @@ Drawing Drawing::effect(pmr::memory_resource* memory, ElementPass pass,
             continue;
         }
 
-        appendElements(result.shadows_, std::move(input->shadows_));
-
         Rect const bb = combinePaintedRects(input->elements_);
         inputBb = combineRects(inputBb, bb);
         bounded = true;
 
         elementInputs.push_back(EffectInput{
-                pmr::make_heap<SubDrawing>(memory,
-                    std::move(input->elements_)),
+                result.liftSubDrawing(std::move(*input), Transform()),
                 bb
                 });
     }
@@ -590,6 +616,7 @@ Drawing Drawing::over(Drawing below, Drawing above)
 
     Drawing scoped = std::move(above).scope();
     appendElements(below.elements_, std::move(scoped.elements_));
+    below.outlines_ += std::move(scoped.outlines_);
 
     return below;
 }
@@ -604,11 +631,15 @@ Drawing Drawing::operator*(float scale) &&
     for (auto& e : shadows_)
         scaleElement(scale, e);
 
+    outlines_ = std::move(outlines_) * scale;
+
     return std::move(*this);
 }
 
 Drawing Drawing::clip(Rect const& r) &&
 {
+    outlines_ = std::move(outlines_).clip(r);
+
     if (controlBb_.isFullyContainedIn(r))
         return std::move(*this);
 
@@ -616,6 +647,7 @@ Drawing Drawing::clip(Rect const& r) &&
 
     result.elements_ = clipElements(std::move(elements_), r);
     result.shadows_ = clipElements(std::move(shadows_), r);
+    result.outlines_ = std::move(outlines_);
     result.controlBb_ = r;
 
     return result;
@@ -623,6 +655,8 @@ Drawing Drawing::clip(Rect const& r) &&
 
 Drawing Drawing::clip(Obb const& obb) &&
 {
+    auto outlines = takeOutlines().clip(obb);
+
     auto obbTInverse = obb.getTransform().inverse();
     auto obbRect = Rect(Vector2f(0.0f, 0.0f), obb.getSize());
 
@@ -630,13 +664,15 @@ Drawing Drawing::clip(Obb const& obb) &&
             .getBoundingRect()
             .isFullyContainedIn(obbRect))
     {
+        outlines_ = std::move(outlines);
         return std::move(*this);
     }
 
-    auto d = (obbTInverse * std::move(*this))
+    auto d = obb.getTransform() * (obbTInverse * std::move(*this))
         .clip(obbRect);
+    d.outlines_ = std::move(outlines);
 
-    return obb.getTransform() * std::move(d);
+    return d;
 }
 
 pmr::vector<Drawing::Element> const& Drawing::getElements() const
@@ -649,6 +685,75 @@ pmr::vector<Drawing::Element> const& Drawing::getPendingShadows() const
     return shadows_;
 }
 
+Outlines const& Drawing::getOutlines() const
+{
+    return outlines_;
+}
+
+Drawing Drawing::setOutlines(Outlines outlines) &&
+{
+    return std::move(setOutlines(std::move(outlines)));
+}
+
+Drawing& Drawing::setOutlines(Outlines outlines) &
+{
+    outlines_ = std::move(outlines);
+    return *this;
+}
+
+Drawing Drawing::addOutline(Shape shape) &&
+{
+    return std::move(addOutline(std::move(shape)));
+}
+
+Drawing& Drawing::addOutline(Shape shape) &
+{
+    outlines_ += std::move(shape);
+    return *this;
+}
+
+Drawing Drawing::clearOutlines() &&
+{
+    return std::move(clearOutlines());
+}
+
+Drawing& Drawing::clearOutlines() &
+{
+    takeOutlines();
+    return *this;
+}
+
+Outlines Drawing::takeOutlines()
+{
+    return std::exchange(outlines_, Outlines(getResource()));
+}
+
+pmr::heap<Drawing::SubDrawing> Drawing::liftSubDrawing(Drawing&& inner,
+        Transform const& transform)
+{
+    bool const moved = transform != Transform();
+
+    if (moved)
+        outlines_ += std::move(inner.outlines_).transform(transform);
+    else
+        outlines_ += std::move(inner.outlines_);
+
+    for (auto& shadow : inner.shadows_)
+    {
+        if (moved)
+            transformElement(transform, shadow);
+
+        addShadow(std::move(shadow));
+    }
+
+    SubDrawing subDrawing{ std::move(inner.elements_) };
+
+    if (subDrawing.elements.get_allocator().resource() != getResource())
+        subDrawing = withResource(getResource(), subDrawing);
+
+    return pmr::make_heap<SubDrawing>(getResource(), std::move(subDrawing));
+}
+
 Rect Drawing::getControlBb() const
 {
     return controlBb_;
@@ -658,6 +763,7 @@ Drawing Drawing::filterByRect(Rect const& r) &&
 {
     filterElementsByRect(elements_, r);
     filterElementsByRect(shadows_, r);
+    outlines_ = std::move(outlines_).filterByRect(r);
 
     controlBb_ = combineDrawingRects(elements_, shadows_);
 
@@ -681,6 +787,8 @@ Drawing operator*(Transform const& t, Drawing&& drawing)
 
     for (auto&& e : drawing.shadows_)
         transformElement(t, e);
+
+    drawing.outlines_ = std::move(drawing.outlines_).transform(t);
 
     drawing.controlBb_ = combineDrawingRects(drawing.elements_,
             drawing.shadows_);

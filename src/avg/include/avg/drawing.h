@@ -1,6 +1,7 @@
 #pragma once
 
 #include "effect.h"
+#include "outlines.h"
 #include "region.h"
 #include "shape.h"
 #include "textentry.h"
@@ -26,6 +27,11 @@ namespace avg
      * through concatenation, clipping and transforms, and flush() moves them
      * ahead of the main list. Whoever renders a drawing flushes it first: an
      * unflushed drawing's shadows are silently dropped.
+     *
+     * A drawing also carries outlines, the shapes its content casts shadows
+     * with. They are not elements and the renderer never reads them, but
+     * every operation that maps or combines drawings applies to them too.
+     * Only the outermost drawing holds outlines (see liftSubDrawing()).
      */
     class AVG_EXPORT Drawing final
     {
@@ -136,7 +142,10 @@ namespace avg
          */
         [[nodiscard]]
         Drawing operator+(Drawing const& drawing) &&;
+        [[nodiscard]]
+        Drawing operator+(Drawing&& drawing) &&;
         Drawing& operator+=(Drawing const& drawing);
+        Drawing& operator+=(Drawing&& drawing);
 
         /**
          * @brief Adds a pending shadow, an element painted under the content
@@ -165,8 +174,8 @@ namespace avg
          * The result is below's main list, then above's pending shadows, then
          * above's main list in a BackdropScope, so above's backdrop effects
          * see below and the shadows but nothing of above itself. below's
-         * pending shadows stay pending. Use it wherever one child is painted
-         * over another.
+         * pending shadows stay pending. The outlines of both end on the
+         * result. Use it wherever one child is painted over another.
          */
         [[nodiscard]]
         static Drawing over(Drawing below, Drawing above);
@@ -177,7 +186,7 @@ namespace avg
          *
          * An empty input is the backdrop of the enclosing scope; any other
          * becomes a sub-drawing of the element, and its pending shadows
-         * move onto the result. Throws std::invalid_argument when the
+         * and outlines move onto the result. Throws std::invalid_argument when the
          * number of inputs is not the pass's, or when neither a shape nor a
          * sub-drawing input bounds the result.
          */
@@ -197,9 +206,39 @@ namespace avg
 
         pmr::vector<Element> const& getElements() const;
         pmr::vector<Element> const& getPendingShadows() const;
+        Outlines const& getOutlines() const;
+
+        [[nodiscard]]
+        Drawing setOutlines(Outlines outlines) &&;
+        Drawing& setOutlines(Outlines outlines) &;
+
+        [[nodiscard]]
+        Drawing addOutline(Shape shape) &&;
+        Drawing& addOutline(Shape shape) &;
+
+        [[nodiscard]]
+        Drawing clearOutlines() &&;
+        Drawing& clearOutlines() &;
 
         /**
-         * @brief The bounds of the elements and the pending shadows.
+         * @brief Moves the outlines out, leaving the drawing none.
+         */
+        Outlines takeOutlines();
+
+        /**
+         * @brief Turns @p inner into the sub-drawing of an element this
+         * drawing will hold.
+         *
+         * inner's outlines and pending shadows, mapped by @p transform (the
+         * element's transform), move onto this drawing.
+         */
+        [[nodiscard]]
+        pmr::heap<SubDrawing> liftSubDrawing(Drawing&& inner,
+                Transform const& transform);
+
+        /**
+         * @brief The bounds of the elements and the pending shadows, not
+         * of the outlines.
          *
          * An effect element counts as its controlBb; the margin its passes
          * sample beyond that is added when the frame is rendered.
@@ -220,6 +259,7 @@ namespace avg
     private:
         pmr::vector<Element> elements_;
         pmr::vector<Element> shadows_;
+        Outlines outlines_;
         Rect controlBb_;
     };
 }

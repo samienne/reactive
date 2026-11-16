@@ -11,6 +11,23 @@ Vulkan work; the five backdrop-effect entries against `4d8e996e`
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Outlines are carried inside the `Drawing` and lifted out of sub-drawings
+
+A `Drawing` carries the outline shapes of the widgets that produced it
+next to its elements; the renderer never reads them. Every drawing
+operation (transform, scale, clip, `filterByRect`, concatenation, `over`)
+applies to both, so outlines arrive at a shadow boundary transformed and
+clipped. Whatever wraps a drawing into an element holding a sub-drawing
+lifts the inner drawing's outlines onto the drawing that holds the
+element, through `Drawing::liftSubDrawing`, so only the outermost drawing
+holds them; the root drops what no boundary took.
+
+**Why:** the drawing operations already place and clip what a widget
+paints, so the outline gets the same placement for free and no render
+tree node needs to know about it. Rejected: carrying outlines next to the
+drawing through the render tree, with an outline node around every shape
+widget (every node kind would have to forward them).
+
 ## Sub-drawings use scratch targets and one pooled depth buffer per size
 
 An effect element's sub-drawing input is rendered into a scratch target

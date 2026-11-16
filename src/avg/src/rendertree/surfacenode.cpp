@@ -231,7 +231,7 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
     if (childNode_)
     {
         auto [childDrawing, childCont] = childNode_->draw(context, obb, time);
-        result += childDrawing;
+        result += std::move(childDrawing);
         cont = cont || childCont;
     }
 
