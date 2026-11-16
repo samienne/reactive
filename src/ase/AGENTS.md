@@ -139,9 +139,9 @@ are in the top-level `docs/`.
   `Unsupported`; `RenderContextImpl::canReadback` reports which a context does.
   The window side lives in `WindowBase`: `captureNextFrame` appends to a list of
   armed callbacks under a mutex that is never held while a callback runs (a
-  callback may re-arm from the render thread), and `capturePresent`, called from a capturing window's
-  `present()`, counts the present and moves the whole list into one readback
-  submitted on the window's main queue. `Painter::presentWindow` flushes the
+  callback may re-arm from the render thread), and `capturePresent`, called
+  from a capturing window's `present()`, counts the present and moves the whole
+  list into one readback submitted on the window's main queue. `Painter::presentWindow` flushes the
   draws before `present()` and the platform submits the frame fence after the
   frame callback returns, so the queue order is draws, readback, fence. Only
   `OffscreenWindow` overrides `capturesOnPresent()`; on-screen windows report
