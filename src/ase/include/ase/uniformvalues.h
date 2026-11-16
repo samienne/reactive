@@ -83,7 +83,8 @@ namespace ase
      * A value's type must match the declared member, an array member takes
      * a std::vector of exactly its length, and the name must be declared;
      * anything else throws std::invalid_argument. Members never set are
-     * zero. data() and getSize() give the bytes to upload.
+     * zero. data() and getSize() give the bytes to upload. Two values are
+     * equal when their blocks are and their bytes match byte for byte.
      */
     class ASE_EXPORT UniformValues
     {
@@ -112,6 +113,9 @@ namespace ase
 
         void const* data() const;
         size_t getSize() const;
+
+        bool operator==(UniformValues const& rhs) const;
+        bool operator!=(UniformValues const& rhs) const;
 
     private:
         ShaderInterface::Member const& resolve(std::string_view name,

@@ -273,6 +273,31 @@ TEST(uniformValues, rejectsUnknownNamesAndWrongTypes)
             std::invalid_argument);
 }
 
+TEST(uniformValues, compareByBlockAndBytes)
+{
+    UniformValues values(effectInterface(), "BlurParams");
+    values.set("radius", 12.0f);
+
+    UniformValues same(effectInterface(), "BlurParams");
+    same.set("radius", 12.0f);
+    EXPECT_EQ(values, same);
+
+    UniformValues other(effectInterface(), "BlurParams");
+    other.set("radius", 8.0f);
+    EXPECT_NE(values, other);
+
+    ShaderInterface iface;
+    iface.block("BlurParams", 3, BlockLayout::Std140, {
+            { "radius", UniformType::Float },
+            { "direction", UniformType::Float2 },
+            { "transform", UniformType::Mat4 },
+            { "weights", UniformType::Float, 2 },
+        });
+    UniformValues rebound(iface, "BlurParams");
+    rebound.set("radius", 12.0f);
+    EXPECT_NE(values, rebound);
+}
+
 TEST(uniformRing, alignsRangesAndWrapsToTheNextBuffer)
 {
     Fixture f;

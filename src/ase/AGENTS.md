@@ -323,7 +323,8 @@ samplers with their units. `docs/design/shader-interface.md` is the design;
   size and each `blockMember`'s offset against the computed std140 layout at
   construction; `UniformValues` (`uniformvalues.h`) is a by-name shadow of a
   block for parameters that arrive as names (the effect scheduler). Both
-  give the same bytes for the same block.
+  give the same bytes for the same block. Two `UniformValues` are equal
+  when their blocks are and their bytes match.
 - **Per-frame storage is a `UniformRing`** (`uniformring.h`): one
   `UniformBuffer` per frame in flight, `beginFrame`, `write` a block to the
   next slot aligned to `getUniformBufferOffsetAlignment` (GL reads it from
