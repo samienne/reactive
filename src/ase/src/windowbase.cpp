@@ -61,7 +61,7 @@ RenderContext& WindowBase::getRenderContext()
 
 bool WindowBase::canCapture() const
 {
-    return capturesOnPresent() && context_.canReadback();
+    return false;
 }
 
 void WindowBase::captureNextFrame(CaptureCallback callback)
@@ -120,11 +120,6 @@ std::vector<CaptureCallback> WindowBase::takeCaptureRequests()
     std::vector<CaptureCallback> requests;
     requests.swap(captureRequests_);
     return requests;
-}
-
-bool WindowBase::capturesOnPresent() const
-{
-    return false;
 }
 
 std::optional<std::chrono::microseconds>

@@ -147,13 +147,12 @@ are in the top-level `docs/`.
   readback submitted on the window's main queue. `Painter::presentWindow`
   flushes the draws before `present()` and the platform submits the frame fence
   after the frame callback returns, so the queue order is draws, readback,
-  fence. Only `OffscreenWindow` overrides `capturesOnPresent()`; on-screen
-  windows report `canCapture() == false` until their present submits a readback
-  before the swap. `canCapture` is `capturesOnPresent() && canReadback()`, which
-  is why the `OffscreenWindow` that `DummyPlatform::makeWindow` builds for
-  `headless` cannot capture. The real-GL check is the manual `bquiheadlesstest`;
-  the arming logic is tested in `bquitest` over a fake context that reads back
-  synthetic pixels.
+  fence. Only `OffscreenWindow` overrides `canCapture()`, to its context's
+  `canReadback()`; on-screen windows keep `WindowBase`'s `false` until their
+  present submits a readback before the swap. That is why the `OffscreenWindow`
+  that `DummyPlatform::makeWindow` builds for `headless` cannot capture. The
+  real-GL check is the manual `bquiheadlesstest`; the arming logic is tested in
+  `bquitest` over a fake context that reads back synthetic pixels.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

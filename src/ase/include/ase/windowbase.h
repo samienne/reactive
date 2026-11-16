@@ -83,7 +83,7 @@ namespace ase
         /**
          * @brief Count a present and serve the captures armed for it.
          *
-         * A window whose `capturesOnPresent()` is true calls this from every
+         * A window that overrides `canCapture()` to true calls this from every
          * `present()`, passing the framebuffer it presents and that
          * framebuffer's size in pixels.
          */
@@ -93,8 +93,6 @@ namespace ase
 
     private:
         friend class PlatformBase;
-
-        virtual bool capturesOnPresent() const;
 
         std::vector<CaptureCallback> takeCaptureRequests();
 

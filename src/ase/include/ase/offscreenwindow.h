@@ -36,6 +36,8 @@ namespace ase
 
         Framebuffer& getDefaultFramebuffer() override;
 
+        bool canCapture() const override;
+
         void requestFrame() override;
 
         /**
@@ -49,8 +51,7 @@ namespace ase
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 
-        bool capturesOnPresent() const override;
-
+        bool canReadback_;
         Texture texture_;
         Renderbuffer depthbuffer_;
         Framebuffer framebuffer_;
