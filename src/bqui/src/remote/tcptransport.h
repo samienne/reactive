@@ -16,6 +16,10 @@ namespace bqui::remote
     // on POSIX, both of which fit.
     using TcpSocket = std::intptr_t;
 
+#ifdef _WIN32
+    class OverlappedWriter;
+#endif
+
     /** @brief A runtime_error carrying the platform's last socket error. */
     std::runtime_error tcpError(char const* what);
 
@@ -51,15 +55,21 @@ namespace bqui::remote
 
         void close() override;
         btl::NativeHandle nativeHandle() override;
+        btl::NativeHandle writableHandle() override;
 
     protected:
         void writeAll(void const* data, size_t size) override;
         bool readAll(void* data, size_t size) override;
         bool fillReady(std::string& out) override;
+        size_t writeReady(void const* data, size_t size) override;
+        bool writePending() override;
 
     private:
         TcpSocket sock_;
         [[maybe_unused]] bool nonBlocking_ = false;
+#ifdef _WIN32
+        std::unique_ptr<OverlappedWriter> writer_;
+#endif
     };
 
     /**

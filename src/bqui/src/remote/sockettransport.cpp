@@ -95,6 +95,34 @@ btl::NativeHandle SocketTransport::nativeHandle()
     return btl::fromFd(fd_);
 }
 
+btl::NativeHandle SocketTransport::writableHandle()
+{
+    return btl::fromFd(fd_);
+}
+
+size_t SocketTransport::writeReady(void const* data, size_t size)
+{
+#ifdef MSG_NOSIGNAL
+    int const flags = MSG_DONTWAIT | MSG_NOSIGNAL;
+#else
+    int const flags = MSG_DONTWAIT;
+#endif
+
+    for (;;)
+    {
+        ssize_t wrote = ::send(fd_, data, size, flags);
+        if (wrote >= 0)
+            return static_cast<size_t>(wrote);
+
+        if (errno == EINTR)
+            continue;
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return 0;
+
+        throw lastError("send");
+    }
+}
+
 bool SocketTransport::fillReady(std::string& out)
 {
     char buffer[8192];

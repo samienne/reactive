@@ -70,6 +70,37 @@ namespace bqui::remote
 
         /** @brief True once the peer has closed and receiveReady() has drained. */
         virtual bool disconnected() const;
+
+        /**
+         * @brief Queue one whole message for sending, without blocking.
+         *
+         * The run-loop alternative to send(): the frame joins an outgoing
+         * queue that flushReady() writes in order. A transport is driven
+         * either this way or through send(), never both. Throws when the queue
+         * would pass its byte cap; the queue is then dropped. The base sends
+         * the frame at once with send().
+         */
+        virtual void enqueue(std::string const& frame);
+
+        /**
+         * @brief Write as much of the queue as the channel takes right now,
+         * without blocking.
+         *
+         * A frame cut short resumes where it stopped on the next call. Throws
+         * when the channel has failed; the queue is then dropped.
+         *
+         * @return true once nothing is left to write.
+         */
+        virtual bool flushReady();
+
+        /**
+         * @brief The OS handle to wait on for writability in a run loop.
+         *
+         * Worth waiting on only while flushReady() returns false. A socket
+         * fd, or the Windows overlapped-write event. Non-owning, like
+         * nativeHandle().
+         */
+        virtual btl::NativeHandle writableHandle();
     };
 
     /**

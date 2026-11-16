@@ -2,12 +2,15 @@
 
 #include "remote/tcptransport.h"
 
+#include <btl/runloop.h>
+
 #include <gtest/gtest.h>
 
 #include <atomic>
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -380,4 +383,179 @@ TEST(tcpTransport, receiveReadyReassemblesFrames)
     ASSERT_TRUE(server);
 
     checkReceiveReadyFraming(std::move(client), std::move(server));
+}
+
+// --- The outgoing queue: enqueue() + flushReady() -------------------------
+
+namespace
+{
+    struct Channel
+    {
+        std::unique_ptr<Transport> writer;
+        std::unique_ptr<Transport> reader;
+    };
+
+    // The platform's local IPC: a named pipe on Windows, a Unix socket on POSIX.
+    Channel connectLocal(std::string const& name)
+    {
+        auto endpoint = uniqueEndpoint(name);
+        auto listener = listen(endpoint);
+
+        Channel channel;
+        std::thread acceptThread([&] { channel.writer = listener->accept(); });
+        channel.reader = connect(endpoint);
+        acceptThread.join();
+        return channel;
+    }
+
+    Channel connectTcp()
+    {
+        auto listener = tcpListen(*parseTcpEndpoint("127.0.0.1:0"));
+        auto endpoint = "127.0.0.1:" + std::to_string(listener->port());
+
+        Channel channel;
+        std::thread acceptThread([&] { channel.writer = listener->accept(); });
+        channel.reader = connect(endpoint);
+        acceptThread.join();
+        return channel;
+    }
+
+    std::string patterned(size_t size)
+    {
+        std::string text(size, 'x');
+        for (size_t i = 0; i < size; ++i)
+            text[i] = static_cast<char>('a' + (i % 26));
+        return text;
+    }
+
+    // Flush `writer` from a run loop each time it turns writable, the way the
+    // driver does. Returns false if the queue never emptied.
+    bool flushOnLoop(Transport& writer)
+    {
+        if (writer.flushReady())
+            return true;
+
+        btl::RunLoop loop;
+        btl::RunLoop::Source writable;
+        btl::RunLoop::Timer timeout;
+        bool flushed = false;
+
+        loop.post([&](btl::RunLoop::Controller& controller)
+            {
+                timeout = controller.addTimer(std::chrono::seconds(30),
+                        [](btl::RunLoop::Controller& c) { c.stop(); });
+
+                writable = controller.addWritable(writer.writableHandle(),
+                        [&](btl::RunLoop::Controller& c)
+                        {
+                            if (writer.flushReady())
+                            {
+                                flushed = true;
+                                c.stop();
+                            }
+                        });
+            });
+
+        loop.run();
+        return flushed;
+    }
+
+    // Read `count` frames on another thread while the writer flushes.
+    std::vector<std::string> flushAndReceive(Channel& channel, size_t count)
+    {
+        std::vector<std::string> frames;
+        std::thread reader([&]
+            {
+                while (frames.size() < count)
+                {
+                    auto frame = channel.reader->receive();
+                    if (!frame)
+                        break;
+                    frames.push_back(std::move(*frame));
+                }
+            });
+
+        // A writer that never flushed would leave the reader parked.
+        if (!flushOnLoop(*channel.writer))
+            channel.writer.reset();
+
+        reader.join();
+        return frames;
+    }
+
+    void checkQueuedFramesArriveInOrder(Channel channel)
+    {
+        ASSERT_TRUE(channel.writer);
+        std::string big = patterned(8 * 1024 * 1024);
+
+        channel.writer->enqueue("before");
+        channel.writer->enqueue(big);
+        channel.writer->enqueue("");
+        channel.writer->enqueue("after");
+
+        auto frames = flushAndReceive(channel, 4);
+
+        ASSERT_EQ(4u, frames.size());
+        EXPECT_EQ("before", frames[0]);
+        EXPECT_TRUE(big == frames[1]);
+        EXPECT_EQ("", frames[2]);
+        EXPECT_EQ("after", frames[3]);
+    }
+
+    void checkEnqueueDoesNotBlockOnAStalledReader(Channel channel)
+    {
+        ASSERT_TRUE(channel.writer);
+
+        // Far more than the OS buffers between the two ends hold, so a
+        // blocking write would park here for good: nothing reads yet.
+        std::string big = patterned(32 * 1024 * 1024);
+        channel.writer->enqueue(big);
+        channel.writer->enqueue("after");
+        EXPECT_FALSE(channel.writer->flushReady());
+        EXPECT_FALSE(channel.writer->flushReady());
+
+        auto frames = flushAndReceive(channel, 2);
+
+        ASSERT_EQ(2u, frames.size());
+        EXPECT_TRUE(big == frames[0]);
+        EXPECT_EQ("after", frames[1]);
+    }
+} // namespace
+
+TEST(transport, queuedFramesArriveInOrder)
+{
+    checkQueuedFramesArriveInOrder(connectLocal("queueorder"));
+}
+
+TEST(tcpTransport, queuedFramesArriveInOrder)
+{
+    checkQueuedFramesArriveInOrder(connectTcp());
+}
+
+TEST(transport, enqueueDoesNotBlockOnAStalledReader)
+{
+    checkEnqueueDoesNotBlockOnAStalledReader(connectLocal("queuestall"));
+}
+
+TEST(tcpTransport, enqueueDoesNotBlockOnAStalledReader)
+{
+    checkEnqueueDoesNotBlockOnAStalledReader(connectTcp());
+}
+
+TEST(transport, enqueueThrowsPastTheQueueCapAndDropsTheQueue)
+{
+    auto channel = connectLocal("queuecap");
+    ASSERT_TRUE(channel.writer);
+
+    // Nothing is flushed, so every frame stays queued. Each carries a length
+    // prefix, so the last of these is the one that passes the cap.
+    std::string frame(1024 * 1024, 'x');
+    size_t count = kMaxQueuedBytes / frame.size();
+    for (size_t i = 0; i + 1 < count; ++i)
+        ASSERT_NO_THROW(channel.writer->enqueue(frame));
+
+    EXPECT_THROW(channel.writer->enqueue(frame), std::runtime_error);
+
+    // The queue was dropped, so there is room again.
+    EXPECT_NO_THROW(channel.writer->enqueue(frame));
 }

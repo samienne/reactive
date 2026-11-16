@@ -1,5 +1,6 @@
 libbquisrc = [
   'src/remote/introspectionjson.cpp',
+  'src/remote/overlappedwriter.cpp',
   'src/remote/remotedriver.cpp',
   'src/remote/streamtransport.cpp',
   'src/remote/pipetransport.cpp',
