@@ -26,6 +26,7 @@ also writes the self-test's screenshot there.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import base64
 import json
@@ -151,6 +152,8 @@ def png_pixels(data: bytes) -> tuple[int, int, list[bytes]]:
     if ihdr is None:
         raise RuntimeError("PNG has no IHDR")
     width, height, depth, colour, _, _, interlace = ihdr
+    if not width or not height:
+        raise RuntimeError(f"PNG is {width}x{height}")
     channels = {2: 3, 6: 4}.get(colour)
     if depth != 8 or channels is None or interlace:
         raise RuntimeError(f"PNG format not handled: depth {depth}, "
@@ -187,6 +190,8 @@ def png_pixels(data: bytes) -> tuple[int, int, list[bytes]]:
 
 def check_screenshot(shot: dict, data: bytes) -> None:
     """Checks a screenshot PNG matches its reply's size and is not blank."""
+    if not data:
+        raise RuntimeError("screenshot blob is empty")
     width, height, rows = png_pixels(data)
     if (width, height) != (shot["width"], shot["height"]):
         raise RuntimeError(f"screenshot PNG is {width}x{height}, the reply "
@@ -197,22 +202,14 @@ def check_screenshot(shot: dict, data: bytes) -> None:
         raise RuntimeError("screenshot is a single flat colour")
 
 
-def option_value(name: str) -> str | None:
-    if name not in sys.argv:
-        return None
-    i = sys.argv.index(name)
-    if i + 1 >= len(sys.argv):
-        raise RuntimeError(f"{name} needs a value")
-    return sys.argv[i + 1]
-
-
 async def selftest(conn: Connection, methods: list[dict],
-                   read_length: int | None) -> int:
+                   read_length: int | None, save: str | None) -> int:
     print("methods:", [m["name"] for m in methods])
     for m in tool_methods(methods):
         print(f"  tool {m['name'].replace('.', '_')}  params={[p['name'] for p in m.get('params', [])]}")
     wl = await conn.request("window.list")
     print("window.list:", wl)
+    skipped = "the app has no window"
     if wl.get("windows"):
         wid = wl["windows"][0]["id"]
         intro = await conn.request("window.introspect", {"window": wid})
@@ -226,44 +223,62 @@ async def selftest(conn: Connection, methods: list[dict],
         if json.loads(data) != inline:
             raise RuntimeError("renderTree blob differs from the inline reply")
         print("renderTree blob ok,", len(data), "bytes, same as the inline reply")
-        names = {m["name"] for m in methods}
-        if ("window.screenshot" in names
-                and wl["windows"][0].get("canCapture")):
+        if "window.screenshot" not in {m["name"] for m in methods}:
+            skipped = "the app has no window.screenshot"
+        elif not wl["windows"][0].get("canCapture"):
+            skipped = "the window cannot capture"
+        else:
+            skipped = None
             shot = await conn.request("window.screenshot", {"window": wid})
             data = await read_blob(conn, shot["blob"], read_length)
             check_screenshot(shot, data)
             print(f"screenshot ok, {shot['width']}x{shot['height']},",
                   len(data), "bytes")
-            save = option_value("--save-screenshot")
             if save:
                 with open(save, "wb") as f:
                     f.write(data)
                 print("screenshot saved to", save)
-        else:
-            print("screenshot skipped: the window cannot capture")
+    if skipped:
+        if save:
+            raise RuntimeError(f"--save-screenshot: no screenshot, {skipped}")
+        print("screenshot skipped:", skipped)
     print("SELFTEST OK")
     return 0
 
 
-async def amain() -> int:
+async def amain(args: argparse.Namespace) -> int:
     log_to_stderr()
     conn = Connection(on_notification=log_notification)
-    await conn.launch()
-    described = await conn.request("system.describe")
-    methods = described.get("methods", [])
-    read_length = blob_read_length(described)
     try:
-        if "--selftest" in sys.argv:
-            return await selftest(conn, methods, read_length)
+        await conn.launch()
+        described = await conn.request("system.describe")
+        methods = described.get("methods", [])
+        read_length = blob_read_length(described)
+        if args.selftest:
+            return await selftest(conn, methods, read_length,
+                                  args.save_screenshot)
         await run_mcp(conn, methods, read_length)
         return 0
     finally:
         await conn.close()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="MCP bridge for a bqui app.")
+    parser.add_argument("--selftest", action="store_true",
+                        help="drive the app once without MCP and exit")
+    parser.add_argument("--save-screenshot", metavar="PATH",
+                        help="with --selftest: write its screenshot here")
+    args = parser.parse_args()
+    if args.save_screenshot and not args.selftest:
+        parser.error("--save-screenshot needs --selftest")
+    return args
+
+
 def main() -> None:
+    args = parse_args()
     try:
-        sys.exit(asyncio.run(amain()))
+        sys.exit(asyncio.run(amain(args)))
     except KeyboardInterrupt:
         pass
 
