@@ -2233,6 +2233,40 @@ TEST(session, screenshotFailsWhenNoFrameIsCapturedInTime)
     EXPECT_TRUE(list.contains("result"));
 }
 
+TEST(session, capturesAWindowHasNotServedAreBounded)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "stale");
+    SessionFixture s("shotstale", { window }, std::chrono::milliseconds(50),
+            {});
+
+    for (size_t i = 0; i < kMaxScreenshotsInFlight; ++i)
+    {
+        auto late = s.call("window.screenshot", screenshotParams(window));
+        EXPECT_EQ(kInternalError, errorCodeOf(late));
+    }
+
+    auto busy = s.call("window.screenshot", screenshotParams(window));
+    EXPECT_EQ(kCaptureBusy, errorCodeOf(busy));
+    EXPECT_EQ(kMaxScreenshotsInFlight,
+            busy.at("error").at("data").at("armed").get<size_t>());
+
+    // Once the window serves the stale captures, it can be armed again.
+    auto stale = window.takeArmed();
+    ASSERT_EQ(kMaxScreenshotsInFlight, stale.size());
+    for (auto& callback : stale)
+        callback(syntheticFrame(2, 2, 1));
+
+    int code = kCaptureBusy;
+    for (int i = 0; i < 100 && code == kCaptureBusy; ++i)
+    {
+        code = errorCodeOf(s.call("window.screenshot",
+                    screenshotParams(window)));
+        if (code == kCaptureBusy)
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    EXPECT_EQ(kInternalError, code);
+}
+
 TEST(session, halfClosedClientStillGetsAScreenshot)
 {
     CapturableFakeWindow window(btl::makeUniqueId(), "halfclosed");

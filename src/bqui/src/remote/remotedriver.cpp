@@ -914,6 +914,18 @@ private:
                 { { "inFlight", screenshots_.size() },
                   { "limit", kMaxScreenshotsInFlight } } };
 
+        size_t& armed = armedCaptures_[request.window];
+        if (armed >= kMaxScreenshotsInFlight)
+        {
+            throw RpcError{ kCaptureBusy, "window "
+                + std::to_string(request.window)
+                    + " has not presented the frames earlier screenshots "
+                    "wait for",
+                { { "window", request.window }, { "armed", armed },
+                  { "limit", kMaxScreenshotsInFlight } } };
+        }
+
+        ++armed;
         uint64_t const key = nextScreenshot_++;
         PendingScreenshot& shot = screenshots_[key];
         shot.request = request;
@@ -928,10 +940,12 @@ private:
                 });
 
         captureOnLoop(*window, loop_, alive_,
-                [this, key](btl::RunLoop::Controller& controller,
+                [this, key, id = request.window](
+                    btl::RunLoop::Controller& controller,
                     ase::CaptureResult result)
                 {
                     ControllerScope scope(controller_, controller);
+                    disarm(id);
                     onCaptured(key, std::move(result));
                 });
         window->requestFrame();
@@ -982,6 +996,13 @@ private:
         gate.release();
 
         finishIfIdle();
+    }
+
+    void disarm(uint64_t window)
+    {
+        auto it = armedCaptures_.find(window);
+        if (it != armedCaptures_.end() && --it->second == 0)
+            armedCaptures_.erase(it);
     }
 
     void onCaptured(uint64_t key, ase::CaptureResult result)
@@ -1348,6 +1369,9 @@ private:
     Dispatcher dispatcher_;
     std::optional<PendingStep> pendingStep_;
     std::map<uint64_t, PendingScreenshot> screenshots_;
+    // Per window id, the captures armed and not yet completed, answered or
+    // not: a window that does not present keeps them.
+    std::map<uint64_t, size_t> armedCaptures_;
     uint64_t nextScreenshot_ = 1;
     std::optional<DispatchGate> zeroFrameGate_;
     std::shared_ptr<EncodeJobs> encodes_ = std::make_shared<EncodeJobs>();
