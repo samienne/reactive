@@ -11,6 +11,11 @@ MCP. This bridge owns the socket (framing, request-id correlation, app
 notifications) and generates one MCP tool per protocol method from the app's own
 `system.describe`, so the tool list never drifts from the protocol.
 
+The `blob.*` methods are plumbing, not tools. When a method that
+`system.describe` marks `returnsBlob` answers with a blob descriptor, the bridge
+pulls the blob in `blob.read` chunks, releases it, and returns its content: text
+for text and JSON types, image content for `image/*`.
+
 ## How it runs
 
 The app *connects* to an endpoint the client *listens* on. The bridge therefore
@@ -37,7 +42,8 @@ connection, calls `system.describe`, and serves MCP over stdio.
 BQUI_BUILD_DIR=/path/to/build python tools/mcp/bqui_mcp.py --selftest
 ```
 Launches the app, prints the generated tools, queries `window.list` /
-`window.introspect`, and exits.
+`window.introspect`, pulls `window.renderTree` as a blob and checks it against
+the inline reply, and exits.
 
 ## Register with Claude Code
 
