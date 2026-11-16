@@ -68,9 +68,9 @@ namespace bqui::remote
         virtual avg::Snapshot snapshot() const = 0;
 
         /**
-         * @brief Whether `captureNextFrame` can return pixels; a hint, not a
-         * lease.
+         * @brief Whether `captureNextFrame` can return pixels.
          *
+         * When false, a capture fails with `ase::ReadbackError::Unsupported`.
          * False unless overridden.
          */
         virtual bool canCapture() const;

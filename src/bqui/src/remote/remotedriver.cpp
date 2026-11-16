@@ -750,7 +750,7 @@ private:
 
         dispatcher_.add({ "window.list",
             "List the live windows by id, with whether each can be "
-            "captured (`canCapture`, a hint checked again on capture).",
+            "captured (`canCapture`).",
             {},
             [this](json const& p, Responder&) { return windowList(p); } });
 
