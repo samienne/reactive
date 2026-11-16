@@ -138,6 +138,42 @@ resumes where it stopped. The driver registers a writable source only while
 - The blocking `send`/`receive` remain for the client role and tests. A
   transport is used one way or the other, never both.
 
+**A remote method answers now or later.** The JSON-RPC side of the driver is
+`Dispatcher` (`src/remote/dispatcher.h`, private but exported for the tests):
+the method registry, request parsing and reply framing. A handler gets its
+params and a `Responder`. The usual one ignores the responder and returns its
+result. A deferred one moves the responder out, returns `pending`, and calls
+`resolve` or `reject` once it has the answer, on the loop thread. What holds:
+
+- **Effects are in request order; replies are not.** Requests are dispatched in
+  arrival order, one handler returning before the next runs, but a deferred
+  reply can be overtaken by later ones. The reply `id` is the only correlation.
+- **A `DispatchGate` keeps effects ordered across a deferral.** While a handler
+  holds one (`Dispatcher::holdGate`), later requests queue undispatched;
+  releasing it dispatches them. A handler holds it for as long as its effect on
+  the app is unfinished, which can be shorter than the wait for its reply.
+- **A responder refers to the session weakly.** After the session ended
+  (`Dispatcher::end`, from a disconnect, a shutdown or the driver's destructor)
+  resolving is a no-op and gated requests are discarded. Destroying an
+  unanswered responder while the session lives sends an internal error, so a
+  lost handler cannot hang a client. A request without an `id` is never
+  answered, deferred or not.
+- **A responder may be resolved from a loop callback that is not the
+  driver's.** The driver has a `Controller` only inside its own callbacks, so
+  `safeSend` queues the frame and posts the flush when it has none.
+
+**`app.step` is deferred when a frame cannot render yet.** A stepped frame
+skips a due window that has no free in-flight slot (`PauseToken::step`), and
+the driver does not step on or answer until `PauseToken::finishStep` reports
+that window rendered. It holds the gate meanwhile, so nothing else is
+dispatched between the frames of one step. The platform's paused wake
+(`PauseToken::onWake`, fired when a fence frees a slot) resumes it through a
+posted task that checks the driver is still alive. On the dummy backend fences
+complete inline, so the step answers synchronously as before; the tests reach
+the deferred path with `DummyRenderContext::holdFences`. Nothing bounds the
+wait: a slot that never frees leaves the step pending and the gate held until
+the client disconnects.
+
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception
