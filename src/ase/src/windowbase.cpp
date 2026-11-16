@@ -29,10 +29,29 @@ WindowBase::WindowBase(RenderContext& context, Vector2i size,
 {
 }
 
+namespace
+{
+    template <typename T>
+    void callCapture(CaptureCallback const& request, T&& result)
+    {
+        // A throwing request is dropped, as a fence continuation's exception
+        // is, so it cannot starve the other requests or escape a destructor.
+        try
+        {
+            request(std::forward<T>(result));
+        }
+        catch (...)
+        {
+        }
+    }
+} // anonymous namespace
+
 WindowBase::~WindowBase()
 {
-    for (auto& request : captureRequests_)
-        request(ReadbackError::Cancelled);
+    auto requests = takeCaptureRequests();
+
+    for (auto const& request : requests)
+        callCapture(request, ReadbackError::Cancelled);
 }
 
 RenderContext& WindowBase::getRenderContext()
@@ -53,6 +72,7 @@ void WindowBase::captureNextFrame(CaptureCallback callback)
         return;
     }
 
+    std::lock_guard<std::mutex> lock(captureMutex_);
     captureRequests_.push_back(std::move(callback));
 }
 
@@ -60,32 +80,46 @@ void WindowBase::capturePresent(Framebuffer const& source, Vector2i size)
 {
     ++presentCount_;
 
-    if (captureRequests_.empty())
+    auto requests = takeCaptureRequests();
+    if (requests.empty())
         return;
-
-    auto requests = std::move(captureRequests_);
-    captureRequests_.clear();
 
     CommandBuffer commandBuffer;
     commandBuffer.pushReadback(source, size,
             [requests = std::move(requests), presentIndex = presentCount_,
             frameTime = lastFrameTime()](ReadbackResult result)
             {
-                for (auto const& request : requests)
+                if (!result.valid())
                 {
-                    if (result.valid())
-                    {
-                        request(FrameCapture{
-                                presentIndex, frameTime, result.value() });
-                    }
-                    else
-                    {
-                        request(result.err());
-                    }
+                    for (auto const& request : requests)
+                        callCapture(request, result.err());
+
+                    return;
                 }
+
+                auto const last = requests.size() - 1;
+                for (size_t i = 0; i < last; ++i)
+                {
+                    callCapture(requests[i],
+                            FrameCapture{ presentIndex, frameTime,
+                            result.value() });
+                }
+
+                callCapture(requests[last],
+                        FrameCapture{ presentIndex, frameTime,
+                        std::move(result).value() });
             });
 
     context_.getMainRenderQueue().submit(std::move(commandBuffer));
+}
+
+std::vector<CaptureCallback> WindowBase::takeCaptureRequests()
+{
+    std::lock_guard<std::mutex> lock(captureMutex_);
+
+    std::vector<CaptureCallback> requests;
+    requests.swap(captureRequests_);
+    return requests;
 }
 
 bool WindowBase::capturesOnPresent() const

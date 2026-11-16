@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -95,6 +96,8 @@ namespace ase
 
         virtual bool capturesOnPresent() const;
 
+        std::vector<CaptureCallback> takeCaptureRequests();
+
         // The frame time this window next wants to render at, or nullopt if
         // quiesced. The loop schedules its cadence from these across all windows.
         std::optional<std::chrono::microseconds> nextFrameTime() const;
@@ -128,6 +131,7 @@ namespace ase
 
         std::shared_ptr<WindowPresentSync> presentSync_;
 
+        std::mutex captureMutex_;
         std::vector<CaptureCallback> captureRequests_;
         std::uint64_t presentCount_ = 0;
     };

@@ -14,8 +14,12 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <variant>
 #include <vector>
 
@@ -240,4 +244,114 @@ TEST(windowCapture, destroyingTheWindowCancelsAnArmedCapture)
     ASSERT_FALSE(captures.results[0].valid());
     EXPECT_EQ(ase::ReadbackError::Cancelled, captures.results[0].err());
     EXPECT_EQ(0, contextImpl->queue->readbacks);
+}
+
+TEST(windowCapture, aCallbackCanArmALaterFrame)
+{
+    auto contextImpl = std::make_shared<FakeReadbackContext>();
+    ase::RenderContext context(contextImpl);
+    ase::Window window(std::make_shared<ase::OffscreenWindow>(context, kSize));
+
+    std::vector<std::uint64_t> served;
+    ase::CaptureCallback capture;
+    capture = [&](ase::CaptureResult result)
+    {
+        ASSERT_TRUE(result.valid());
+        served.push_back(result.value().presentIndex);
+
+        if (served.size() < 3)
+            window.captureNextFrame(capture);
+    };
+
+    window.captureNextFrame(capture);
+
+    window.present();
+    EXPECT_EQ(std::vector<std::uint64_t>{ 1 }, served);
+
+    window.present();
+    window.present();
+    window.present();
+
+    EXPECT_EQ((std::vector<std::uint64_t>{ 1, 2, 3 }), served);
+    EXPECT_EQ(3, contextImpl->queue->readbacks);
+}
+
+TEST(windowCapture, aThrowingCallbackDoesNotStarveTheOthers)
+{
+    auto contextImpl = std::make_shared<FakeReadbackContext>();
+    ase::RenderContext context(contextImpl);
+
+    auto throwing = [](ase::CaptureResult)
+    {
+        throw std::runtime_error("capture callback");
+    };
+
+    Captures served;
+    Captures cancelled;
+
+    {
+        ase::Window window(
+                std::make_shared<ase::OffscreenWindow>(context, kSize));
+
+        window.captureNextFrame(throwing);
+        window.captureNextFrame(served.callback());
+        window.present();
+
+        window.captureNextFrame(throwing);
+        window.captureNextFrame(cancelled.callback());
+    }
+
+    ASSERT_EQ(1u, served.results.size());
+    EXPECT_TRUE(served.results[0].valid());
+
+    ASSERT_EQ(1u, cancelled.results.size());
+    ASSERT_FALSE(cancelled.results[0].valid());
+    EXPECT_EQ(ase::ReadbackError::Cancelled, cancelled.results[0].err());
+}
+
+TEST(windowCapture, aCaptureCarriesItsFrameTime)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto contextImpl = std::make_shared<FakeReadbackContext>();
+    ase::RenderContext context(contextImpl);
+    auto window = platform.makeWindow(context, kSize, true);
+
+    window.setFrameCallback([&window](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+        {
+            window.present();
+            return std::chrono::microseconds(0);
+        });
+    window.requestFrame();
+
+    Captures first;
+    Captures second;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            auto token = platform.pause();
+
+            window.captureNextFrame(first.callback());
+            token.step(std::chrono::milliseconds(5));
+
+            window.captureNextFrame(second.callback());
+            token.step(std::chrono::milliseconds(7));
+
+            controller.stop();
+        });
+
+    platform.run([](ase::Frame const&) { return true; });
+
+    ASSERT_EQ(1u, first.results.size());
+    ASSERT_TRUE(first.results[0].valid());
+    EXPECT_EQ(1u, first.results[0].value().presentIndex);
+    EXPECT_EQ(std::chrono::microseconds(5000),
+            first.results[0].value().frameTime);
+
+    ASSERT_EQ(1u, second.results.size());
+    ASSERT_TRUE(second.results[0].valid());
+    EXPECT_EQ(2u, second.results[0].value().presentIndex);
+    EXPECT_EQ(std::chrono::microseconds(12000),
+            second.results[0].value().frameTime);
 }

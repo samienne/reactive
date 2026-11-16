@@ -137,7 +137,8 @@ are in the top-level `docs/`.
   first, and calls the callback there. The dummy queue completes it at once with
   `Unsupported`; `RenderContextImpl::canReadback` reports which a context does.
   The window side lives in `WindowBase`: `captureNextFrame` appends to a list of
-  armed callbacks, and `capturePresent`, called from a capturing window's
+  armed callbacks under a mutex that is never held while a callback runs (a
+  callback may re-arm from the render thread), and `capturePresent`, called from a capturing window's
   `present()`, counts the present and moves the whole list into one readback
   submitted on the window's main queue. `Painter::presentWindow` flushes the
   draws before `present()` and the platform submits the frame fence after the

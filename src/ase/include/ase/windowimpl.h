@@ -87,7 +87,7 @@ namespace ase
         /**
          * @brief Read back the next frame this window presents.
          *
-         * Call on the thread that drives the window's frames.
+         * Safe to call from any thread, including from a capture callback.
          */
         virtual void captureNextFrame(CaptureCallback callback) = 0;
 

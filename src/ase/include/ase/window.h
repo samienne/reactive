@@ -102,7 +102,10 @@ namespace ase
          *   first;
          * - with `ReadbackError::Failed` when the backend cannot read.
          *
-         * Call on the thread that drives the window's frames.
+         * Safe to call from any thread, including from a capture callback to
+         * capture a later frame. A capture requested while a present is in
+         * progress is served by that present or the next one. An exception
+         * the callback throws is dropped.
          */
         void captureNextFrame(CaptureCallback callback);
 
