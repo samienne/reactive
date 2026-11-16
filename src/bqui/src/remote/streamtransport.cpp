@@ -40,6 +40,11 @@ uint32_t decodeLength(std::array<unsigned char, kLengthPrefixSize> const& bytes)
         | static_cast<uint32_t>(bytes[3]);
 }
 
+StreamTransport::StreamTransport(size_t maxQueuedBytes) :
+    maxQueuedBytes_(maxQueuedBytes)
+{
+}
+
 void StreamTransport::send(std::string const& frame)
 {
     auto header = encodeLength(static_cast<uint32_t>(frame.size()));
@@ -91,12 +96,15 @@ bool StreamTransport::disconnected() const
 
 void StreamTransport::enqueue(std::string const& frame)
 {
+    if (queueDropped_)
+        throw std::runtime_error("the outgoing queue was dropped");
+
     size_t size = kLengthPrefixSize + frame.size();
-    if (size > kMaxQueuedBytes - queuedBytes_)
+    if (size > maxQueuedBytes_ - queuedBytes_)
     {
         dropQueue();
         throw std::runtime_error("outgoing queue passed "
-                + std::to_string(kMaxQueuedBytes) + " bytes");
+                + std::to_string(maxQueuedBytes_) + " bytes");
     }
 
     auto header = encodeLength(static_cast<uint32_t>(frame.size()));
@@ -150,6 +158,7 @@ void StreamTransport::dropQueue()
     queue_.clear();
     queueOffset_ = 0;
     queuedBytes_ = 0;
+    queueDropped_ = true;
 }
 
 } // namespace bqui::remote

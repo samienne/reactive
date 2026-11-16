@@ -74,11 +74,11 @@ namespace bqui::remote
         /**
          * @brief Queue one whole message for sending, without blocking.
          *
-         * The run-loop alternative to send(): the frame joins an outgoing
-         * queue that flushReady() writes in order. A transport is driven
-         * either this way or through send(), never both. Throws when the queue
-         * would pass its byte cap; the queue is then dropped. The base sends
-         * the frame at once with send().
+         * The run-loop alternative to send(); flushReady() writes the queued
+         * frames in order. Use one or the other on a transport, never both.
+         * Throws when the queue would pass its byte cap, or after an earlier
+         * throw from either call: the queue is then dropped and the transport
+         * takes no more frames. The base sends the frame at once with send().
          */
         virtual void enqueue(std::string const& frame);
 
@@ -87,7 +87,8 @@ namespace bqui::remote
          * without blocking.
          *
          * A frame cut short resumes where it stopped on the next call. Throws
-         * when the channel has failed; the queue is then dropped.
+         * when the channel has failed; the queue is then dropped. The base
+         * has no queue and returns true.
          *
          * @return true once nothing is left to write.
          */
@@ -96,9 +97,8 @@ namespace bqui::remote
         /**
          * @brief The OS handle to wait on for writability in a run loop.
          *
-         * Worth waiting on only while flushReady() returns false. A socket
-         * fd, or the Windows overlapped-write event. Non-owning, like
-         * nativeHandle().
+         * Worth waiting on only while flushReady() returns false. The base
+         * returns an invalid handle. Non-owning, like nativeHandle().
          */
         virtual btl::NativeHandle writableHandle();
     };

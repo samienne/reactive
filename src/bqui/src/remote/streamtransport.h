@@ -13,11 +13,14 @@ namespace bqui::remote
 {
     constexpr size_t kLengthPrefixSize = 4;
 
-    /** @brief The most bytes an outgoing queue holds before enqueue() throws. */
+    /**
+     * @brief The most bytes an outgoing queue holds before enqueue() throws.
+     */
     constexpr size_t kMaxQueuedBytes = 64u * 1024u * 1024u;
 
-    std::array<unsigned char, kLengthPrefixSize> encodeLength(uint32_t length);
-    uint32_t decodeLength(
+    BQUI_EXPORT std::array<unsigned char, kLengthPrefixSize> encodeLength(
+            uint32_t length);
+    BQUI_EXPORT uint32_t decodeLength(
             std::array<unsigned char, kLengthPrefixSize> const& bytes);
 
     /**
@@ -27,7 +30,7 @@ namespace bqui::remote
      * full length-prefixed frame is written or read, so callers see whole
      * messages even when the OS splits an I/O across several calls.
      */
-    class StreamTransport : public Transport
+    class BQUI_EXPORT StreamTransport : public Transport
     {
     public:
         void send(std::string const& frame) override;
@@ -40,7 +43,15 @@ namespace bqui::remote
         bool flushReady() override;
 
     protected:
-        /** @brief Write exactly `size` bytes, looping over partial writes. */
+        /**
+         * @brief Construct with an outgoing queue of at most
+         * `maxQueuedBytes`.
+         */
+        explicit StreamTransport(size_t maxQueuedBytes = kMaxQueuedBytes);
+
+        /**
+         * @brief Write exactly `size` bytes, looping over partial writes.
+         */
         virtual void writeAll(void const* data, size_t size) = 0;
 
         /**
@@ -82,10 +93,10 @@ namespace bqui::remote
         std::string readyBuffer_;
         bool disconnected_ = false;
 
-        // Whole length-prefixed frames; the front one is written from
-        // queueOffset_ on.
+        size_t maxQueuedBytes_;
         std::deque<std::string> queue_;
         size_t queueOffset_ = 0;
         size_t queuedBytes_ = 0;
+        bool queueDropped_ = false;
     };
 } // namespace bqui::remote

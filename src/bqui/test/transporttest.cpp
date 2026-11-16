@@ -1,6 +1,7 @@
 #include <bqui/remote/transport.h>
 
 #include "remote/tcptransport.h"
+#include "scriptedtransport.h"
 
 #include <btl/runloop.h>
 
@@ -395,7 +396,7 @@ namespace
         std::unique_ptr<Transport> reader;
     };
 
-    // The platform's local IPC: a named pipe on Windows, a Unix socket on POSIX.
+    // A named pipe on Windows, a Unix socket on POSIX.
     Channel connectLocal(std::string const& name)
     {
         auto endpoint = uniqueEndpoint(name);
@@ -483,32 +484,13 @@ namespace
         return frames;
     }
 
-    void checkQueuedFramesArriveInOrder(Channel channel)
-    {
-        ASSERT_TRUE(channel.writer);
-        std::string big = patterned(8 * 1024 * 1024);
-
-        channel.writer->enqueue("before");
-        channel.writer->enqueue(big);
-        channel.writer->enqueue("");
-        channel.writer->enqueue("after");
-
-        auto frames = flushAndReceive(channel, 4);
-
-        ASSERT_EQ(4u, frames.size());
-        EXPECT_EQ("before", frames[0]);
-        EXPECT_TRUE(big == frames[1]);
-        EXPECT_EQ("", frames[2]);
-        EXPECT_EQ("after", frames[3]);
-    }
-
     void checkEnqueueDoesNotBlockOnAStalledReader(Channel channel)
     {
         ASSERT_TRUE(channel.writer);
 
-        // Far more than the OS buffers between the two ends hold, so a
-        // blocking write would park here for good: nothing reads yet.
-        std::string big = patterned(32 * 1024 * 1024);
+        // More than the OS buffers between the two ends hold, so a blocking
+        // write would park here for good: nothing reads yet.
+        std::string big = patterned(16 * 1024 * 1024);
         channel.writer->enqueue(big);
         channel.writer->enqueue("after");
         EXPECT_FALSE(channel.writer->flushReady());
@@ -522,16 +504,6 @@ namespace
     }
 } // namespace
 
-TEST(transport, queuedFramesArriveInOrder)
-{
-    checkQueuedFramesArriveInOrder(connectLocal("queueorder"));
-}
-
-TEST(tcpTransport, queuedFramesArriveInOrder)
-{
-    checkQueuedFramesArriveInOrder(connectTcp());
-}
-
 TEST(transport, enqueueDoesNotBlockOnAStalledReader)
 {
     checkEnqueueDoesNotBlockOnAStalledReader(connectLocal("queuestall"));
@@ -542,20 +514,66 @@ TEST(tcpTransport, enqueueDoesNotBlockOnAStalledReader)
     checkEnqueueDoesNotBlockOnAStalledReader(connectTcp());
 }
 
-TEST(transport, enqueueThrowsPastTheQueueCapAndDropsTheQueue)
+TEST(transport, queuedFramesArriveInOrderAcrossShortWrites)
 {
-    auto channel = connectLocal("queuecap");
-    ASSERT_TRUE(channel.writer);
+    testkit::ScriptedTransport transport;
+    transport.writes = { 3, 0, 5, 2, 500, 0 };
 
-    // Nothing is flushed, so every frame stays queued. Each carries a length
-    // prefix, so the last of these is the one that passes the cap.
-    std::string frame(1024 * 1024, 'x');
-    size_t count = kMaxQueuedBytes / frame.size();
-    for (size_t i = 0; i + 1 < count; ++i)
-        ASSERT_NO_THROW(channel.writer->enqueue(frame));
+    std::string big = patterned(1000);
+    transport.enqueue("before");
+    transport.enqueue(big);
+    transport.enqueue("");
+    transport.enqueue("after");
 
-    EXPECT_THROW(channel.writer->enqueue(frame), std::runtime_error);
+    EXPECT_FALSE(transport.flushReady());
+    EXPECT_EQ(3u, transport.wire.size());
+    EXPECT_FALSE(transport.flushReady());
+    EXPECT_EQ(510u, transport.wire.size());
+    EXPECT_TRUE(transport.flushReady());
 
-    // The queue was dropped, so there is room again.
-    EXPECT_NO_THROW(channel.writer->enqueue(frame));
+    EXPECT_EQ(testkit::framed("before") + testkit::framed(big)
+            + testkit::framed("") + testkit::framed("after"), transport.wire);
+}
+
+TEST(transport, enqueueThrowsPastTheQueueCapAndThenTakesNoMore)
+{
+    testkit::ScriptedTransport transport(64);
+    transport.afterScript = 0;
+
+    std::string frame(20, 'x');
+    ASSERT_NO_THROW(transport.enqueue(frame));
+    ASSERT_NO_THROW(transport.enqueue(frame));
+    EXPECT_THROW(transport.enqueue(frame), std::runtime_error);
+
+    EXPECT_THROW(transport.enqueue("later"), std::runtime_error);
+    EXPECT_TRUE(transport.flushReady());
+    EXPECT_TRUE(transport.wire.empty());
+}
+
+TEST(transport, writtenBytesLeaveTheQueueCap)
+{
+    testkit::ScriptedTransport transport(64);
+    transport.writes = { 30 };
+    transport.afterScript = 0;
+
+    std::string frame(36, 'x');
+    transport.enqueue(frame);
+    EXPECT_FALSE(transport.flushReady());
+    EXPECT_NO_THROW(transport.enqueue(std::string(46, 'y')));
+    EXPECT_THROW(transport.enqueue("z"), std::runtime_error);
+}
+
+TEST(transport, aFailedWriteThrowsAndThenTakesNoMore)
+{
+    testkit::ScriptedTransport transport;
+    transport.writes = { 2, std::nullopt };
+
+    transport.enqueue("first");
+    transport.enqueue("second");
+    EXPECT_THROW(transport.flushReady(), std::runtime_error);
+    EXPECT_EQ(2u, transport.wire.size());
+
+    EXPECT_TRUE(transport.flushReady());
+    EXPECT_THROW(transport.enqueue("later"), std::runtime_error);
+    EXPECT_EQ(2u, transport.wire.size());
 }

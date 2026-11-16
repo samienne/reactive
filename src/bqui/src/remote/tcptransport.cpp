@@ -87,9 +87,6 @@ std::optional<TcpAddress> parseTcpEndpoint(std::string const& endpoint)
 }
 
 #ifdef _WIN32
-// A second WSAEventSelect on a socket replaces the first, so a run loop cannot
-// wait on one socket for readability and writability at once. Overlapped
-// writes signal an event of their own instead.
 TcpTransport::TcpTransport(TcpSocket sock) :
     sock_(sock),
     writer_(std::make_unique<OverlappedWriter>(
@@ -217,14 +214,12 @@ size_t TcpTransport::writeReady(void const* data, size_t size)
 #endif
 }
 
+#ifdef _WIN32
 bool TcpTransport::writePending()
 {
-#ifdef _WIN32
     return writer_->pending();
-#else
-    return false;
-#endif
 }
+#endif
 
 bool TcpTransport::fillReady(std::string& out)
 {

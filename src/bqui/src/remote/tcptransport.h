@@ -62,7 +62,9 @@ namespace bqui::remote
         bool readAll(void* data, size_t size) override;
         bool fillReady(std::string& out) override;
         size_t writeReady(void const* data, size_t size) override;
+#ifdef _WIN32
         bool writePending() override;
+#endif
 
     private:
         TcpSocket sock_;
