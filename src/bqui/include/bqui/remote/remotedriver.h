@@ -18,6 +18,7 @@
 #include <btl/uniqueid.h>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -98,6 +99,20 @@ namespace bqui::remote
      */
     inline constexpr std::chrono::seconds kStepTimeout{ 5 };
 
+    /**
+     * @brief The bounds on the bulk results a session hands out as blobs.
+     *
+     * A method that answers with a blob fails once the session's unreleased
+     * blobs would pass `maxOutstanding` bytes. A `blob.read` returns at most
+     * `maxRead` bytes, and `defaultRead` when it names no length.
+     */
+    struct BlobLimits
+    {
+        size_t maxOutstanding = size_t(256) * 1024 * 1024;
+        size_t maxRead = size_t(1024) * 1024;
+        size_t defaultRead = size_t(256) * 1024;
+    };
+
     /** @brief The inspector-protocol driver: maps JSON-RPC messages to the app's
      * frame primitives, over a run loop it does not own.
      *
@@ -117,13 +132,17 @@ namespace bqui::remote
      * A client-driven `app.step` answers once its frames have rendered. When
      * no window finishes a frame for `stepTimeout`, it fails instead and the
      * requests behind it go ahead.
+     *
+     * A session's blobs live until the client releases them or the session
+     * ends, within `blobLimits`.
      */
     class BQUI_EXPORT RemoteDriver
     {
     public:
         RemoteDriver(btl::RunLoop& loop, Transport& transport, RemoteApp app,
                 std::optional<ase::PauseToken> pauseToken = std::nullopt,
-                std::chrono::milliseconds stepTimeout = kStepTimeout);
+                std::chrono::milliseconds stepTimeout = kStepTimeout,
+                BlobLimits blobLimits = {});
         ~RemoteDriver();
 
         RemoteDriver(RemoteDriver const&) = delete;

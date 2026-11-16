@@ -1,4 +1,7 @@
+#include "remote/base64.h"
+#include "remote/blobstore.h"
 #include "remote/dispatcher.h"
+#include "remote/introspectionjson.h"
 #include "remote/tcptransport.h"
 #include "scriptedtransport.h"
 
@@ -1094,16 +1097,20 @@ namespace
         return name;
     }
 
-    std::string request(int id, std::string const& method)
+    std::string request(int id, std::string const& method,
+            json params = json::object())
     {
         json frame = { { "jsonrpc", "2.0" }, { "id", id },
             { "method", method } };
+        if (!params.empty())
+            frame["params"] = std::move(params);
         return testkit::framed(frame.dump());
     }
 
     // Run a driver over `transport` on this thread until it stops its loop.
     // Returns false if it had not stopped after a generous bound.
-    bool runDriver(testkit::ScriptedTransport& transport)
+    bool runDriver(testkit::ScriptedTransport& transport,
+            RemoteWindows windows = {}, BlobLimits blobLimits = {})
     {
         btl::RunLoop loop;
         bool timedOut = false;
@@ -1111,8 +1118,9 @@ namespace
         RemoteApp app;
         app.step = [](std::chrono::microseconds) { return true; };
         app.sync = [] {};
-        app.liveWindows = [] { return RemoteWindows{}; };
-        RemoteDriver driver(loop, transport, std::move(app), std::nullopt);
+        app.liveWindows = [windows] { return windows; };
+        RemoteDriver driver(loop, transport, std::move(app), std::nullopt,
+                kStepTimeout, blobLimits);
 
         btl::RunLoop::Timer bound;
         loop.post([&](btl::RunLoop::Controller& controller)
@@ -1231,6 +1239,295 @@ TEST(session, shutdownGivesUpOnAClientThatStopsReading)
     EXPECT_GE(std::chrono::steady_clock::now() - started,
             std::chrono::milliseconds(1500));
     EXPECT_TRUE(transport.wire.empty());
+}
+
+// --- Blobs: bulk results pulled in chunks ----------------------------------
+
+namespace
+{
+    // One scripted session: the requests are queued up front, then the driver
+    // runs until the client's input ends.
+    struct BlobSession
+    {
+        explicit BlobSession(BlobLimits limits = {}) :
+            limits(limits)
+        {
+        }
+
+        int send(std::string const& method, json params = json::object())
+        {
+            int id = nextId++;
+            incoming += request(id, method, std::move(params));
+            return id;
+        }
+
+        int renderTree(bool asBlob)
+        {
+            json params = { { "window", window.id().getValue() } };
+            if (asBlob)
+                params["asBlob"] = true;
+            return send("window.renderTree", std::move(params));
+        }
+
+        int read(json id, json offset, json length = nullptr)
+        {
+            json params = { { "id", std::move(id) },
+                { "offset", std::move(offset) } };
+            if (!length.is_null())
+                params["length"] = std::move(length);
+            return send("blob.read", std::move(params));
+        }
+
+        int release(json id)
+        {
+            return send("blob.release", { { "id", std::move(id) } });
+        }
+
+        bool run()
+        {
+            testkit::ScriptedTransport transport;
+            transport.incoming = incoming;
+            transport.incomingEnds = true;
+            if (!runDriver(transport, { window }, limits))
+                return false;
+
+            for (auto const& frame : testkit::unframed(transport.wire))
+            {
+                json reply = json::parse(frame);
+                replies[reply.at("id").get<int>()] = reply;
+            }
+            return true;
+        }
+
+        json const& result(int id) const
+        {
+            return replies.at(id).at("result");
+        }
+
+        int errorCode(int id) const
+        {
+            return replies.at(id).at("error").at("code").get<int>();
+        }
+
+        FakeRemoteWindow window{ btl::makeUniqueId(), "blob" };
+        BlobLimits limits;
+        std::string incoming;
+        int nextId = 1;
+        std::map<int, json> replies;
+    };
+
+    std::string renderTreeBytes(RemoteWindow const& window)
+    {
+        json reply = { { "renderTree", toJson(window.snapshot()) } };
+        return reply.dump();
+    }
+
+    std::string encoded(std::string const& bytes, size_t offset,
+            size_t length)
+    {
+        return base64Encode(bytes.data() + offset, length);
+    }
+} // namespace
+
+TEST(session, blobReadsWholeAndInRanges)
+{
+    BlobSession s;
+    std::string bytes = renderTreeBytes(s.window);
+    ASSERT_GT(bytes.size(), 20u);
+
+    int produced = s.renderTree(true);
+    int whole = s.read(1, 0);
+    int head = s.read(1, 0, 10);
+    int overlap = s.read(1, 5, 10);
+    int repeat = s.read(1, 5, 10);
+    int tail = s.read(1, bytes.size() - 4, 100);
+    int atEnd = s.read(1, bytes.size());
+    ASSERT_TRUE(s.run());
+
+    auto const& blob = s.result(produced).at("blob");
+    EXPECT_EQ(1u, blob.at("id").get<uint64_t>());
+    EXPECT_EQ(bytes.size(), blob.at("size").get<size_t>());
+    EXPECT_EQ("application/json", blob.at("contentType"));
+
+    EXPECT_EQ(encoded(bytes, 0, bytes.size()), s.result(whole).at("data"));
+    EXPECT_EQ("base64", s.result(whole).at("encoding"));
+    EXPECT_TRUE(s.result(whole).at("end").get<bool>());
+
+    EXPECT_EQ(encoded(bytes, 0, 10), s.result(head).at("data"));
+    EXPECT_FALSE(s.result(head).at("end").get<bool>());
+    EXPECT_EQ(encoded(bytes, 5, 10), s.result(overlap).at("data"));
+    EXPECT_EQ(s.result(overlap), s.result(repeat));
+
+    EXPECT_EQ(encoded(bytes, bytes.size() - 4, 4), s.result(tail).at("data"));
+    EXPECT_TRUE(s.result(tail).at("end").get<bool>());
+
+    EXPECT_EQ("", s.result(atEnd).at("data"));
+    EXPECT_TRUE(s.result(atEnd).at("end").get<bool>());
+}
+
+TEST(session, blobReadClampsItsLengthAndDefaultsIt)
+{
+    BlobLimits limits;
+    limits.maxRead = 8;
+    limits.defaultRead = 5;
+    BlobSession s(limits);
+    std::string bytes = renderTreeBytes(s.window);
+
+    s.renderTree(true);
+    int clamped = s.read(1, 0, 100);
+    int defaulted = s.read(1, 3);
+    ASSERT_TRUE(s.run());
+
+    EXPECT_EQ(encoded(bytes, 0, 8), s.result(clamped).at("data"));
+    EXPECT_FALSE(s.result(clamped).at("end").get<bool>());
+    EXPECT_EQ(encoded(bytes, 3, 5), s.result(defaulted).at("data"));
+}
+
+TEST(session, blobReadRejectsABadOffsetOrLength)
+{
+    BlobSession s;
+    std::string bytes = renderTreeBytes(s.window);
+
+    s.renderTree(true);
+    std::vector<int> bad = {
+        s.read(1, bytes.size() + 1),
+        s.read(1, -1),
+        s.read(1, 1.5),
+        s.read(1, "3"),
+        s.send("blob.read", { { "id", 1 } }),
+        s.read(1, 0, -1),
+        s.read(1, 0, 2.5),
+    };
+    ASSERT_TRUE(s.run());
+
+    for (int id : bad)
+        EXPECT_EQ(kInvalidParams, s.errorCode(id)) << "request " << id;
+}
+
+TEST(session, unknownAndReleasedBlobsAreUnknown)
+{
+    BlobSession s;
+
+    s.renderTree(true);
+    int never = s.read(99, 0);
+    int released = s.release(1);
+    int readReleased = s.read(1, 0);
+    int releasedTwice = s.release(1);
+    ASSERT_TRUE(s.run());
+
+    EXPECT_EQ(kUnknownBlob, s.errorCode(never));
+    EXPECT_TRUE(s.result(released).empty());
+    EXPECT_EQ(kUnknownBlob, s.errorCode(readReleased));
+    EXPECT_EQ(kUnknownBlob, s.errorCode(releasedTwice));
+}
+
+TEST(session, theOutstandingCapFailsTheProducer)
+{
+    FakeRemoteWindow probe(btl::makeUniqueId(), "blob");
+    size_t size = renderTreeBytes(probe).size();
+
+    BlobLimits limits;
+    limits.maxOutstanding = 2 * size - 1;
+    BlobSession s(limits);
+
+    int first = s.renderTree(true);
+    int refused = s.renderTree(true);
+    s.release(1);
+    int afterRelease = s.renderTree(true);
+    ASSERT_TRUE(s.run());
+
+    EXPECT_EQ(1u, s.result(first).at("blob").at("id").get<uint64_t>());
+
+    EXPECT_EQ(kBlobCapReached, s.errorCode(refused));
+    auto const& data = s.replies.at(refused).at("error").at("data");
+    EXPECT_EQ(size, data.at("inUse").get<size_t>());
+    EXPECT_EQ(limits.maxOutstanding, data.at("cap").get<size_t>());
+
+    EXPECT_EQ(2u, s.result(afterRelease).at("blob").at("id").get<uint64_t>());
+}
+
+TEST(session, blobsDoNotSurviveANewSession)
+{
+    BlobSession first;
+    int produced = first.renderTree(true);
+    ASSERT_TRUE(first.run());
+    ASSERT_EQ(1u, first.result(produced).at("blob").at("id").get<uint64_t>());
+
+    BlobSession second;
+    int stale = second.read(1, 0);
+    ASSERT_TRUE(second.run());
+
+    EXPECT_EQ(kUnknownBlob, second.errorCode(stale));
+}
+
+TEST(session, requestsInterleaveBetweenBlobReads)
+{
+    BlobSession s;
+    std::string bytes = renderTreeBytes(s.window);
+
+    s.renderTree(true);
+    int head = s.read(1, 0, 12);
+    int list = s.send("window.list");
+    int step = s.send("app.step");
+    int inlineTree = s.renderTree(false);
+    int rest = s.read(1, 12, bytes.size());
+    int released = s.release(1);
+    ASSERT_TRUE(s.run());
+
+    EXPECT_EQ(encoded(bytes, 0, 12), s.result(head).at("data"));
+    EXPECT_EQ(1u, s.result(list).at("windows").size());
+    EXPECT_EQ(1u, s.result(step).at("frame").get<uint64_t>());
+    EXPECT_TRUE(s.result(inlineTree).contains("renderTree"));
+    EXPECT_EQ(encoded(bytes, 12, bytes.size() - 12),
+            s.result(rest).at("data"));
+    EXPECT_TRUE(s.result(rest).at("end").get<bool>());
+    EXPECT_TRUE(s.result(released).empty());
+}
+
+TEST(session, aRenderTreeBlobHoldsTheInlineReply)
+{
+    BlobSession s;
+
+    int inlineTree = s.renderTree(false);
+    int produced = s.renderTree(true);
+    int whole = s.read(1, 0);
+    ASSERT_TRUE(s.run());
+
+    std::string bytes = s.result(inlineTree).dump();
+    EXPECT_EQ(bytes.size(),
+            s.result(produced).at("blob").at("size").get<size_t>());
+    EXPECT_EQ(base64Encode(bytes.data(), bytes.size()),
+            s.result(whole).at("data"));
+}
+
+TEST(session, describeMarksBlobMethodsAndReportsTheLimits)
+{
+    BlobLimits limits;
+    limits.maxOutstanding = 1000;
+    limits.maxRead = 100;
+    limits.defaultRead = 10;
+    BlobSession s(limits);
+
+    int describe = s.send("system.describe");
+    ASSERT_TRUE(s.run());
+
+    std::map<std::string, bool> returnsBlob;
+    for (auto const& method : s.result(describe).at("methods"))
+    {
+        returnsBlob[method.at("name").get<std::string>()] =
+            method.at("returnsBlob").get<bool>();
+    }
+
+    EXPECT_TRUE(returnsBlob.at("window.renderTree"));
+    EXPECT_FALSE(returnsBlob.at("window.introspect"));
+    EXPECT_FALSE(returnsBlob.at("blob.read"));
+    EXPECT_FALSE(returnsBlob.at("blob.release"));
+
+    auto const& blob = s.result(describe).at("limits").at("blob");
+    EXPECT_EQ(1000u, blob.at("maxOutstanding").get<size_t>());
+    EXPECT_EQ(100u, blob.at("maxRead").get<size_t>());
+    EXPECT_EQ(10u, blob.at("defaultRead").get<size_t>());
+    EXPECT_EQ(json::array({ "base64" }), blob.at("encodings"));
 }
 
 // --- Stepping a platform whose window is out of in-flight frames -----------

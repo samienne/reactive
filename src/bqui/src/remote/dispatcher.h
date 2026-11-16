@@ -114,7 +114,8 @@ namespace bqui::remote
      *
      * The usual handler ignores the responder and returns its result:
      * `[](json const& params, Responder&) { return json{ { "ok", true } }; }`.
-     * It reports a failure by throwing an `RpcError`.
+     * It reports a failure by throwing an `RpcError`. A method whose result
+     * can be a blob descriptor sets `returnsBlob`.
      */
     struct Method
     {
@@ -123,6 +124,7 @@ namespace bqui::remote
         std::vector<ParamSpec> params;
         std::function<Reply(nlohmann::json const& params,
                 Responder& responder)> handler;
+        bool returnsBlob = false;
     };
 
     /**

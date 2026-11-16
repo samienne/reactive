@@ -1,6 +1,7 @@
 #include "bqui/remote/remotedriver.h"
 #include "bqui/remote/transport.h"
 
+#include "blobstore.h"
 #include "debug.h"
 #include "dispatcher.h"
 #include "introspectionjson.h"
@@ -186,12 +187,13 @@ class RemoteDriver::Impl
 public:
     Impl(btl::RunLoop& loop, Transport& transport, RemoteApp app,
             std::optional<ase::PauseToken> pauseToken,
-            std::chrono::milliseconds stepTimeout) :
+            std::chrono::milliseconds stepTimeout, BlobLimits blobLimits) :
         loop_(loop),
         transport_(&transport),
         app_(std::move(app)),
         pauseToken_(std::move(pauseToken)),
         stepTimeout_(stepTimeout),
+        blobs_(blobLimits),
         dispatcher_([this](std::string const& frame) { safeSend(frame); })
     {
 #ifdef SIGPIPE
@@ -379,6 +381,7 @@ private:
         dispatcher_.end();
         pendingStep_.reset();
         stepDeadline_ = btl::RunLoop::Timer();
+        blobs_.clear();
     }
 
     void close(char const* reason)
@@ -492,10 +495,14 @@ private:
                     { "name", method.name },
                     { "doc", method.doc },
                     { "params", params },
+                    { "returnsBlob", method.returnsBlob },
                     });
         }
 
-        return { { "methods", methods } };
+        return {
+            { "methods", methods },
+            { "limits", { { "blob", blobs_.describeLimits() } } },
+        };
     }
 
     json run(json const&)
@@ -652,7 +659,11 @@ private:
             throw RpcError{ kInvalidParams,
                 "no live window with id " + std::to_string(id) };
 
-        return { { "renderTree", toJson(window->snapshot()) } };
+        json result = { { "renderTree", toJson(window->snapshot()) } };
+        if (!boolField(params, "asBlob", false))
+            return result;
+
+        return { { "blob", blobs_.add(result.dump(), "application/json") } };
     }
 
     json windowInject(json const& params)
@@ -683,7 +694,8 @@ private:
     void buildRegistry()
     {
         dispatcher_.add({ "system.describe",
-            "List every method, its doc, and its parameter schema.",
+            "List every method, its doc, its parameter schema and whether it "
+            "can answer with a blob, and the session's limits.",
             {},
             [this](json const& p, Responder&) { return describe(p); } });
 
@@ -733,12 +745,17 @@ private:
             } });
 
         dispatcher_.add({ "window.renderTree",
-            "The window's render-tree snapshot.",
-            { { "window", "number", true } },
+            "The window's render-tree snapshot; with `asBlob`, a blob holding "
+            "the same reply.",
+            {
+                { "window", "number", true },
+                { "asBlob", "boolean", false },
+            },
             [this](json const& p, Responder&)
             {
                 return windowRenderTree(p);
-            } });
+            },
+            true });
 
         dispatcher_.add({ "window.inject",
             "Queue input events onto a window for the next step.",
@@ -747,6 +764,20 @@ private:
                 { "events", "array", true },
             },
             [this](json const& p, Responder&) { return windowInject(p); } });
+
+        dispatcher_.add({ "blob.read",
+            "Up to `length` bytes of a blob from `offset`, base64-encoded.",
+            {
+                { "id", "number", true },
+                { "offset", "number", true },
+                { "length", "number", false },
+            },
+            [this](json const& p, Responder&) { return blobs_.read(p); } });
+
+        dispatcher_.add({ "blob.release",
+            "Free a blob; its id is unknown from then on.",
+            { { "id", "number", true } },
+            [this](json const& p, Responder&) { return blobs_.release(p); } });
     }
 
     btl::RunLoop& loop_;
@@ -755,6 +786,7 @@ private:
     RemoteApp app_;
     std::optional<ase::PauseToken> pauseToken_;
     std::chrono::milliseconds stepTimeout_;
+    BlobStore blobs_;
     Dispatcher dispatcher_;
     std::optional<PendingStep> pendingStep_;
     std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
@@ -773,9 +805,9 @@ private:
 
 RemoteDriver::RemoteDriver(btl::RunLoop& loop, Transport& transport,
         RemoteApp app, std::optional<ase::PauseToken> pauseToken,
-        std::chrono::milliseconds stepTimeout) :
+        std::chrono::milliseconds stepTimeout, BlobLimits blobLimits) :
     impl_(std::make_unique<Impl>(loop, transport, std::move(app),
-                std::move(pauseToken), stepTimeout))
+                std::move(pauseToken), stepTimeout, blobLimits))
 {
 }
 
