@@ -35,6 +35,25 @@ log = logging.getLogger("bqui_remote")
 NotificationHandler = Callable[[str, Any], None]
 
 
+class RemoteError(RuntimeError):
+    """A JSON-RPC error reply."""
+
+    def __init__(self, method: str, code: int | None, message: str,
+                 data: Any = None) -> None:
+        super().__init__(f"{method} failed [{code}]: {message}")
+        self.method = method
+        self.code = code
+        self.message = message
+        self.data = data
+
+
+class ConnectionLost(ConnectionError):
+    """The app's connection dropped; pending and later requests fail with it."""
+
+    def __init__(self) -> None:
+        super().__init__("app disconnected")
+
+
 def launch_env() -> dict[str, str]:
     """The environment to launch the app in: PATH extended from BQUI_BUILD_DIR."""
     env = dict(os.environ)
@@ -146,9 +165,10 @@ class Connection:
             if not self._closing:
                 log.warning("app disconnected")
             self._lost = True
-            for fut in self._pending.values():
+            pending, self._pending = self._pending, {}
+            for fut in pending.values():
                 if not fut.done():
-                    fut.set_exception(ConnectionError("app disconnected"))
+                    fut.set_exception(ConnectionLost())
 
     def _on_message(self, msg: dict) -> None:
         if msg.get("id") is not None and ("result" in msg or "error" in msg):
@@ -159,9 +179,15 @@ class Connection:
             self._on_notification(msg["method"], msg.get("params", {}))
 
     async def request(self, method: str, params: dict | None = None) -> Any:
-        """Calls `method` and returns its result."""
+        """Calls `method` and returns its result.
+
+        Raises RemoteError for an error reply and ConnectionLost when the
+        connection drops.
+        """
         if self._lost:
-            raise ConnectionError("app disconnected")
+            raise ConnectionLost()
+        if self._writer is None:
+            raise ConnectionError("app not connected")
         rid = self._next_id
         self._next_id += 1
         frame = {"jsonrpc": "2.0", "id": rid, "method": method}
@@ -170,12 +196,17 @@ class Connection:
         fut = asyncio.get_running_loop().create_future()
         self._pending[rid] = fut
         data = json.dumps(frame).encode("utf-8")
-        self._writer.write(struct.pack(">I", len(data)) + data)
-        await self._writer.drain()
+        try:
+            self._writer.write(struct.pack(">I", len(data)) + data)
+            await self._writer.drain()
+        except ConnectionError:
+            self._pending.pop(rid, None)
+            raise ConnectionLost() from None
         resp = await fut
         if "error" in resp:
             e = resp["error"]
-            raise RuntimeError(f"{method} failed [{e.get('code')}]: {e.get('message')}")
+            raise RemoteError(method, e.get("code"), e.get("message", ""),
+                              e.get("data"))
         return resp.get("result")
 
     async def close(self) -> None:
@@ -193,6 +224,8 @@ class Connection:
                 pass
         if self._server:
             self._server.close()
+        if self._writer:
+            self._writer.close()
 
 
 def blob_read_length(described: dict) -> int | None:
@@ -226,3 +259,4 @@ async def read_blob(conn: Connection, blob: dict,
             await conn.request("blob.release", {"id": blob["id"]})
         except Exception as e:
             log.warning("blob %s: release failed: %s", blob["id"], e)
+
