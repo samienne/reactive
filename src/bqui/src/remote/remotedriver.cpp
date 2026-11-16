@@ -6,26 +6,25 @@
 #include "debug.h"
 #include "dispatcher.h"
 #include "introspectionjson.h"
-#include "png.h"
 #include "screenshot.h"
+#include "screenshotencoder.h"
 
 #include <avg/rendertree/snapshot.h>
 
 #include <btl/runloop.h>
-#include <btl/threadpool.h>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <chrono>
-#include <condition_variable>
+
 #include <csignal>
 #include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
-#include <mutex>
+
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -266,10 +265,6 @@ public:
     ~Impl()
     {
         endSession();
-
-        std::unique_lock<std::mutex> lock(encodes_->mutex);
-        encodes_->stopped = true;
-        encodes_->done.wait(lock, [this] { return encodes_->running == 0; });
     }
 
 private:
@@ -296,30 +291,6 @@ private:
         bool framed = false;
     };
 
-    // The encodes running on worker threads, which the destructor waits for
-    // so that none posts to a loop being torn down. One that has not started
-    // by then does nothing.
-    struct EncodeJobs
-    {
-        std::mutex mutex;
-        std::condition_variable done;
-        int running = 0;
-        bool stopped = false;
-    };
-
-    struct RunningEncode
-    {
-        EncodeJobs& jobs;
-
-        ~RunningEncode()
-        {
-            {
-                std::lock_guard<std::mutex> lock(jobs.mutex);
-                --jobs.running;
-            }
-            jobs.done.notify_all();
-        }
-    };
 
     // The loop-thread Controller, valid only during a callback.
     struct ControllerScope
@@ -929,46 +900,18 @@ private:
 
     void encode(uint64_t key, ase::FrameCapture capture, ScreenshotPlan plan)
     {
-        btl::ThreadPool::getInstance().async(
-                [this, key, plan, jobs = encodes_,
-                alive = std::weak_ptr<bool>(alive_),
-                capture = std::move(capture)]() mutable
+        uint64_t const presentIndex = capture.presentIndex;
+        encoder_.encode(std::move(capture), plan,
+                [this, key, plan, presentIndex,
+                alive = std::weak_ptr<bool>(alive_)](
+                    btl::RunLoop::Controller& controller, std::string png,
+                    std::string const& error)
                 {
-                    {
-                        std::lock_guard<std::mutex> lock(jobs->mutex);
-                        if (jobs->stopped)
-                            return;
-                        ++jobs->running;
-                    }
-                    RunningEncode running{ *jobs };
+                    if (alive.expired())
+                        return;
 
-                    std::string png;
-                    std::string error;
-                    try
-                    {
-                        auto rgb = renderScreenshot(capture.image, plan);
-                        png = encodePng(
-                                static_cast<uint32_t>(plan.outputSize.x()),
-                                static_cast<uint32_t>(plan.outputSize.y()),
-                                rgb.data());
-                    }
-                    catch (std::exception const& e)
-                    {
-                        error = e.what();
-                    }
-
-                    loop_.post([this, key, plan, alive,
-                            presentIndex = capture.presentIndex,
-                            png = std::move(png), error = std::move(error)](
-                                btl::RunLoop::Controller& controller) mutable
-                        {
-                            if (alive.expired())
-                                return;
-
-                            ControllerScope scope(controller_, controller);
-                            onEncoded(key, plan, presentIndex, std::move(png),
-                                    error);
-                        });
+                    ControllerScope scope(controller_, controller);
+                    onEncoded(key, plan, presentIndex, std::move(png), error);
                 });
     }
 
@@ -1239,7 +1182,7 @@ private:
     std::map<uint64_t, size_t> armedCaptures_;
     uint64_t nextScreenshot_ = 1;
     std::optional<DispatchGate> zeroFrameGate_;
-    std::shared_ptr<EncodeJobs> encodes_ = std::make_shared<EncodeJobs>();
+    ScreenshotEncoder encoder_{ loop_ };
     std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
     uint64_t frame_ = 0;
     State state_ = State::Paused;

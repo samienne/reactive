@@ -8,6 +8,7 @@ libbquisrc = [
   'src/remote/png.cpp',
   'src/remote/remotedriver.cpp',
   'src/remote/screenshot.cpp',
+  'src/remote/screenshotencoder.cpp',
   'src/remote/streamtransport.cpp',
   'src/remote/pipetransport.cpp',
   'src/remote/pipelistener.cpp',
