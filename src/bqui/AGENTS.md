@@ -218,8 +218,8 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
 **A capture result comes back on the render thread, not the loop.**
 `RemoteWindow::captureNextFrame` keeps the ase contract (the callback runs on
 any thread; `WindowBridge` passes it straight to its `ase::Window`), and
-`window.list` reports `canCapture` from the same seam. The driver arms a
-capture only through `captureOnLoop` (`src/remote/capture.h`, exported for its
+`window.list` reports `canCapture` from the same seam. The driver is to arm
+captures through `captureOnLoop` (`src/remote/capture.h`, exported for its
 tests), which posts the result to the loop and drops it if the driver is gone
 by then. A handler resolving a responder from it must still enter a driver
 callback first, as the deferred `app.step` does, since `safeSend` needs the
