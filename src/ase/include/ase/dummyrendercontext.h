@@ -54,6 +54,8 @@ namespace ase
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
+        bool canReadback() const override;
+
     private:
         // Upward-strong ref to the platform this context was made by; keeps the
         // platform alive for as long as any window holds this context.

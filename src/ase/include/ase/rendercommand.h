@@ -2,6 +2,8 @@
 
 #include "window.h"
 #include "drawcommand.h"
+#include "readback.h"
+#include "vector.h"
 
 #include <btl/future/promise.h>
 
@@ -41,12 +43,20 @@ namespace ase
         Format format;
     };
 
+    struct ReadbackCommand
+    {
+        Framebuffer source;
+        Vector2i size;
+        ReadbackCallback callback;
+    };
+
     using RenderCommand = std::variant<
         DrawCommand,
         ClearCommand,
         FenceCommand,
         BufferUploadCommand,
-        TextureUploadCommand
+        TextureUploadCommand,
+        ReadbackCommand
         >;
 
 } // namespace ase

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rendercommand.h"
+#include "readback.h"
 #include "asevisibility.h"
 
 #include <btl/future.h>
@@ -45,6 +46,19 @@ namespace ase
                 );
 
         void pushUpload(Texture target, Buffer data, Vector2i size, Format format);
+
+        /**
+         * @brief Read back the colour of `source` once the commands pushed
+         * before it have drawn.
+         *
+         * Reads the `size` pixels from the framebuffer's origin; `size` must
+         * not exceed the framebuffer. `callback` receives the pixels in the
+         * layout `ReadbackImage` describes, or `ReadbackError::Unsupported`
+         * on a render context whose `canReadback()` is false. It runs once,
+         * on any thread.
+         */
+        void pushReadback(Framebuffer source, Vector2i size,
+                ReadbackCallback callback);
 
         size_t size() const;
         Iterator begin();

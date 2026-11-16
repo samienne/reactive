@@ -110,5 +110,10 @@ std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl()
     return std::make_shared<DummyUniformSet>();
 }
 
+bool DummyRenderContext::canReadback() const
+{
+    return false;
+}
+
 } // namespace ase
 

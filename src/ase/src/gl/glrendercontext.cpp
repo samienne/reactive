@@ -209,5 +209,10 @@ std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl()
     return objectManager_.makeUniformSet();
 }
 
+bool GlRenderContext::canReadback() const
+{
+    return true;
+}
+
 } // namespace
 
