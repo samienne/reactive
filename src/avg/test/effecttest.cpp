@@ -11,6 +11,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 using avg::Divisor;
@@ -18,13 +19,13 @@ using avg::Effect;
 using avg::EffectRegions;
 using avg::Geometry;
 using avg::Pass;
+using avg::PassGraph;
 using avg::PassInput;
 using avg::PassOutput;
 using avg::PixelRect;
 using avg::ScratchKey;
 using avg::ScratchPlan;
 using avg::ScratchSlot;
-using avg::ScratchTimeline;
 using avg::Vector2i;
 
 namespace
@@ -60,6 +61,12 @@ namespace
         return pass;
     }
 
+    Pass withSource(Pass pass, std::string source)
+    {
+        pass.shader.fragmentSource = std::move(source);
+        return pass;
+    }
+
     PixelRect rect(int x, int y, int width, int height)
     {
         PixelRect r;
@@ -77,6 +84,9 @@ namespace
         k.format = format;
         return k;
     }
+
+    Vector2i const screen(400, 300);
+    PixelRect const shape = rect(100, 80, 200, 40);
 
     ScratchKey const snapshotKey = key(Divisor::One, ase::FORMAT_SRGBA);
     ScratchKey const halfKey = key(Divisor::Two, ase::FORMAT_RGBA16F);
@@ -399,11 +409,11 @@ TEST(EffectPlan, backdropRegionIsEmptyWhenNothingReadsIt)
 TEST(ScratchPlan, chainPingPongsBetweenTwoSlots)
 {
     Effect blur = avg::makeEffect(blurPasses());
-    ScratchTimeline timeline;
-    size_t const snapshot = timeline.addSnapshot();
-    timeline.addEffect(blur, snapshot);
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    graph.addEffect(blur, snapshot, shape);
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     ASSERT_EQ(1u, plan.effects.size());
     auto const& passes = plan.effects[0].passes;
@@ -437,11 +447,11 @@ TEST(ScratchPlan, chainPingPongsBetweenTwoSlots)
 TEST(ScratchPlan, snapshotStaysLiveUntilItsLastReader)
 {
     Effect blur = avg::makeEffect(blurPasses());
-    ScratchTimeline timeline;
-    size_t const snapshot = timeline.addSnapshot();
-    timeline.addEffect(blur, snapshot);
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    graph.addEffect(blur, snapshot, shape);
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     ASSERT_EQ(1u, plan.snapshots.size());
     EXPECT_EQ((ScratchSlot{ snapshotKey, 0 }), plan.snapshots[0].slot);
@@ -460,12 +470,15 @@ TEST(ScratchPlan, snapshotStaysLiveUntilItsLastReader)
 TEST(ScratchPlan, consecutiveEffectsReuseTheSameSlots)
 {
     Effect blur = avg::makeEffect(blurPasses());
-    ScratchTimeline timeline;
-    size_t const snapshot = timeline.addSnapshot();
-    timeline.addEffect(blur, snapshot);
-    timeline.addEffect(blur, snapshot);
+    auto passes = blurPasses();
+    passes[0].shader.fragmentSource = "other";
+    Effect other = avg::makeEffect(passes);
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    graph.addEffect(blur, snapshot, shape);
+    graph.addEffect(other, snapshot, shape);
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     ASSERT_EQ(2u, plan.effects.size());
     EXPECT_EQ(2u, plan.getPoolSize(halfKey));
@@ -480,16 +493,16 @@ TEST(ScratchPlan, outputNeverAliasesAnInputOfAWideGraph)
     Effect effect = avg::makeEffect({
         regionPass({ PassInput::backdrop() }, Divisor::Two,
                 ase::FORMAT_RGBA16F),
-        regionPass({ PassInput::backdrop() }, Divisor::Two,
-                ase::FORMAT_RGBA16F),
+        withSource(regionPass({ PassInput::backdrop() }, Divisor::Two,
+                    ase::FORMAT_RGBA16F), "other"),
         regionPass({ PassInput::pass(0), PassInput::pass(1) }, Divisor::Two,
                 ase::FORMAT_RGBA16F),
         finalPass({ PassInput::pass(2) })
     });
-    ScratchTimeline timeline;
-    timeline.addEffect(effect, timeline.addSnapshot());
+    PassGraph graph(screen);
+    graph.addEffect(effect, graph.addSnapshot(), shape);
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     auto const& passes = plan.effects[0].passes;
     EXPECT_EQ(3u, plan.getPoolSize(halfKey));
@@ -501,14 +514,14 @@ TEST(ScratchPlan, outputNeverAliasesAnInputOfAWideGraph)
 TEST(ScratchPlan, nestedScopesHoldTwoSnapshots)
 {
     Effect tint = avg::makeEffect({ finalPass({ PassInput::backdrop() }) });
-    ScratchTimeline timeline;
-    size_t const outer = timeline.addSnapshot();
-    timeline.addEffect(tint, outer);
-    size_t const inner = timeline.addSnapshot();
-    timeline.addEffect(tint, inner);
-    timeline.addEffect(tint, outer);
+    PassGraph graph(screen);
+    size_t const outer = graph.addSnapshot();
+    graph.addEffect(tint, outer, shape);
+    size_t const inner = graph.addSnapshot();
+    graph.addEffect(tint, inner, shape);
+    graph.addEffect(tint, outer, shape);
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     EXPECT_EQ(2u, plan.getPoolSize(snapshotKey));
     EXPECT_EQ((ScratchSlot{ snapshotKey, 0 }), plan.snapshots[outer].slot);
@@ -520,11 +533,11 @@ TEST(ScratchPlan, nestedScopesHoldTwoSnapshots)
 
 TEST(ScratchPlan, unreadSnapshotIsReleasedAtOnce)
 {
-    ScratchTimeline timeline;
-    timeline.addSnapshot();
-    timeline.addSnapshot();
+    PassGraph graph(screen);
+    graph.addSnapshot();
+    graph.addSnapshot();
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     EXPECT_EQ(1u, plan.getPoolSize(snapshotKey));
     EXPECT_EQ(plan.snapshots[0].definedAt, plan.snapshots[0].lastUse);
@@ -540,10 +553,10 @@ TEST(ScratchPlan, poolsAreCountedPerKey)
         regionPass({ PassInput::pass(1) }, Divisor::One, ase::FORMAT_SRGBA),
         finalPass({ PassInput::pass(2), PassInput::backdrop() })
     });
-    ScratchTimeline timeline;
-    timeline.addEffect(effect, timeline.addSnapshot());
+    PassGraph graph(screen);
+    graph.addEffect(effect, graph.addSnapshot(), shape);
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     EXPECT_EQ(3u, plan.pools.size());
     EXPECT_EQ(1u, plan.getPoolSize(halfKey));
@@ -553,12 +566,12 @@ TEST(ScratchPlan, poolsAreCountedPerKey)
     EXPECT_EQ(0u, plan.getPoolSize(key(Divisor::Eight, ase::FORMAT_R8)));
 }
 
-TEST(ScratchTimeline, rejectsAnUnknownSnapshot)
+TEST(PassGraph, rejectsAnUnknownSnapshot)
 {
     Effect tint = avg::makeEffect({ finalPass({ PassInput::backdrop() }) });
-    ScratchTimeline timeline;
+    PassGraph graph(screen);
 
-    EXPECT_THROW(timeline.addEffect(tint, 0), std::invalid_argument);
+    EXPECT_THROW(graph.addEffect(tint, 0, shape), std::invalid_argument);
 }
 
 TEST(Pass, equalPassesShareShaderIdentityAndBytes)
@@ -633,4 +646,158 @@ TEST(Effect, withoutARecipeInterpolatesBySwitching)
     EXPECT_FALSE(avg::isSameKind(blur, blur));
     EXPECT_EQ(tint, avg::lerp(blur, tint, 0.0f));
     EXPECT_EQ(tint, avg::lerp(blur, tint, 0.5f));
+}
+
+TEST(Effect, aMovedFromEffectIsStillTheEffect)
+{
+    Effect blur = avg::makeEffect(blurPasses());
+    Effect tint = avg::makeEffect({ finalPass({ PassInput::backdrop() }) });
+
+    Effect moved = std::move(blur);
+    Effect assigned = tint;
+    assigned = std::move(tint);
+
+    EXPECT_EQ(moved, blur);
+    EXPECT_EQ(4u, blur.getPasses().size());
+    EXPECT_FALSE(avg::isSameKind(blur, moved));
+    EXPECT_EQ(assigned, avg::lerp(blur, tint, 0.5f));
+}
+
+TEST(Pass, withoutAShaderIdentityTheSourceDecides)
+{
+    Pass a = finalPass({ PassInput::backdrop() });
+    a.shader.fragmentSource = "void main() {}\n";
+    Pass b = a;
+    EXPECT_EQ(a, b);
+
+    b.shader.fragmentSource = "void main() { discard; }\n";
+    EXPECT_NE(a, b);
+}
+
+namespace
+{
+    Effect tintedCopy(float strength)
+    {
+        static avg::PassShader const shader = avg::makePassShader(1, {
+                { "tint", ase::UniformType::Float4 },
+                }, "void main() {}\n");
+
+        Pass copy = regionPass({ PassInput::backdrop() }, Divisor::Two,
+                ase::FORMAT_RGBA16F);
+        copy.shader = shader;
+        copy.parameters = ase::UniformValues(shader.interface, "ParamBlock");
+        copy.parameters->set("tint",
+                ase::Vector4f(1.0f, 0.0f, 0.0f, strength));
+
+        return avg::makeEffect({ copy, finalPass({ PassInput::pass(0) }) });
+    }
+} // anonymous namespace
+
+TEST(PassGraph, equalChainsOverOneSnapshotMerge)
+{
+    Effect blur = avg::makeEffect(blurPasses());
+    PixelRect const other = rect(20, 200, 60, 60);
+
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    graph.addEffect(blur, snapshot, shape);
+    graph.addEffect(blur, snapshot, other);
+
+    EffectRegions const first = avg::deriveRegions(blur, shape, screen);
+    EffectRegions const second = avg::deriveRegions(blur, other, screen);
+
+    auto const& nodes = graph.getNodes();
+    ASSERT_EQ(5u, nodes.size());
+    ASSERT_EQ(3u, graph.getItems().size());
+    EXPECT_EQ((std::vector<size_t>{ 0, 1, 2, 4 }), graph.getItems()[2].nodes);
+
+    for (size_t i = 0; i < 3; ++i)
+    {
+        EXPECT_EQ(first.passRegions[i].unionWith(second.passRegions[i]),
+                nodes[i].region);
+    }
+
+    EXPECT_EQ(shape, nodes[3].region);
+    EXPECT_EQ(other, nodes[4].region);
+    EXPECT_EQ(first.backdropRegion.unionWith(second.backdropRegion),
+            graph.getBackdropRegion(snapshot));
+}
+
+TEST(PassGraph, passesWithDifferentParametersDoNotMerge)
+{
+    Effect const half = tintedCopy(0.5f);
+    Effect const alsoHalf = tintedCopy(0.5f);
+    Effect const quarter = tintedCopy(0.25f);
+
+    PassGraph same(screen);
+    size_t const a = same.addSnapshot();
+    same.addEffect(half, a, shape);
+    same.addEffect(alsoHalf, a, shape);
+    EXPECT_EQ(3u, same.getNodes().size());
+
+    PassGraph differing(screen);
+    size_t const b = differing.addSnapshot();
+    differing.addEffect(half, b, shape);
+    differing.addEffect(quarter, b, shape);
+    EXPECT_EQ(4u, differing.getNodes().size());
+}
+
+TEST(PassGraph, equalPassesOverDifferentInputsDoNotMerge)
+{
+    auto chain = [](std::string const& copySource)
+    {
+        return avg::makeEffect({
+            withSource(regionPass({ PassInput::backdrop() }, Divisor::Two,
+                        ase::FORMAT_RGBA16F), copySource),
+            regionPass({ PassInput::pass(0) }, Divisor::Two,
+                    ase::FORMAT_RGBA16F, 4),
+            finalPass({ PassInput::pass(1) })
+        });
+    };
+    Effect first = chain("copy");
+    Effect second = chain("other copy");
+
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    graph.addEffect(first, snapshot, shape);
+    graph.addEffect(second, snapshot, shape);
+
+    ASSERT_EQ(first.getPasses()[1], second.getPasses()[1]);
+    EXPECT_EQ(6u, graph.getNodes().size());
+}
+
+TEST(PassGraph, differentScopesNeverShare)
+{
+    Effect blur = avg::makeEffect(blurPasses());
+
+    PassGraph graph(screen);
+    graph.addEffect(blur, graph.addSnapshot(), shape);
+    graph.addEffect(blur, graph.addSnapshot(), shape);
+
+    EXPECT_EQ(8u, graph.getNodes().size());
+}
+
+TEST(ScratchPlan, aSharedValueLivesUntilItsLastReader)
+{
+    Effect blur = avg::makeEffect(blurPasses());
+
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    graph.addEffect(blur, snapshot, shape);
+    graph.addEffect(blur, snapshot, rect(20, 200, 60, 60));
+
+    ScratchPlan plan = avg::planScratch(graph);
+
+    ASSERT_EQ(2u, plan.effects.size());
+    auto const& first = plan.effects[0].passes;
+    auto const& second = plan.effects[1].passes;
+    ASSERT_EQ(4u, first.size());
+    ASSERT_EQ(1u, second.size());
+    EXPECT_EQ(3u, second[0].pass);
+    EXPECT_EQ(5u, second[0].step);
+
+    EXPECT_EQ(first[2].output->slot, second[0].inputs[0]);
+    EXPECT_EQ(5u, first[2].output->lastUse);
+    EXPECT_EQ(5u, plan.snapshots[0].lastUse);
+    EXPECT_EQ(2u, plan.getPoolSize(halfKey));
 }

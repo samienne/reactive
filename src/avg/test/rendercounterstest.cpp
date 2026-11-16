@@ -52,10 +52,11 @@ namespace
             avg::Brush(color), std::nullopt };
     }
 
-    avg::Drawing::Element panel(float x, float y, float width, float height)
+    avg::Drawing::Element panel(float x, float y, float width, float height,
+            float radius = 24.0f)
     {
         avg::FrostedGlassOptions options;
-        options.radius = 24.0f;
+        options.radius = radius;
         return avg::Drawing::EffectElement{ box(x, y, width, height),
             std::make_shared<avg::Effect const>(avg::frostedGlass(options)),
             avg::Transform() };
@@ -124,7 +125,22 @@ namespace
                 return scene({ scope({ panel(50, 100, 200, 150),
                         panel(550, 100, 200, 150) }) });
             },
-            { 8, 10, 1, 3, 3'840'000, 338'660 } },
+            { 5, 7, 1, 3, 3'840'000, 375'080 } },
+        { "twoPanelsWithDifferentParameters",
+            []()
+            {
+                return scene({ scope({ panel(50, 100, 200, 150),
+                        panel(550, 100, 200, 150, 48.0f) }) });
+            },
+            { 8, 10, 1, 5, 4'320'000, 392'013 } },
+        { "threePanelsSideBySide",
+            []()
+            {
+                return scene({ scope({ panel(50, 100, 200, 150),
+                        panel(300, 100, 200, 150),
+                        panel(550, 100, 200, 150) }) });
+            },
+            { 6, 8, 1, 3, 3'840'000, 405'080 } },
         { "twoPanelsOverlapping",
             []()
             {

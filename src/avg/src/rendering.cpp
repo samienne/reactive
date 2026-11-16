@@ -86,13 +86,13 @@ struct TextQuads
     pmr::vector<uint32_t> indices;
 };
 
-// An effect in device pixels: the regions its passes write and the
-// geometry it paints as a triangle list, reading the snapshot of scope.
+// An effect in device pixels: the bounds of its shape and the geometry it
+// paints as a triangle list, reading the snapshot of scope.
 struct EffectDraw
 {
     Effect effect;
     size_t scope;
-    EffectRegions regions;
+    PixelRect bounds;
     std::vector<Vector2f> triangles;
 };
 
@@ -113,10 +113,9 @@ struct TextContext
 };
 
 // A backdrop scope of the frame: used once an effect directly inside it
-// reads its snapshot, whose region is the union of those reads.
+// reads its snapshot.
 struct Scope
 {
-    PixelRect backdropRegion;
     bool used = false;
     size_t snapshot = 0;
 };
@@ -200,19 +199,12 @@ std::optional<EffectDraw> lowerEffect(EffectContext& effects,
     if (triangles.empty())
         return std::nullopt;
 
-    Effect pixelEffect = toPixels(effect, effects.scalingFactor);
-    EffectRegions regions = deriveRegions(pixelEffect, deviceBounds,
-            effects.screenSize);
-
-    Scope& owner = effects.scopes[scopeIndex];
-    owner.used = true;
-    owner.backdropRegion = owner.backdropRegion.unionWith(
-            regions.backdropRegion);
+    effects.scopes[scopeIndex].used = true;
 
     return EffectDraw{
-        std::move(pixelEffect),
+        toPixels(effect, effects.scalingFactor * toRoot.getScale()),
         scopeIndex,
-        std::move(regions),
+        deviceBounds,
         std::move(triangles)
     };
 }
@@ -917,8 +909,9 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
 void drawItems(pmr::memory_resource* memory, ase::CommandBuffer& commandBuffer,
         ase::RenderContext& context, ase::Framebuffer& framebuffer,
         Painter const& painter, TextContext const& text,
-        std::vector<Scope> const& scopes, ScratchPlan const& plan,
-        EffectEmitter* emitter, pmr::vector<Item>&& items)
+        std::vector<Scope> const& scopes, PassGraph const* graph,
+        ScratchPlan const& plan, EffectEmitter* emitter,
+        pmr::vector<Item>&& items)
 {
     ZoneScoped;
 
@@ -961,17 +954,17 @@ void drawItems(pmr::memory_resource* memory, ase::CommandBuffer& commandBuffer,
             if (!scope.used)
                 continue;
 
-            assert(emitter);
+            assert(emitter && graph);
             flushSegment();
             emitter->emitSnapshot(plan.snapshots[scope.snapshot].slot,
-                    scope.backdropRegion);
+                    graph->getBackdropRegion(scope.snapshot));
         }
         else if (auto const* draw = std::get_if<EffectDraw>(&item))
         {
             assert(emitter);
             flushSegment();
-            emitter->emitEffect(draw->effect, draw->regions,
-                    plan.effects[effectIndex++], draw->triangles);
+            emitter->emitEffect(draw->effect, plan.effects[effectIndex++],
+                    draw->triangles);
         }
     }
 
@@ -1062,36 +1055,37 @@ RenderCounters render(pmr::memory_resource* memory,
     // draws still sample.
     atlas.endFrame(commandBuffer);
 
-    ScratchTimeline timeline;
+    PassGraph graph(size);
     for (auto const& item : items)
     {
         if (auto const* entry = std::get_if<ScopeEntry>(&item))
         {
             Scope& scope = effects.scopes[entry->scope];
             if (scope.used)
-                scope.snapshot = timeline.addSnapshot();
+                scope.snapshot = graph.addSnapshot();
         }
         else if (auto const* draw = std::get_if<EffectDraw>(&item))
         {
-            timeline.addEffect(draw->effect,
-                    effects.scopes[draw->scope].snapshot);
+            graph.addEffect(draw->effect, effects.scopes[draw->scope].snapshot,
+                    draw->bounds);
         }
     }
 
-    if (timeline.getEffectCount() == 0)
+    if (graph.getEffectCount() == 0)
     {
         drawItems(memory, commandBuffer, context, target.getFramebuffer(),
-                painter, text, effects.scopes, ScratchPlan(), nullptr,
-                std::move(items));
+                painter, text, effects.scopes, nullptr, ScratchPlan(),
+                nullptr, std::move(items));
         return countRender(commandBuffer, firstCommand, size, ScratchPlan(),
                 nullptr);
     }
 
-    ScratchPlan const plan = planScratch(timeline);
+    ScratchPlan const plan = planScratch(graph);
     EffectEmitter emitter = painter.makeEffectEmitter(commandBuffer, target);
 
     drawItems(memory, commandBuffer, context, target.getFramebuffer(),
-            painter, text, effects.scopes, plan, &emitter, std::move(items));
+            painter, text, effects.scopes, &graph, plan, &emitter,
+            std::move(items));
 
     return countRender(commandBuffer, firstCommand, size, plan, &emitter);
 }

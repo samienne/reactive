@@ -125,7 +125,7 @@ namespace avg
     /**
      * @brief Where a value that lives in scratch is, and for which steps.
      *
-     * Steps number the timeline's snapshots and passes from zero in
+     * Steps number the graph's snapshots and nodes from zero in
      * execution order. The slot is written at definedAt and may be handed
      * to another value once the step at lastUse has executed; a value
      * nobody reads has lastUse equal to definedAt.
@@ -138,18 +138,26 @@ namespace avg
     };
 
     /**
-     * @brief The scratch textures one pass reads and writes.
+     * @brief One pass an effect runs: where it draws and the scratch
+     * textures it reads and writes.
      *
-     * inputs line up with the pass's inputs; output is absent for the
-     * final pass.
+     * pass indexes the effect's passes and region is in the pixels of its
+     * own target. inputs line up with the pass's inputs; output is absent
+     * for the final pass.
      */
     struct AVG_EXPORT PassAllocation
     {
+        size_t pass = 0;
         size_t step = 0;
+        PixelRect region;
         std::vector<ScratchSlot> inputs;
         std::optional<ValueAllocation> output;
     };
 
+    /**
+     * @brief The passes an effect runs, in order, ending with its final
+     * pass; a pass merged with one an earlier effect runs is left out.
+     */
     struct AVG_EXPORT EffectAllocation
     {
         std::vector<PassAllocation> passes;
@@ -166,9 +174,9 @@ namespace avg
 
     /**
      * @brief What a frame's scopes and effects do to scratch, in the order
-     * of a ScratchTimeline.
+     * of a PassGraph.
      *
-     * snapshots and effects are indexed as the timeline numbered them.
+     * snapshots and effects are indexed as the graph numbered them.
      * pools lists every key in use with the texture count it needs; the
      * count for an unused key is zero.
      */
@@ -182,37 +190,59 @@ namespace avg
     };
 
     /**
-     * @brief The scope snapshots and effects of a frame in execution order.
+     * @brief The scope snapshots and effects of a frame in execution order,
+     * lowered into one graph of passes.
      *
-     *     ScratchTimeline timeline;
-     *     size_t root = timeline.addSnapshot();
-     *     timeline.addEffect(glass, root);
+     *     PassGraph graph(Vector2i(1920, 1080));
+     *     size_t root = graph.addSnapshot();
+     *     graph.addEffect(glass, root, { 100, 80, 200, 40 });
      *
      * A snapshot is taken when its scope is entered; an effect runs where
-     * it is added and reads the snapshot it names as its backdrop. The
-     * timeline keeps pointers to the effects, which must outlive it.
+     * it is added and reads the snapshot it names as its backdrop. A Region
+     * pass equal to one already added over the same snapshot, reading the
+     * same snapshot and nodes, is merged into that node: it runs once,
+     * where it first ran, over the bounding box of every region it was
+     * added with. Final passes are never merged. The graph keeps pointers
+     * to the effects' passes, which must outlive it.
      */
-    class AVG_EXPORT ScratchTimeline
+    class AVG_EXPORT PassGraph
     {
     public:
         /**
+         * @brief A pass of the graph. An input is a node index, or empty
+         * for the snapshot. effect and pass name the effect that runs it
+         * and its index there.
+         */
+        struct Node
+        {
+            Pass const* pass = nullptr;
+            size_t snapshot = 0;
+            std::vector<std::optional<size_t>> inputs;
+            PixelRect region;
+            size_t effect = 0;
+            size_t index = 0;
+        };
+
+        /**
          * @brief One addition: a snapshot when effect is null, else an
          * effect. snapshot is the snapshot's own index for the former and
-         * the backdrop the effect reads for the latter.
+         * the backdrop the effect reads for the latter; nodes holds the
+         * node each of the effect's passes was lowered to.
          */
         struct Item
         {
             Effect const* effect = nullptr;
             size_t snapshot = 0;
+            std::vector<size_t> nodes;
         };
 
-        ScratchTimeline();
-        ScratchTimeline(ScratchTimeline const&) = default;
-        ScratchTimeline(ScratchTimeline&&) noexcept = default;
-        ~ScratchTimeline();
+        explicit PassGraph(Vector2i screenSize);
+        PassGraph(PassGraph const&) = default;
+        PassGraph(PassGraph&&) noexcept = default;
+        ~PassGraph();
 
-        ScratchTimeline& operator=(ScratchTimeline const&) = default;
-        ScratchTimeline& operator=(ScratchTimeline&&) noexcept = default;
+        PassGraph& operator=(PassGraph const&) = default;
+        PassGraph& operator=(PassGraph&&) noexcept = default;
 
         /**
          * @brief Takes a snapshot at this point; returns its index.
@@ -220,28 +250,40 @@ namespace avg
         size_t addSnapshot();
 
         /**
-         * @brief Runs effect at this point with snapshot as its backdrop;
-         * returns the effect's index. Throws std::invalid_argument when
-         * snapshot has not been added.
+         * @brief Runs effect at this point with snapshot as its backdrop
+         * and its shape over shapeBounds, in screen pixels; returns the
+         * effect's index. Throws std::invalid_argument when snapshot has
+         * not been added.
          */
-        size_t addEffect(Effect const& effect, size_t snapshot);
+        size_t addEffect(Effect const& effect, size_t snapshot,
+                PixelRect shapeBounds);
 
+        /**
+         * @brief The part of the screen, in screen pixels, that the passes
+         * reading snapshot need from it; empty when none do.
+         */
+        PixelRect getBackdropRegion(size_t snapshot) const;
+
+        Vector2i getScreenSize() const;
         size_t getSnapshotCount() const;
         size_t getEffectCount() const;
+        std::vector<Node> const& getNodes() const;
         std::vector<Item> const& getItems() const;
 
     private:
-        size_t snapshotCount_ = 0;
+        Vector2i screenSize_;
         size_t effectCount_ = 0;
+        std::vector<PixelRect> backdropRegions_;
+        std::vector<Node> nodes_;
         std::vector<Item> items_;
     };
 
     /**
-     * @brief Assigns every snapshot and pass output of the timeline a
-     * scratch texture, reusing a texture once its last reader has run.
+     * @brief Assigns every snapshot and node output of the graph a scratch
+     * texture, reusing a texture once its last reader has run.
      *
      * A pass's output never shares a texture with one of its inputs, so
      * no pass samples the texture it writes.
      */
-    AVG_EXPORT ScratchPlan planScratch(ScratchTimeline const& timeline);
+    AVG_EXPORT ScratchPlan planScratch(PassGraph const& graph);
 }

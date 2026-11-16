@@ -11,6 +11,23 @@ Vulkan work; the five backdrop-effect entries against `4d8e996e`
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Equal pass chains always share; final passes never merge
+
+Within a frame, two passes with an output that read the same snapshot
+and the same inputs and compare equal (shader identity, parameter bytes
+and output) are one node of the pass graph, whose region is the bounding
+box of what all its readers need. A pass without an output, the final
+pass that paints a shape, is never merged. There is no logic that splits a
+chain or decides against sharing.
+
+**Why:** two panels with the same blur over the same backdrop then cost
+one chain, and the rule stays simple by owner decision. The price is
+pixels: far-apart panels blur the box that spans them. The per-frame
+counters (pixels shaded against passes) measure that trade, and a pass
+over a set of rectangles is the recorded refinement if it matters. A
+shared Region pass sees the grown region, so a Region pass must not depend
+on its own region (`conventions.md`).
+
 ## Effect sizes are logical units, converted at lowering
 
 An effect's sizes (a blur radius, a highlight width, a pass's reach) are
@@ -280,10 +297,11 @@ effect's shape into the main target. Regions are derived backwards from
 the shape's device bounds through each pass's padding, so each pass writes
 exactly what its readers sample and the snapshot copies only the union of
 what the scope's effects read. Scratch textures are pooled per window and
-allocated by liveness over the frame's timeline of snapshots and passes;
-a pass takes its output before its inputs are released, so no pass ever
-reads the texture it writes. The pool releases a texture no frame has
-acquired for 120 frames.
+allocated by liveness over the frame's pass graph, in which equal passes
+with an output reading the same values of one scope are merged into one
+(final passes never merge); a pass takes its output before its inputs are
+released, so no pass ever reads the texture it writes. The pool releases a
+texture no frame has acquired for 120 frames.
 
 **Why:** the cost scales with the effects on screen, not with the elements
 under them, and nothing is analysed per item. A chain ping-pongs between

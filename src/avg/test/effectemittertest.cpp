@@ -35,14 +35,13 @@
 
 using avg::Divisor;
 using avg::Effect;
-using avg::EffectRegions;
 using avg::Geometry;
 using avg::PassBlock;
+using avg::PassGraph;
 using avg::PixelRect;
 using avg::ScratchKey;
 using avg::ScratchPlan;
 using avg::ScratchSlot;
-using avg::ScratchTimeline;
 using avg::Vector2f;
 using avg::Vector2i;
 
@@ -223,18 +222,16 @@ TEST(EffectEmitter, frostedGlassDrawsSnapshotAndEveryPassBetweenBarriers)
 {
     Fixture f;
     Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
-    EffectRegions regions = avg::deriveRegions(glass, glassBounds, screenSize);
-
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(glass, snapshot);
-    ScratchPlan plan = avg::planScratch(timeline);
+    PassGraph graph(screenSize);
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(glass, snapshot, glassBounds);
+    ScratchPlan plan = avg::planScratch(graph);
 
     f.beginFrame();
     avg::EffectEmitter emitter = f.emitter();
-    emitter.emitSnapshot(plan.snapshots[0].slot, regions.backdropRegion);
-    emitter.emitEffect(glass, regions, plan.effects[0],
-            triangles(glassBounds));
+    emitter.emitSnapshot(plan.snapshots[0].slot,
+            graph.getBackdropRegion(0));
+    emitter.emitEffect(glass, plan.effects[0], triangles(glassBounds));
     f.endFrame();
 
     EXPECT_EQ(1u, emitter.getSnapshotCount());
@@ -372,17 +369,16 @@ TEST(EffectEmitter, tintReadsTheSnapshotInItsOnlyPass)
 {
     Fixture f;
     Effect dim = avg::tint(avg::Color(0.0f, 0.0f, 0.0f), 0.5f);
-    EffectRegions regions = avg::deriveRegions(dim, glassBounds, screenSize);
-
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(dim, snapshot);
-    ScratchPlan plan = avg::planScratch(timeline);
+    PassGraph graph(screenSize);
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(dim, snapshot, glassBounds);
+    ScratchPlan plan = avg::planScratch(graph);
 
     f.beginFrame();
     avg::EffectEmitter emitter = f.emitter();
-    emitter.emitSnapshot(plan.snapshots[0].slot, regions.backdropRegion);
-    emitter.emitEffect(dim, regions, plan.effects[0], triangles(glassBounds));
+    emitter.emitSnapshot(plan.snapshots[0].slot,
+            graph.getBackdropRegion(0));
+    emitter.emitEffect(dim, plan.effects[0], triangles(glassBounds));
     f.endFrame();
 
     auto draws = f.draws();
@@ -404,17 +400,16 @@ TEST(EffectEmitter, offscreenEffectRecordsNothing)
     Fixture f;
     Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
     PixelRect const outside = rect(500, 400, 50, 50);
-    EffectRegions regions = avg::deriveRegions(glass, outside, screenSize);
-
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(glass, snapshot);
-    ScratchPlan plan = avg::planScratch(timeline);
+    PassGraph graph(screenSize);
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(glass, snapshot, outside);
+    ScratchPlan plan = avg::planScratch(graph);
 
     f.beginFrame();
     avg::EffectEmitter emitter = f.emitter();
-    emitter.emitSnapshot(plan.snapshots[0].slot, regions.backdropRegion);
-    emitter.emitEffect(glass, regions, plan.effects[0], triangles(outside));
+    emitter.emitSnapshot(plan.snapshots[0].slot,
+            graph.getBackdropRegion(0));
+    emitter.emitEffect(glass, plan.effects[0], triangles(outside));
     f.endFrame();
 
     EXPECT_EQ(0u, f.commands.size());
@@ -441,21 +436,19 @@ TEST(EffectEmitter, snapshotPipelineDeclaresTheScratchFormat)
                 draws[0]->getFramebuffer()));
 }
 
-TEST(EffectEmitter, rejectsMismatchedRegions)
+TEST(EffectEmitter, rejectsAnAllocationForAnotherEffect)
 {
     Fixture f;
     Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
     Effect dim = avg::tint(avg::Color(0.0f, 0.0f, 0.0f), 0.5f);
-    EffectRegions regions = avg::deriveRegions(dim, glassBounds, screenSize);
-
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(glass, snapshot);
-    ScratchPlan plan = avg::planScratch(timeline);
+    PassGraph graph(screenSize);
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(glass, snapshot, glassBounds);
+    ScratchPlan plan = avg::planScratch(graph);
 
     f.beginFrame();
     avg::EffectEmitter emitter = f.emitter();
-    EXPECT_THROW(emitter.emitEffect(glass, regions, plan.effects[0],
+    EXPECT_THROW(emitter.emitEffect(dim, plan.effects[0],
                 triangles(glassBounds)), std::invalid_argument);
     f.endFrame();
 }

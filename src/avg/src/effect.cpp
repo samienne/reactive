@@ -106,7 +106,11 @@ bool PassOutput::operator!=(PassOutput const& rhs) const
 
 bool Pass::operator==(Pass const& rhs) const
 {
+    bool const hasDefaultId = shader.id == ShaderId()
+        || rhs.shader.id == ShaderId();
+
     return shader.id == rhs.shader.id
+        && (!hasDefaultId || shader.fragmentSource == rhs.shader.fragmentSource)
         && inputs == rhs.inputs
         && output == rhs.output
         && geometry == rhs.geometry
