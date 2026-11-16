@@ -58,6 +58,8 @@ float RemoteWindow::scalingFactor() const
 {
     return 1.0f;
 }
+>>>
+
 
 namespace
 {
@@ -1045,7 +1047,8 @@ private:
                 { "width", plan.outputSize.x() },
                 { "height", plan.outputSize.y() },
                 { "region", toJson(plan.captured) },
-                { "pixelsPerUnit", shot.scalingFactor * shot.request.scale },
+>>>
+
                 { "presentIndex", presentIndex },
                 });
         finishIfIdle();
@@ -1223,8 +1226,10 @@ private:
             "width, height} in window-space units (x, y its bottom-left "
             "corner) or `widget` (an introspection id), not both, defaults to "
             "the whole window; `scale` in (0, 1] shrinks the image. Answers "
-            "with the blob, the image `width` and `height`, the captured "
-            "`region`, `pixelsPerUnit` and the frame's `presentIndex`.",
+            "with the blob, the image `width` and `height` in pixels, the "
+            "captured `region` in window-space units and the frame's "
+            "`presentIndex`; `region` maps onto the whole image, so the two "
+            "give the exact pixels per unit on each axis.",
             {
                 { "window", "number", true },
                 { "region", "object", false },

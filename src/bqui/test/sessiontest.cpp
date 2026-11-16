@@ -1908,7 +1908,7 @@ TEST(session, pausedScreenshotRendersAFrameAndAnswersWithAPng)
     EXPECT_EQ(4, result.at("width").get<int>());
     EXPECT_EQ(3, result.at("height").get<int>());
     EXPECT_EQ(7u, result.at("presentIndex").get<uint64_t>());
-    EXPECT_EQ(1.0, result.at("pixelsPerUnit").get<double>());
+    EXPECT_FALSE(result.contains("pixelsPerUnit"));
     EXPECT_EQ((json{ { "x", 0.0 }, { "y", 0.0 }, { "width", 4.0 },
                 { "height", 3.0 } }), result.at("region"));
 
@@ -1947,7 +1947,6 @@ TEST(session, screenshotOfARegionCropsAndScales)
     auto reply = awaitResponse(*s.client, id);
     ASSERT_TRUE(reply.contains("result")) << reply.dump();
     auto const& result = reply.at("result");
-    EXPECT_EQ(2.0, result.at("pixelsPerUnit").get<double>());
     EXPECT_EQ((json{ { "x", 0.5 }, { "y", 0.0 }, { "width", 1.0 },
                 { "height", 1.0 } }), result.at("region"));
 
@@ -1970,7 +1969,8 @@ TEST(session, screenshotOfARegionCropsAndScales)
     ASSERT_TRUE(half.contains("result")) << half.dump();
     EXPECT_EQ(3, half.at("result").at("width").get<int>());
     EXPECT_EQ(2, half.at("result").at("height").get<int>());
-    EXPECT_EQ(1.0, half.at("result").at("pixelsPerUnit").get<double>());
+    EXPECT_EQ((json{ { "x", 0.0 }, { "y", 0.0 }, { "width", 3.0 },
+                { "height", 2.0 } }), half.at("result").at("region"));
 }
 
 TEST(session, screenshotRejectsBadParamsAndUnknownWindows)
