@@ -94,7 +94,10 @@ TcpTransport::TcpTransport(TcpSocket sock) :
 {
 }
 #else
-TcpTransport::TcpTransport(TcpSocket sock) : sock_(sock) {}
+TcpTransport::TcpTransport(TcpSocket sock) : sock_(sock)
+{
+    setNonBlocking(static_cast<RawSocket>(sock_));
+}
 #endif
 
 TcpTransport::~TcpTransport()
@@ -132,6 +135,11 @@ void TcpTransport::writeAll(void const* data, size_t size)
 #ifndef _WIN32
             if (lastSocketError() == EINTR)
                 continue;
+            if (lastSocketError() == EAGAIN || lastSocketError() == EWOULDBLOCK)
+            {
+                waitForSocket(static_cast<RawSocket>(sock_), POLLOUT);
+                continue;
+            }
 #endif
             throw tcpError("send");
         }
@@ -155,6 +163,11 @@ bool TcpTransport::readAll(void* data, size_t size)
 #ifndef _WIN32
             if (lastSocketError() == EINTR)
                 continue;
+            if (lastSocketError() == EAGAIN || lastSocketError() == EWOULDBLOCK)
+            {
+                waitForSocket(static_cast<RawSocket>(sock_), POLLIN);
+                continue;
+            }
 #endif
             // A reset peer is a closed channel, not an error to propagate —
             // mirror the pipe transport's ERROR_BROKEN_PIPE handling.
@@ -199,7 +212,7 @@ size_t TcpTransport::writeReady(void const* data, size_t size)
     for (;;)
     {
         auto wrote = ::send(static_cast<RawSocket>(sock_), data, size,
-                kSendFlags | MSG_DONTWAIT);
+                kSendFlags);
         if (wrote >= 0)
             return static_cast<size_t>(wrote);
 
@@ -243,7 +256,7 @@ bool TcpTransport::fillReady(std::string& out)
 #ifdef _WIN32
         int got = ::recv(sock, buffer, sizeof(buffer), 0);
 #else
-        ssize_t got = ::recv(sock, buffer, sizeof(buffer), MSG_DONTWAIT);
+        ssize_t got = ::recv(sock, buffer, sizeof(buffer), 0);
 #endif
         if (got > 0)
         {

@@ -15,7 +15,9 @@
 #   include <cerrno>
 
 #   include <arpa/inet.h>
+#   include <fcntl.h>
 #   include <netinet/in.h>
+#   include <poll.h>
 #   include <sys/socket.h>
 #   include <unistd.h>
 #endif
@@ -61,4 +63,27 @@ namespace bqui::remote
         (void)sock;
 #endif
     }
+
+#ifndef _WIN32
+    // The ready paths need sends that never block, and macOS send() ignores
+    // MSG_DONTWAIT: only an O_NONBLOCK descriptor gives that there. So every
+    // POSIX transport runs its socket non-blocking, and the blocking paths
+    // wait for readiness with waitForSocket() instead.
+    inline void setNonBlocking(RawSocket sock)
+    {
+        int flags = ::fcntl(sock, F_GETFL, 0);
+        if (flags >= 0)
+            ::fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+    }
+
+    // Block until `events` is ready or the socket hangs up or fails; the
+    // caller's next read or write reports which.
+    inline void waitForSocket(RawSocket sock, short events)
+    {
+        pollfd fd{ sock, events, 0 };
+        while (::poll(&fd, 1, -1) < 0 && errno == EINTR)
+        {
+        }
+    }
+#endif
 } // namespace bqui::remote

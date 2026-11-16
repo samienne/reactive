@@ -92,7 +92,8 @@ Per transport:
 
 - **Unix socket / TCP:** non-blocking `send`; a short write advances the offset,
   would-block stops the flush. TCP on Windows is already non-blocking; POSIX
-  uses the per-call flag as the read path does.
+  sockets are made `O_NONBLOCK` up front, because macOS `send` ignores
+  `MSG_DONTWAIT`, and the blocking paths wait with `poll` on would-block.
 - **Windows pipe:** overlapped writes are completion-based, so "writable" means
   "the pending write finished". The flush issues one overlapped `WriteFile` on
   the queue head; if it pends, the transport marks it pending and the writable

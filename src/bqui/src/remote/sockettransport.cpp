@@ -2,6 +2,8 @@
 
 #include "sockettransport.h"
 
+#include "tcpsocket.h"
+
 #include <btl/posix/nativehandle_posix.h>
 
 #include <cerrno>
@@ -29,7 +31,10 @@ sockaddr_un makeAddress(std::string const& path)
     return address;
 }
 
-SocketTransport::SocketTransport(int fd) : fd_(fd) {}
+SocketTransport::SocketTransport(int fd) : fd_(fd)
+{
+    setNonBlocking(fd_);
+}
 
 SocketTransport::~SocketTransport()
 {
@@ -58,6 +63,11 @@ void SocketTransport::writeAll(void const* data, size_t size)
         {
             if (errno == EINTR)
                 continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                waitForSocket(fd_, POLLOUT);
+                continue;
+            }
 
             throw lastError("write");
         }
@@ -77,6 +87,11 @@ bool SocketTransport::readAll(void* data, size_t size)
         {
             if (errno == EINTR)
                 continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                waitForSocket(fd_, POLLIN);
+                continue;
+            }
 
             throw lastError("read");
         }
@@ -102,15 +117,9 @@ btl::NativeHandle SocketTransport::writableHandle()
 
 size_t SocketTransport::writeReady(void const* data, size_t size)
 {
-#ifdef MSG_NOSIGNAL
-    int const flags = MSG_DONTWAIT | MSG_NOSIGNAL;
-#else
-    int const flags = MSG_DONTWAIT;
-#endif
-
     for (;;)
     {
-        ssize_t wrote = ::send(fd_, data, size, flags);
+        ssize_t wrote = ::send(fd_, data, size, kSendFlags);
         if (wrote >= 0)
             return static_cast<size_t>(wrote);
 
@@ -128,9 +137,7 @@ bool SocketTransport::fillReady(std::string& out)
     char buffer[8192];
     for (;;)
     {
-        // MSG_DONTWAIT reads without blocking and without changing the fd's
-        // mode, so the blocking readAll() path is unaffected.
-        ssize_t got = ::recv(fd_, buffer, sizeof(buffer), MSG_DONTWAIT);
+        ssize_t got = ::recv(fd_, buffer, sizeof(buffer), 0);
         if (got > 0)
         {
             out.append(buffer, static_cast<size_t>(got));
