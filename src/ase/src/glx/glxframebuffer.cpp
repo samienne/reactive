@@ -27,12 +27,15 @@ void GlxFramebuffer::makeCurrent(
 
     glxContext.makeCurrent(dispatched, window_);
 
-    Vector2i size(
+    renderState.setViewport(dispatched, getSize());
+}
+
+Vector2i GlxFramebuffer::getSize() const
+{
+    return Vector2i(
             window_.getSize()[0] * window_.getScalingFactor(),
             window_.getSize()[1] * window_.getScalingFactor()
             );
-
-    renderState.setViewport(dispatched, size);
 }
 
 void GlxFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)

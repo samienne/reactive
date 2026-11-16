@@ -1,6 +1,7 @@
 #pragma once
 
 #include "framebufferimpl.h"
+#include "vector.h"
 
 #include "asevisibility.h"
 
@@ -19,6 +20,11 @@ namespace ase
                 GlDispatchedContext& context,
                 GlRenderState& renderState,
                 GlFunctions const& gl) const = 0;
+
+        /**
+         * @brief The size of the colour target in pixels.
+         */
+        virtual Vector2i getSize() const = 0;
     };
 } // namespace ase
 

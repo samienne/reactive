@@ -100,10 +100,14 @@ namespace
         return false;
     }
 
-    ReadbackResult readPixels(Vector2i size)
+    ReadbackResult readPixels(Vector2i size, Vector2i framebufferSize)
     {
-        if (size[0] < 0 || size[1] < 0)
+        if (size[0] < 0 || size[1] < 0
+                || size[0] > framebufferSize[0]
+                || size[1] > framebufferSize[1])
+        {
             return ReadbackError::Failed;
+        }
 
         auto const rowBytes = static_cast<size_t>(size[0]) * 4u;
         auto const rows = static_cast<size_t>(size[1]);
@@ -115,7 +119,10 @@ namespace
         if (image.pixels.empty())
             return image;
 
-        glGetError();
+        while (glGetError() != GL_NO_ERROR)
+        {
+        }
+
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glReadPixels(0, 0, size[0], size[1], GL_RGBA, GL_UNSIGNED_BYTE,
                 image.pixels.data());
@@ -375,7 +382,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 framebuffer.makeCurrent(d, dispatcher_, *this, gl);
             }
 
-            readback->callback(readPixels(readback->size));
+            readback->callback(readPixels(readback->size,
+                        framebuffer.getSize()));
 
             continue;
         }
