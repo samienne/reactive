@@ -218,13 +218,42 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
 **A capture result comes back on the render thread, not the loop.**
 `RemoteWindow::captureNextFrame` keeps the ase contract (the callback runs on
 any thread; `WindowBridge` passes it straight to its `ase::Window`), and
-`window.list` reports `canCapture` from the same seam. The driver is to arm
+`window.list` reports `canCapture` from the same seam. The driver arms
 captures through `captureOnLoop` (`src/remote/capture.h`, exported for its
 tests), which posts the result to the loop and drops it if the driver is gone
 by then. A handler resolving a responder from it must still enter a driver
 callback first, as the deferred `app.step` does, since `safeSend` needs the
 `Controller`. On the dummy backend the result is `Unsupported`, delivered by a
 post rather than inline.
+
+**`window.screenshot` gets a frame rendered for it.** The handler arms a
+capture, marks the window due (`RemoteWindow::requestFrame`, since an idle
+window would not render) and, while paused, steps with zero elapsed time:
+input injected since the last step applies, but time and the driver's frame
+index do not move. Running, the next tick serves it; `app.pause` with a capture
+still waiting for its frame renders the zero-time frame then. What holds:
+
+- **The zero-time frame holds the gate** while a window waits for a free slot,
+  resumed by the same paused wake as a pending step and released after
+  `stepTimeout` at the latest. Once the frame has rendered, later requests go
+  ahead while the pixels are read and encoded.
+- **Each screenshot has a deadline**: no capture within `stepTimeout` answers
+  with an internal error, and a capture arriving later is dropped. At most
+  `kMaxScreenshotsInFlight` (`src/remote/screenshot.h`) are unanswered at once;
+  beyond that is `kCaptureBusy` (-32011). A window that cannot capture is
+  `kCaptureUnsupported` (-32010), checked at request time and mapped again from
+  the capture result; `Cancelled` and `Failed` are internal errors with the
+  reason in the error data.
+- **Encoding runs on the btl thread pool.** The job crops and scales
+  (`planScreenshot` / `renderScreenshot`), encodes (`encodePng`,
+  `src/remote/png.h`, zlib with a hand-written container) and posts the bytes
+  back; the blob is added on the loop, so the outstanding cap is checked after
+  the encode. The driver's destructor waits for running jobs, since each posts
+  to the loop.
+- **A widget's bounds are read when the capture arrives**, from the
+  introspection then current, so the region matches the captured layout.
+- **A pending screenshot keeps a half-closed session up**, like a pending step;
+  a session that ends drops it unanswered.
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and

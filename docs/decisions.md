@@ -156,6 +156,22 @@ row order or colour space. On-screen capture fits the same hook (read the
 default framebuffer before the swap) but is CI-dark and has undefined obscured
 regions, so it is a follow-up.
 
+## A remote screenshot renders its own frame and is PNG over zlib
+
+`window.screenshot` captures a frame rendered for it: paused, the driver steps
+with zero elapsed time so the capture is served without moving the clock the
+client owns. The frame is encoded as an opaque 8-bit RGB PNG by a hand-written
+container over zlib, off the loop thread.
+
+**Why:** waiting for "the next frame" would hang on a paused or idle app, and
+reading the last presented surface could be stale; a zero-time step keeps one
+frame path, applying pending input exactly as the next step would. PNG writing
+is a small closed problem (signature, header, sRGB chunk, filtered rows,
+deflate, CRCs), so zlib plus a couple of hundred lines we own beats libpng's
+second subproject, `setjmp` error model and decoder we would never call. Alpha
+is dropped because the stored values are premultiplied and sRGB-encoded, so
+straight alpha would be lossy and nothing consumes it.
+
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 
 `acquire()` blocked the run-loop thread on a condition variable until a window
