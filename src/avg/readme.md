@@ -16,7 +16,8 @@ are composed rather than drawn imperatively.
 Geometry becomes a **`Drawing`** — the flat, immutable description that gets
 rasterised — by styling it:
 
-- a **`Brush`** (from a `Color`) fills a shape,
+- a **`Brush`** (a `Color`, or an effect such as frosted glass) fills a
+  shape,
 - a **`Pen`** strokes its outline.
 
 Text is drawn through a `Font` (`Drawing` also carries text entries). Layout
@@ -26,7 +27,8 @@ ordinary filled, unrotated text is rasterised glyph by glyph into a
 **glyph atlas** (one anti-aliased coverage texture per painter, so per window,
 filled on demand and recycled least-recently-used) and drawn as textured
 quads snapped to device pixels. Anything the atlas does not serve — stroked or
-rotated text, very large sizes, a frame that overflows the atlas — falls back
+rotated text, text painted with an effect, very large sizes, a frame that
+overflows the atlas — falls back
 to the glyph outlines, filled like any other shape.
 
 ## Ordering
@@ -52,7 +54,9 @@ additions shape what a frame can do beyond flat painting:
   around it. When a frame is rendered, each scope that holds an effect has
   the region those effects read copied out of the frame as it stands at the
   scope's entry, the effect's passes run over that copy, and its final pass
-  is painted into the frame in the element's place in the paint order.
+  is painted into the frame in the element's place in the paint order. A
+  shape filled or stroked with an effect brush, or text painted with one,
+  is drawn the same way.
 
 In the render tree, a `SurfaceNode` (a filled shape under a child, with an
 optional effect such as frosted glass behind the fill, animated like its

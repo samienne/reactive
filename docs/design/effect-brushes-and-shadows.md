@@ -484,12 +484,13 @@ exists. Line numbers are at `03314fc6`.
   (`+=`, `clip`, `transform`, `filterByRect`, bounds), so the mechanism
   moves more than it disappears: it holds geometry instead of painted
   elements and has one consumer.
-- **Counters exist but are unreachable.** `EffectEmitter::getPassCount`
-  and `getSnapshotCount` (`src/avg/include/avg/effectemitter.h:100-102`)
-  are read only by `effectemittertest.cpp`; the emitter is a local of
-  `render` (`rendering.cpp:961`) and dies with the frame. The headless
-  test (`src/bqui/test/headlessrendertest.cpp`) renders an empty widget
-  and asserts frame counts only.
+- **Counters are per render.** Stage 1 made `render` return a
+  `RenderCounters` (`src/avg/include/avg/rendercounters.h`) collected from
+  the frame's emitter and command buffer, which `paintToImage` and
+  `paintToWindow` pass on; `src/avg/test/rendercounterstest.cpp` pins
+  them for the fixed scene set. The headless test
+  (`src/bqui/test/headlessrendertest.cpp`) renders an empty widget and
+  asserts frame counts only.
 - **Opaque effects against the tests.** `Effect`'s constructor from passes
   is public and exported (`effect.h:161-181`) and the `avg` tests build
   effects from hand-written passes. Making effects opaque needs a

@@ -36,6 +36,7 @@ libavgsrc = [
   'src/scratchpool.cpp',
   'src/builtineffects.cpp',
   'src/shape.cpp',
+  'src/brush.cpp',
   'src/pen.cpp',
   'src/softmesh.cpp',
   'src/textentry.cpp',

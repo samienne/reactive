@@ -7,7 +7,6 @@
 #include "avg/color.h"
 #include "avg/drawing.h"
 #include "avg/drawcontext.h"
-#include "avg/effect.h"
 #include "avg/shapefunction.h"
 #include "avg/vector.h"
 #include "avg/avgvisibility.h"
@@ -38,10 +37,10 @@ namespace avg
      * The shape is produced for the node's size, so
      * `SurfaceNode(obb, options, roundedRect, Brush(white), shadow,
      * std::nullopt, child)` paints a white card that casts the shadow and
-     * shows child on top; an Effect in place of the std::nullopt draws the
-     * effect through the shape before the fill, so a translucent fill shows
-     * frosted glass. The effect animates through lerp(): between two
-     * effects of the same kind its parameters interpolate, and a change of
+     * shows child on top; a brush in place of the std::nullopt paints the
+     * shape before the fill, so an effect brush under a translucent fill
+     * shows frosted glass. The effect brush animates through lerp(): two
+     * brushes of the same kind (isSameKind) interpolate, and a change of
      * kind switches at once. The shadow is a pending shadow of the
      * drawing: the container holding the surface paints it under all of
      * its content, not under the surface alone. A surface adds no backdrop
@@ -58,7 +57,7 @@ namespace avg
                 ShapeFunction shape,
                 Animated<std::optional<Brush>> fill,
                 std::optional<SurfaceShadow> shadow,
-                std::optional<Animated<Effect>> effect,
+                std::optional<Animated<Brush>> effect,
                 std::shared_ptr<RenderTreeNode> childNode
                 );
 
@@ -91,7 +90,7 @@ namespace avg
         ShapeFunction const& getShape() const;
         Animated<std::optional<Brush>> const& getFill() const;
         std::optional<SurfaceShadow> const& getShadow() const;
-        std::optional<Animated<Effect>> const& getEffect() const;
+        std::optional<Animated<Brush>> const& getEffect() const;
         std::shared_ptr<RenderTreeNode> const& getChild() const;
 
     private:
@@ -99,7 +98,7 @@ namespace avg
         ShapeFunction shape_;
         Animated<std::optional<Brush>> fill_;
         std::optional<SurfaceShadow> shadow_;
-        std::optional<Animated<Effect>> effect_;
+        std::optional<Animated<Brush>> effect_;
         std::shared_ptr<RenderTreeNode> childNode_;
     };
 } // namespace avg

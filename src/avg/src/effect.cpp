@@ -367,6 +367,15 @@ bool isSameKind(Effect const& a, Effect const& b)
     return recipe && other && recipe->isSameKind(*other);
 }
 
+Effect toPixels(Effect const& effect, float scalingFactor)
+{
+    EffectRecipe const* recipe = EffectAccess::getRecipe(effect);
+    if (!recipe || scalingFactor == 1.0f)
+        return effect;
+
+    return recipe->scaled(scalingFactor);
+}
+
 Effect lerp(Effect const& a, Effect const& b, float t)
 {
     if (EffectAccess::isSameContent(a, b) || !isSameKind(a, b))

@@ -174,7 +174,7 @@ TEST(Surface, surfaceYieldsASurfaceNodeWithWhatItWasGiven)
     EXPECT_EQ(black, node->getShadow()->brush.getValue(now).getColor());
 
     ASSERT_TRUE(node->getEffect().has_value());
-    EXPECT_EQ(avg::frostedGlass(glassOptions()),
+    EXPECT_EQ(avg::Brush(avg::frostedGlass(glassOptions())),
             node->getEffect()->getValue(now));
 
     ASSERT_TRUE(node->getChild());
@@ -201,7 +201,9 @@ TEST(Surface, surfaceDrawsShadowThenEffectThenFillThenChild)
     EXPECT_TRUE(drawing.getPendingShadows().empty());
 
     EXPECT_EQ(black, fillColorAt(elements, 0));
-    EXPECT_TRUE(elementAs<avg::Drawing::EffectElement>(elements, 1));
+    auto const* glass = elementAs<avg::Drawing::ShapeElement>(elements, 1);
+    ASSERT_TRUE(glass && glass->brush);
+    EXPECT_EQ(avg::Brush(avg::frostedGlass(glassOptions())), *glass->brush);
     EXPECT_EQ(red, fillColorAt(elements, 2));
     EXPECT_EQ(green, fillColorAt(elements, 3));
 }
@@ -218,7 +220,7 @@ TEST(Surface, frostedGlassSetsAFrostedGlassEffectAndNothingElse)
     EXPECT_FALSE(node->getShadow().has_value());
 
     ASSERT_TRUE(node->getEffect().has_value());
-    EXPECT_EQ(avg::frostedGlass(glassOptions()),
+    EXPECT_EQ(avg::Brush(avg::frostedGlass(glassOptions())),
             node->getEffect()->getValue(now));
 }
 
@@ -233,7 +235,43 @@ TEST(Surface, tintSetsATintEffect)
     ASSERT_TRUE(node);
 
     ASSERT_TRUE(node->getEffect().has_value());
-    EXPECT_EQ(avg::tint(blue, 0.25f), node->getEffect()->getValue(now));
+    EXPECT_EQ(avg::Brush(avg::tint(blue, 0.25f)),
+            node->getEffect()->getValue(now));
+}
+
+TEST(Surface, frostedGlassClampsOutOfRangeOptions)
+{
+    using bq::signal::constant;
+
+    avg::FrostedGlassOptions options = glassOptions();
+    options.radius = -4.0f;
+    options.tintStrength = 1.5f;
+    options.highlightStrength = -0.5f;
+
+    auto instance = realise(probe(green)
+            | modifier::frostedGlass(shape::rectangle(), constant(options)));
+
+    auto const* node = surfaceRootOf(instance);
+    ASSERT_TRUE(node);
+
+    ASSERT_TRUE(node->getEffect().has_value());
+    EXPECT_EQ(avg::Brush(avg::frostedGlass(avg::clampToValid(options))),
+            node->getEffect()->getValue(now));
+}
+
+TEST(Surface, tintClampsAnOutOfRangeStrength)
+{
+    using bq::signal::constant;
+
+    auto instance = realise(probe(green)
+            | modifier::tint(constant(blue), constant(2.0f)));
+
+    auto const* node = surfaceRootOf(instance);
+    ASSERT_TRUE(node);
+
+    ASSERT_TRUE(node->getEffect().has_value());
+    EXPECT_EQ(avg::Brush(avg::tint(blue, 1.0f)),
+            node->getEffect()->getValue(now));
 }
 
 TEST(Surface, stackPaintsEachLaterChildInItsOwnBackdropScope)

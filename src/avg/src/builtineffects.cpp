@@ -120,6 +120,18 @@ namespace
         };
     }
 
+    TintParameters scaleSizes(TintParameters const& parameters, float)
+    {
+        return parameters;
+    }
+
+    FrostedGlassOptions scaleSizes(FrostedGlassOptions options, float factor)
+    {
+        options.radius *= factor;
+        options.highlightWidth *= factor;
+        return options;
+    }
+
     template <typename TParameters>
     class ParameterRecipe final : public EffectRecipe
     {
@@ -144,6 +156,11 @@ namespace
             return build_(lerp(parameters_, other.parameters_, t));
         }
 
+        Effect scaled(float factor) const override
+        {
+            return build_(scaleSizes(parameters_, factor));
+        }
+
     private:
         TParameters parameters_;
         Build build_;
@@ -160,19 +177,6 @@ namespace
     float clampStrength(float strength)
     {
         return std::clamp(strength, 0.0f, 1.0f);
-    }
-
-    // An overshooting curve interpolates past either end of an animation,
-    // to values the factories reject.
-    FrostedGlassOptions clampToValid(FrostedGlassOptions options)
-    {
-        options.radius = std::max(options.radius, 0.0f);
-        options.saturation = std::max(options.saturation, 0.0f);
-        options.highlightWidth = std::max(options.highlightWidth, 0.0f);
-        options.tintStrength = clampStrength(options.tintStrength);
-        options.highlightStrength = clampStrength(options.highlightStrength);
-
-        return options;
     }
 
     ase::Vector4f toVector(Color const& colour, float w)
@@ -326,6 +330,17 @@ FrostedGlassOptions lerp(FrostedGlassOptions const& a,
             b.highlightStrength, t);
     result.highlightWidth = lerp(a.highlightWidth, b.highlightWidth, t);
     return result;
+}
+
+FrostedGlassOptions clampToValid(FrostedGlassOptions options)
+{
+    options.radius = std::max(options.radius, 0.0f);
+    options.saturation = std::max(options.saturation, 0.0f);
+    options.highlightWidth = std::max(options.highlightWidth, 0.0f);
+    options.tintStrength = clampStrength(options.tintStrength);
+    options.highlightStrength = clampStrength(options.highlightStrength);
+
+    return options;
 }
 
 Divisor frostedGlassDivisor(float radius)

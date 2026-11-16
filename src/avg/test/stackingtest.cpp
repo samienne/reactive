@@ -80,7 +80,7 @@ avg::Effect glass(float radius)
 std::shared_ptr<avg::SurfaceNode> surface(avg::Obb const& obb,
         std::optional<avg::SurfaceShadow> shadow,
         std::shared_ptr<avg::RenderTreeNode> child = nullptr,
-        std::optional<avg::Animated<avg::Effect>> effect = std::nullopt,
+        std::optional<avg::Effect> effect = std::nullopt,
         std::optional<avg::AnimationOptions> options = std::nullopt)
 {
     return std::make_shared<avg::SurfaceNode>(
@@ -89,7 +89,10 @@ std::shared_ptr<avg::SurfaceNode> surface(avg::Obb const& obb,
             avg::makeShapeFunction(&box),
             std::make_optional(avg::Brush(white)),
             std::move(shadow),
-            std::move(effect),
+            effect
+                ? std::make_optional(avg::Animated<avg::Brush>(
+                        avg::Brush(*effect)))
+                : std::nullopt,
             std::move(child)
             );
 }
@@ -124,8 +127,14 @@ avg::Drawing drawTree(avg::RenderTree const& tree,
         .first;
 }
 
+bool isEffectFill(avg::Drawing::ShapeElement const& shape)
+{
+    return shape.brush && shape.brush->getEffect();
+}
+
 /**
- * @brief One letter per element: S for a shape, E for an effect, [ ] around
+ * @brief One letter per element: S for a shape, E for an effect or a shape
+ * filled with an effect brush, [ ] around
  * the contents of a scope, ( ) around the contents of a clip, T for text, R
  * for a region.
  */
@@ -140,7 +149,7 @@ std::string structureOf(pmr::vector<avg::Drawing::Element> const& elements)
                 using T = std::decay_t<decltype(e)>;
 
                 if constexpr (std::is_same_v<T, avg::Drawing::ShapeElement>)
-                    result += 'S';
+                    result += isEffectFill(e) ? 'E' : 'S';
                 else if constexpr (std::is_same_v<T, avg::Drawing::BackdropScope>)
                     result += '[' + structureOf(e.subDrawing->elements) + ']';
                 else if constexpr (std::is_same_v<T, avg::Drawing::ClipElement>)
@@ -160,8 +169,8 @@ std::string structureOf(pmr::vector<avg::Drawing::Element> const& elements)
 }
 
 /**
- * @brief The left edge of every shape in a list, in order, entering scopes
- * and clips.
+ * @brief The left edge of every shape not filled with an effect brush in a
+ * list, in order, entering scopes and clips.
  */
 std::vector<float> lefts(pmr::vector<avg::Drawing::Element> const& elements)
 {
@@ -172,7 +181,8 @@ std::vector<float> lefts(pmr::vector<avg::Drawing::Element> const& elements)
         if (auto const* shape = std::get_if<avg::Drawing::ShapeElement>(
                     &element))
         {
-            result.push_back(shape->shape.getControlBb().getLeft());
+            if (!isEffectFill(*shape))
+                result.push_back(shape->shape.getControlBb().getLeft());
         }
         else if (auto const* scope = std::get_if<avg::Drawing::BackdropScope>(
                     &element))
@@ -197,16 +207,28 @@ avg::Drawing::BackdropScope const& scopeAt(
     return std::get<avg::Drawing::BackdropScope>(elements.at(i));
 }
 
-avg::Drawing::EffectElement const& effectAt(
-        pmr::vector<avg::Drawing::Element> const& elements, size_t i)
+/**
+ * @brief A shape filled with an effect brush.
+ */
+struct EffectFill
 {
-    return std::get<avg::Drawing::EffectElement>(elements.at(i));
+    avg::Shape shape;
+    avg::Effect const* effect;
+};
+
+EffectFill effectAt(pmr::vector<avg::Drawing::Element> const& elements,
+        size_t i)
+{
+    auto const& shape = std::get<avg::Drawing::ShapeElement>(elements.at(i));
+    EXPECT_TRUE(isEffectFill(shape));
+
+    return { shape.shape,
+        shape.brush ? shape.brush->getEffect() : nullptr };
 }
 
-avg::Rect boundsOf(avg::Drawing::EffectElement const& effect)
+avg::Rect boundsOf(EffectFill const& effect)
 {
-    return (effect.transform * avg::Obb(effect.shape.getControlBb()))
-        .getBoundingRect();
+    return effect.shape.getControlBb();
 }
 
 /**

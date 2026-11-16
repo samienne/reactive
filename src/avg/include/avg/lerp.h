@@ -21,7 +21,14 @@ namespace avg
     AVG_EXPORT Transform lerp(Transform const a, Transform const& b, float t);
     AVG_EXPORT Obb lerp(Obb const& a, Obb const& b, float t);
     AVG_EXPORT Color lerp(Color const& a, Color const& b, float t);
+
+    /**
+     * @brief Interpolates two colours, or the parameters of two effects of
+     * the same kind; any other pair switches to b at once, with no
+     * crossfade.
+     */
     AVG_EXPORT Brush lerp(Brush const& a, Brush const& b, float t);
+
     AVG_EXPORT Pen lerp(Pen const& a, Pen const& b, float t);
     AVG_EXPORT Curve lerp(Curve a, Curve b, float t);
 

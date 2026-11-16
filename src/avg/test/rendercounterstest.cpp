@@ -61,6 +61,15 @@ namespace
             avg::Transform() };
     }
 
+    avg::Drawing::Element brushPanel(float x, float y, float width,
+            float height)
+    {
+        avg::FrostedGlassOptions options;
+        options.radius = 24.0f;
+        return avg::Drawing::ShapeElement{ box(x, y, width, height),
+            avg::Brush(avg::frostedGlass(options)), std::nullopt };
+    }
+
     avg::Drawing drawing(std::vector<avg::Drawing::Element> elements)
     {
         avg::Drawing result(pmr::new_delete_resource());
@@ -123,6 +132,12 @@ namespace
                         scope({ panel(200, 175, 200, 150) }) });
             },
             { 8, 11, 2, 3, 3'840'000, 287'682 } },
+        { "onePanelAsABrush",
+            []()
+            {
+                return scene({ scope({ brushPanel(100, 100, 200, 150) }) });
+            },
+            { 4, 6, 1, 3, 3'840'000, 144'330 } },
         { "oneLargePanel",
             []() { return scene({ scope({ panel(20, 20, 760, 560) }) }); },
             { 4, 6, 1, 3, 3'840'000, 1'253'324 } },

@@ -2,7 +2,7 @@
 
 #include "rendertree/updateresult.h"
 
-#include "effect.h"
+#include "brush.h"
 #include "obb.h"
 #include "pen.h"
 #include "shape.h"
@@ -53,9 +53,9 @@ bool hasShadowAnimationEnded(std::optional<SurfaceShadow> const& shadow,
 
 // A change of kind is not an animation: the surface shows the new effect
 // at once and asks for no further frames.
-std::optional<Animated<Effect>> updatedEffect(
-        std::optional<Animated<Effect>> const& oldEffect,
-        std::optional<Animated<Effect>> const& newEffect,
+std::optional<Animated<Brush>> updatedEffect(
+        std::optional<Animated<Brush>> const& oldEffect,
+        std::optional<Animated<Brush>> const& newEffect,
         std::optional<AnimationOptions> const& options,
         std::chrono::milliseconds time
         )
@@ -70,7 +70,7 @@ std::optional<Animated<Effect>> updatedEffect(
     return oldEffect->updated(*newEffect, options, time);
 }
 
-bool hasEffectAnimationEnded(std::optional<Animated<Effect>> const& effect,
+bool hasEffectAnimationEnded(std::optional<Animated<Brush>> const& effect,
         std::chrono::milliseconds time)
 {
     return !effect || effect->hasAnimationEnded(time);
@@ -112,7 +112,7 @@ SurfaceNode::SurfaceNode(
         ShapeFunction shape,
         Animated<std::optional<Brush>> fill,
         std::optional<SurfaceShadow> shadow,
-        std::optional<Animated<Effect>> effect,
+        std::optional<Animated<Brush>> effect,
         std::shared_ptr<RenderTreeNode> childNode
         ) :
     RenderTreeNode(std::nullopt, std::move(obb)),
@@ -244,11 +244,8 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
     }
 
     if (effect_)
-    {
-        result += Drawing::EffectElement{ shape,
-            std::make_shared<Effect const>(effect_->getValue(time)),
-            Transform() };
-    }
+        result += Drawing::ShapeElement{ shape, effect_->getValue(time),
+            std::nullopt };
 
     if (auto fill = fill_.getValue(time))
         result += Drawing::ShapeElement{ std::move(shape), std::move(fill),
@@ -317,7 +314,7 @@ std::optional<SurfaceShadow> const& SurfaceNode::getShadow() const
     return shadow_;
 }
 
-std::optional<Animated<Effect>> const& SurfaceNode::getEffect() const
+std::optional<Animated<Brush>> const& SurfaceNode::getEffect() const
 {
     return effect_;
 }
