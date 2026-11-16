@@ -48,8 +48,8 @@ Rect& Rect::operator+=(Rect const& rhs)
 
 bool Rect::operator==(Rect const& rhs) const
 {
-    if (isEmpty() == rhs.isEmpty())
-        return true;
+    if (isEmpty() || rhs.isEmpty())
+        return isEmpty() == rhs.isEmpty();
 
     return getLeft() == rhs.getLeft()
         && getRight() == rhs.getRight()
