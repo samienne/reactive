@@ -1,6 +1,7 @@
 # bqui — agent notes
 
-*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework.*
+*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework;
+the remote capture paragraph against `19e8c214` (2026-11-16).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -215,16 +216,18 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
 - **`base64Encode` (`src/remote/base64.h`) is the chunk encoding**, exported
   for its tests.
 
-**A capture result comes back on the render thread, not the loop.**
-`RemoteWindow::captureNextFrame` keeps the ase contract (the callback runs on
-any thread; `WindowBridge` passes it straight to its `ase::Window`), and
-`window.list` reports `canCapture` from the same seam. The driver arms
-captures through `captureOnLoop` (`src/remote/capture.h`, exported for its
-tests), which posts the result to the loop and drops it if the driver is gone
-by then. A handler resolving a responder from it must still enter a driver
-callback first, as the deferred `app.step` does, since `safeSend` needs the
-`Controller`. On the dummy backend the result is `Unsupported`, delivered by a
-post rather than inline.
+**A capture result comes back on the render thread, not the loop.** The
+driver arms captures through `captureOnLoop` (`src/remote/capture.h`, exported
+for its tests), which posts the result to the loop and drops it if the driver
+is gone by then. `window.list` reports `canCapture` from the same `RemoteWindow`
+seam. Two traps for the handler that arms one:
+
+- **The completion runs outside the driver's `ControllerScope`.** It is a loop
+  callback and is handed a `Controller&`, but the driver's controller slot,
+  which `safeSend` asserts, is unset there. Resolving a responder from it needs
+  a `ControllerScope` first, as `window.screenshot`'s completion opens.
+- **A capture waits for the next present and schedules none.** The handler
+  must cause a frame; a paused or idle app never completes it.
 
 **`window.screenshot` gets a frame rendered for it.** The handler arms a
 capture, marks the window due (`RemoteWindow::requestFrame`, since an idle

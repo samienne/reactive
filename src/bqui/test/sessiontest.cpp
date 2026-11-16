@@ -48,6 +48,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -414,9 +415,20 @@ namespace
             serverThread.join();
         }
     };
+
+    [[nodiscard]] btl::RunLoop::Timer failUnlessStoppedSoon(
+            btl::RunLoop::Controller& controller)
+    {
+        return controller.addTimer(std::chrono::seconds(10),
+                [](btl::RunLoop::Controller& c)
+                {
+                    ADD_FAILURE() << "the capture result never arrived";
+                    c.stop();
+                });
+    }
 } // namespace
 
-TEST(session, windowListReturnsIdsOnly)
+TEST(session, windowListIdentifiesById)
 {
     auto idA = btl::makeUniqueId();
     auto idB = btl::makeUniqueId();
@@ -461,9 +473,11 @@ TEST(session, captureResultReachesTheLoopThread)
 
     std::optional<ase::CaptureResult> received;
     std::thread::id receivedOn;
+    btl::RunLoop::Timer guard;
 
     loop.post([&](btl::RunLoop::Controller& controller)
         {
+            guard = failUnlessStoppedSoon(controller);
             captureOnLoop(window, loop, alive,
                     [&](btl::RunLoop::Controller& c, ase::CaptureResult result)
                     {
@@ -480,7 +494,6 @@ TEST(session, captureResultReachesTheLoopThread)
                 return;
             }
 
-            // Complete it from another thread, as a render thread would.
             std::thread([callback = std::move(armed.front())]
                 {
                     ase::FrameCapture capture;
@@ -508,9 +521,11 @@ TEST(session, unsupportedCaptureIsDeliveredLaterNotInline)
 
     std::optional<ase::CaptureResult> received;
     bool armedReturned = false;
+    btl::RunLoop::Timer guard;
 
-    loop.post([&](btl::RunLoop::Controller&)
+    loop.post([&](btl::RunLoop::Controller& controller)
         {
+            guard = failUnlessStoppedSoon(controller);
             captureOnLoop(window, loop, alive,
                     [&](btl::RunLoop::Controller& controller,
                         ase::CaptureResult result)
@@ -545,7 +560,9 @@ TEST(session, captureResultIsDroppedOnceTheOwnerIsGone)
                     });
 
             alive.reset();
-            for (auto& callback : window.takeArmed())
+            auto armed = window.takeArmed();
+            EXPECT_EQ(1u, armed.size());
+            for (auto& callback : armed)
                 callback(ase::ReadbackError::Cancelled);
 
             // Posted after the result, so it runs after the dropped delivery.
@@ -555,6 +572,66 @@ TEST(session, captureResultIsDroppedOnceTheOwnerIsGone)
     loop.run();
 
     EXPECT_FALSE(delivered);
+}
+
+TEST(session, captureCompletionIsDestroyedOnTheLoopThread)
+{
+    struct RecordsDestroyingThread
+    {
+        explicit RecordsDestroyingThread(std::thread::id* where)
+            : destroyedOn(where)
+        {
+        }
+
+        ~RecordsDestroyingThread()
+        {
+            *destroyedOn = std::this_thread::get_id();
+        }
+
+        std::thread::id* destroyedOn;
+    };
+
+    CapturableFakeWindow window(btl::makeUniqueId(), "w");
+    btl::RunLoop loop;
+    auto alive = std::make_shared<bool>(true);
+
+    std::thread::id destroyedOn;
+    std::promise<void> loopDone;
+    std::thread completer;
+    btl::RunLoop::Timer guard;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            guard = failUnlessStoppedSoon(controller);
+            auto recorder =
+                std::make_shared<RecordsDestroyingThread>(&destroyedOn);
+            captureOnLoop(window, loop, alive,
+                    [recorder = std::move(recorder)](
+                        btl::RunLoop::Controller& c, ase::CaptureResult)
+                    {
+                        c.stop();
+                    });
+
+            auto armed = window.takeArmed();
+            ASSERT_EQ(1u, armed.size());
+
+            // Holds the completed callback until the loop is done, so any copy
+            // of the completion left in it would be destroyed last, here.
+            completer = std::thread(
+                    [callback = std::move(armed.front()),
+                    done = loopDone.get_future()]() mutable
+                    {
+                        callback(ase::ReadbackError::Cancelled);
+                        done.wait();
+                    });
+        });
+
+    loop.run();
+    loopDone.set_value();
+    if (completer.joinable())
+        completer.join();
+
+    EXPECT_EQ(std::this_thread::get_id(), destroyedOn);
 }
 
 TEST(session, introspectResolvesByIdAndErrorsOnUnknown)
