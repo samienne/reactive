@@ -92,6 +92,28 @@ needs an application-minted id in every element to keep its widgets. An update
 is always a change, never compared with the old value, so values need not be
 comparable; signals detect changes by item generation.
 
+## Pixel readback is a render command served by present
+
+`CommandBuffer::pushReadback` reads a framebuffer's colour in queue order, like a
+fence, and completes a callback on whatever thread the backend runs commands. A
+window captures by arming a one-shot request that its next `present()` serves,
+so a capture is always a frame that was rendered, never a stale surface. GL
+reads with a synchronous `glReadPixels` on the render thread; the result is
+tightly packed 8-bit RGBA, top row first, bytes as stored (sRGB for a window),
+with alpha ignored. Capability is `capturesOnPresent() && canReadback()`, so the
+dummy context and on-screen windows report false and fail at once with
+`Unsupported`.
+
+**Why:** a render command is backend-neutral, where a "run this on the render
+thread" hook is not (see *Frame cadence is per-window*): a command-buffer
+backend implements it as a copy into a buffer. Synchronous `glReadPixels` stalls
+only the render thread, never the loop; a PBO with a fence would un-stall it at
+the cost of a two-phase state machine, which a few captures a second does not
+justify. Fixing the pixel layout at the ase boundary means no consumer guesses
+row order or colour space. On-screen capture fits the same hook (read the
+default framebuffer before the swap) but is CI-dark and has undefined obscured
+regions, so it is a follow-up.
+
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 
 `acquire()` blocked the run-loop thread on a condition variable until a window
