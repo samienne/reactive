@@ -1,3 +1,4 @@
+#include "builtinelements.h"
 #include "effectfactory.h"
 
 #include <avg/rendering.h>
@@ -8,6 +9,8 @@
 #include <avg/builtineffects.h>
 #include <avg/effect.h>
 #include <avg/effectplan.h>
+#include <avg/effectshader.h>
+#include <avg/font.h>
 #include <avg/brush.h>
 #include <avg/color.h>
 #include <avg/obb.h>
@@ -92,18 +95,6 @@ namespace
         return std::make_shared<avg::Effect const>(avg::frostedGlass(options));
     }
 
-    avg::Drawing::Element effect(PixelRect const& bounds,
-            std::shared_ptr<avg::Effect const> effect = glass())
-    {
-        return avg::Drawing::EffectElement{
-            box(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
-                    static_cast<float>(bounds.width),
-                    static_cast<float>(bounds.height)),
-            std::move(effect),
-            avg::Transform()
-        };
-    }
-
     avg::Drawing::Element brushFill(PixelRect const& bounds,
             avg::Effect const& effect)
     {
@@ -114,6 +105,18 @@ namespace
             avg::Brush(effect),
             std::nullopt
         };
+    }
+
+    avg::Drawing::Element effect(PixelRect const& bounds,
+            std::shared_ptr<avg::Effect const> effect = glass())
+    {
+        return brushFill(bounds, *effect);
+    }
+
+    avg::Drawing::Element only(avg::Drawing const& drawing)
+    {
+        EXPECT_EQ(1u, drawing.getElements().size());
+        return drawing.getElements().front();
     }
 
     avg::Drawing drawing(std::vector<avg::Drawing::Element> elements)
@@ -183,6 +186,21 @@ namespace
                 && draw.getPipeline() == painter.getPipeline(avg::Brush(white));
         }
 
+        bool isPainted(ase::DrawCommand const& draw)
+        {
+            return draw.getPipeline() == painter.getPipeline(avg::Brush(white))
+                || draw.getPipeline() == painter.getTextPipeline()
+                || draw.getPipeline() == painter.getPipeline(
+                        avg::Brush(avg::Color(1.0f, 1.0f, 1.0f, 0.5f)));
+        }
+
+        // A draw into a scratch target with depth: a sub-drawing.
+        bool isSubDrawing(ase::DrawCommand const& draw)
+        {
+            return !isMain(draw)
+                && draw.getFramebuffer().getDepthFormat().has_value();
+        }
+
         bool isSnapshot(ase::DrawCommand const& draw)
         {
             return draw.getTextures().size() == 1
@@ -190,14 +208,19 @@ namespace
         }
 
         // One letter per command: C clear, | barrier, D content draw, S
-        // snapshot, P pass into scratch, F final pass into the target.
+        // snapshot, P pass into scratch, F final pass into the target; c
+        // clear, d content draw and f final pass into a sub-drawing.
         std::string picture(ase::CommandBuffer const& commands)
         {
             std::string result;
             for (auto const& command : commands)
             {
-                if (std::holds_alternative<ase::ClearCommand>(command))
-                    result += 'C';
+                if (auto const* clear = std::get_if<ase::ClearCommand>(
+                            &command))
+                {
+                    result += clear->target == target.getFramebuffer()
+                        ? 'C' : 'c';
+                }
                 else if (std::holds_alternative<ase::BarrierCommand>(command))
                     result += '|';
                 else if (auto const* draw = std::get_if<ase::DrawCommand>(
@@ -205,6 +228,8 @@ namespace
                 {
                     if (isSnapshot(*draw))
                         result += 'S';
+                    else if (isSubDrawing(*draw))
+                        result += isPainted(*draw) ? 'd' : 'f';
                     else if (!isMain(*draw))
                         result += 'P';
                     else if (isContent(*draw))
@@ -230,7 +255,7 @@ namespace
                 if (!draw)
                     continue;
 
-                while (all[i] == 'C' || all[i] == '|')
+                while (all[i] == 'C' || all[i] == 'c' || all[i] == '|')
                     ++i;
 
                 if (kinds.find(all[i]) != std::string::npos)
@@ -589,9 +614,9 @@ TEST(EffectRendering, anEffectWithoutAreaDrawsNothing)
 {
     Fixture f;
     auto d = drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f),
-            scope({ avg::Drawing::EffectElement{
-                    box(100.5f, 80.0f, 0.0f, 40.0f), glass(),
-                    avg::Transform() } }) });
+            scope({ avg::Drawing::ShapeElement{
+                    box(100.5f, 80.0f, 0.0f, 40.0f), avg::Brush(*glass()),
+                    std::nullopt } }) });
 
     auto const& frame = f.frame(d);
     EXPECT_EQ("CD", f.picture(frame));
@@ -600,9 +625,9 @@ TEST(EffectRendering, anEffectWithoutAreaDrawsNothing)
 TEST(EffectRendering, anEffectWithHugeBoundsIsClampedToTheTarget)
 {
     Fixture f;
-    auto d = drawing({ avg::Drawing::EffectElement{
-            box(-1.0e7f, -1.0e7f, 2.0e7f, 2.0e7f), glass(),
-            avg::Transform() } });
+    auto d = drawing({ avg::Drawing::ShapeElement{
+            box(-1.0e7f, -1.0e7f, 2.0e7f, 2.0e7f), avg::Brush(*glass()),
+            std::nullopt } });
 
     // The bounds are beyond the range of an int in target pixels
     auto const& frame = f.frame(d, 1000.0f);
@@ -753,27 +778,35 @@ TEST(EffectRendering, aGlassSurfaceInAStackDrawsOverTheChildrenBelowIt)
             xRange(verticesOf(frame, *content[1]), 7, 0));
 }
 
-TEST(EffectRendering, anEffectBrushFillDrawsLikeAnEffectElement)
+TEST(EffectRendering, aBackdropElementDrawsLikeAnEffectBrush)
 {
     Fixture f;
     Fixture g;
-    auto glassEffect = glass();
+    avg::Effect const tinted = avg::tint(black, 0.5f);
+
+    avg::Pass pass = tinted.getFinalPass();
+    pass.inputs.clear();
+    pass.geometry = avg::Geometry::Region;
+    pass.output = avg::PassOutput{ avg::Divisor::One, ase::FORMAT_SRGBA };
+
+    std::vector<std::optional<avg::Drawing>> inputs;
+    inputs.push_back(std::nullopt);
     auto element = drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f),
             scope({ fill(10.0f, 0.0f, 50.0f, 50.0f),
-                    effect(glassBounds, glassEffect),
+                    only(avg::Drawing::effect(pmr::new_delete_resource(),
+                            avg::makeElementPass(pass), std::move(inputs),
+                            box(100.0f, 80.0f, 200.0f, 40.0f))),
                     fill(300.0f, 0.0f, 50.0f, 50.0f) }) });
     auto brushed = drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f),
             scope({ fill(10.0f, 0.0f, 50.0f, 50.0f),
-                    brushFill(glassBounds, *glassEffect),
+                    brushFill(glassBounds, tinted),
                     fill(300.0f, 0.0f, 50.0f, 50.0f) }) });
 
-    auto const& expected = f.frame(element);
-    auto const& actual = g.frame(brushed);
+    auto const& expected = g.frame(brushed);
+    auto const& actual = f.frame(element);
 
-    // The snapshot is of the content before the scope, not of the fill
-    // inside it, and the effect is a run of its own between the fills
-    EXPECT_EQ("CD|S|D|P|P|P|F|D", g.picture(actual));
-    expectSameEffectDraws(f, expected, g, actual);
+    EXPECT_EQ("CD|S|D|F|D", f.picture(actual));
+    expectSameEffectDraws(g, expected, f, actual);
 }
 
 TEST(EffectRendering, anEffectBrushStrokeDrawsTheStrokeThroughTheEffect)
@@ -838,6 +871,21 @@ TEST(EffectRendering, anEffectBrushLowersItsSizesAtItsOwnScale)
 
     EXPECT_EQ("C|S|P|P|P|F|", f.picture(actual));
     expectSameEffectDraws(g, expected, f, actual);
+
+    Fixture h;
+    Fixture k;
+    auto scaledInside = drawing({ only(avg::groupOpacity(
+                    pmr::new_delete_resource(),
+                    drawing({ brushFill(PixelRect{ 25, 20, 50, 10 },
+                            *glass()) }), 0.5f) * 2.0f) });
+    auto builtInside = drawing({ only(avg::groupOpacity(
+                    pmr::new_delete_resource(),
+                    drawing({ brushFill(PixelRect{ 50, 40, 100, 20 },
+                            avg::frostedGlass(doubled)) }), 0.5f)) });
+
+    auto const& expectedInside = k.frame(builtInside);
+    auto const& actualInside = h.frame(scaledInside);
+    expectSameEffectDraws(k, expectedInside, h, actualInside);
 }
 
 TEST(EffectRendering, textWithAnEffectBrushLowersItsSizesAtItsOwnScale)
@@ -871,3 +919,260 @@ TEST(EffectRendering, textWithAnEffectBrushLowersItsSizesAtItsOwnScale)
             avg::scale(2.0f) * drawing({ entry }));
     expectSameEffectDraws(k, expectedTransformed, h, actualTransformed);
 }
+
+namespace
+{
+    pmr::memory_resource* const heap = pmr::new_delete_resource();
+
+    ase::Framebuffer const& clearedAt(ase::CommandBuffer const& commands,
+            size_t index)
+    {
+        size_t seen = 0;
+        for (auto const& command : commands)
+        {
+            auto const* clear = std::get_if<ase::ClearCommand>(&command);
+            if (clear && seen++ == index)
+                return clear->target;
+        }
+
+        throw std::out_of_range("no such clear");
+    }
+
+    ase::ClearCommand const& clearOf(ase::CommandBuffer const& commands,
+            ase::Framebuffer const& target)
+    {
+        for (auto const& command : commands)
+        {
+            auto const* clear = std::get_if<ase::ClearCommand>(&command);
+            if (clear && clear->target == target)
+                return *clear;
+        }
+
+        throw std::out_of_range("no clear of the target");
+    }
+
+    // A one-input element pass without a recipe, so its sizes are pixels
+    avg::ElementPass pixelPass(int padding, avg::Divisor divisor)
+    {
+        avg::Pass pass;
+        pass.shader = avg::makePassShader(1, {}, "void main() "
+                "{ result = texture(input0, inputUv(pass.texel0)); }");
+        pass.output = avg::PassOutput{ divisor, ase::FORMAT_RGBA16F };
+        pass.padding = padding;
+        return avg::makeElementPass(std::move(pass));
+    }
+
+    avg::Drawing overContent(avg::ElementPass const& pass,
+            avg::Drawing content)
+    {
+        std::vector<std::optional<avg::Drawing>> inputs;
+        inputs.push_back(std::move(content));
+        return avg::Drawing::effect(heap, pass, std::move(inputs));
+    }
+} // anonymous namespace
+
+TEST(EffectRendering, groupOpacityDrawsItsContentAloneAndCompositesIt)
+{
+    Fixture f;
+    auto d = drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f),
+            only(avg::groupOpacity(heap,
+                        drawing({ fill(100.0f, 80.0f, 200.0f, 40.0f) }),
+                        0.5f)),
+            fill(300.0f, 0.0f, 50.0f, 50.0f) });
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("CD|cd|F|D", f.picture(frame));
+
+    // The sub-drawing is cleared to transparent with its depth.
+    auto content = f.draws(frame, "d");
+    ASSERT_EQ(1u, content.size());
+    ase::ClearCommand const& clear = clearOf(frame,
+            content[0]->getFramebuffer());
+    EXPECT_EQ(0.0f, clear.a);
+    EXPECT_TRUE(clear.color);
+    EXPECT_TRUE(clear.depth);
+    EXPECT_EQ(avg::TargetImage::depthFormat,
+            content[0]->getFramebuffer().getDepthFormat());
+
+    auto composite = f.draws(frame, "F");
+    ASSERT_EQ(1u, composite.size());
+    expectScissor(PixelRect{ 100, 80, 200, 40 }, *composite[0]);
+    EXPECT_EQ(1u, composite[0]->getTextures().size());
+}
+
+TEST(EffectRendering, contentBlurNestsItsPassesOverTheSubDrawing)
+{
+    Fixture f;
+    auto d = drawing({ only(avg::contentBlur(heap,
+                    drawing({ fill(100.0f, 80.0f, 200.0f, 40.0f) }),
+                    8.0f)) });
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("C|cd|P|P|P|F|", f.picture(frame));
+
+    // Radius 8 blurs at divisor 2 with 4 taps, each blur along one axis;
+    // the composite reaches one pixel, so the content grows by 4 at
+    // divisor 2 plus 1 on every side. Each pass reads 4 texels around what
+    // the next one covers.
+    auto passes = f.draws(frame, "PF");
+    ASSERT_EQ(4u, passes.size());
+    expectScissor(PixelRect{ 37, 27, 126, 46 }, *passes[0]);
+    expectScissor(PixelRect{ 41, 31, 118, 38 }, *passes[1]);
+    expectScissor(PixelRect{ 45, 35, 110, 30 }, *passes[2]);
+    expectScissor(PixelRect{ 91, 71, 218, 58 }, *passes[3]);
+}
+
+TEST(EffectRendering, contentBlurOfRadiusZeroDrawsTheContentDirectly)
+{
+    Fixture f;
+    auto d = avg::contentBlur(heap, drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f),
+                fill(100.0f, 80.0f, 200.0f, 40.0f) }), 0.0f);
+
+    EXPECT_EQ(2u, d.getElements().size());
+    EXPECT_EQ("CD", f.picture(f.frame(d)));
+}
+
+TEST(EffectRendering, aScaledElementCompositesTheReachOfItsLoweredPass)
+{
+    Fixture f;
+    Fixture g;
+    avg::ElementPass const pass = pixelPass(4, avg::Divisor::Two);
+
+    // The pass's sizes are pixels, so scaling the element leaves its reach
+    // of 8 pixels as it is.
+    auto scaled = drawing({ only(overContent(pass,
+                    drawing({ fill(100.0f, 80.0f, 200.0f, 40.0f) })) * 0.5f) });
+    auto built = drawing({ only(overContent(pass,
+                    drawing({ fill(50.0f, 40.0f, 100.0f, 20.0f) }))) });
+
+    auto const& expected = g.frame(built);
+    auto const& actual = f.frame(scaled);
+
+    auto composite = f.draws(actual, "F");
+    ASSERT_EQ(1u, composite.size());
+    expectScissor(PixelRect{ 42, 32, 116, 36 }, *composite[0]);
+    expectSameEffectDraws(g, expected, f, actual);
+}
+
+TEST(EffectRendering, aScaledElementLowersItsSizesAtItsOwnScale)
+{
+    Fixture f;
+    Fixture g;
+
+    auto scaled = drawing({ only(avg::contentBlur(heap,
+                    drawing({ fill(60.0f, 50.0f, 40.0f, 20.0f) }), 8.0f)
+                * 2.0f) });
+    auto built = drawing({ only(avg::contentBlur(heap,
+                    drawing({ fill(120.0f, 100.0f, 80.0f, 40.0f) }), 16.0f)) });
+
+    auto const& expected = g.frame(built);
+    auto const& actual = f.frame(scaled);
+
+    EXPECT_EQ("C|cd|P|P|P|F|", f.picture(actual));
+    expectSameEffectDraws(g, expected, f, actual);
+}
+
+TEST(EffectRendering, contentJustOutsideAClipStillBlursIntoIt)
+{
+    Fixture f;
+    auto d = drawing({ fill(0.0f, 0.0f, 10.0f, 10.0f) });
+    d += std::move(drawing({ only(avg::contentBlur(heap,
+                    drawing({ fill(100.0f, 80.0f, 200.0f, 40.0f) }),
+                    8.0f)) })).clip(avg::Rect(avg::Vector2f(0.0f, 0.0f),
+                avg::Vector2f(150.0f, 300.0f)));
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("CD|cd|P|P|P|F|", f.picture(frame));
+
+    // The passes sample 1 + 4 * 2 + 4 * 2 pixels past the clip.
+    auto content = f.draws(frame, "d");
+    ASSERT_EQ(1u, content.size());
+    EXPECT_EQ(std::make_pair(100.0f, 167.0f),
+            xRange(verticesOf(frame, *content[0]), 7, 4));
+
+    auto composite = f.draws(frame, "F");
+    ASSERT_EQ(1u, composite.size());
+    expectScissor(PixelRect{ 91, 71, 59, 58 }, *composite[0]);
+}
+
+TEST(EffectRendering, nestedSubDrawingsRenderBeforeTheOuterOneStarts)
+{
+    Fixture f;
+    auto inner = avg::groupOpacity(heap,
+            drawing({ fill(100.0f, 80.0f, 200.0f, 40.0f) }), 0.5f);
+    auto d = drawing({ only(avg::groupOpacity(heap,
+                    drawing({ fill(0.0f, 0.0f, 50.0f, 50.0f), only(inner) }),
+                    0.5f)) });
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("C|cd|cd|f|F|", f.picture(frame));
+
+    ase::Framebuffer const& innerTarget = clearedAt(frame, 1);
+    ase::Framebuffer const& outerTarget = clearedAt(frame, 2);
+    EXPECT_NE(innerTarget, outerTarget);
+
+    auto content = f.draws(frame, "d");
+    ASSERT_EQ(2u, content.size());
+    EXPECT_EQ(innerTarget, content[0]->getFramebuffer());
+    EXPECT_EQ(outerTarget, content[1]->getFramebuffer());
+
+    // The inner element composites into the outer sub-drawing.
+    auto innerComposite = f.draws(frame, "f");
+    ASSERT_EQ(1u, innerComposite.size());
+    EXPECT_EQ(outerTarget, innerComposite[0]->getFramebuffer());
+}
+
+TEST(EffectRendering, anEffectInsideASubDrawingReadsTheEnclosingScope)
+{
+    Fixture f;
+    auto group = [&]()
+    {
+        return only(avg::groupOpacity(heap,
+                    drawing({ fill(10.0f, 10.0f, 50.0f, 50.0f),
+                        effect(glassBounds),
+                        scope({ effect(PixelRect{ 0, 200, 50, 50 }) }) }),
+                    0.5f));
+    };
+
+    // The scope's snapshot is taken from the main target where the scope
+    // starts, before the sub-drawing. The scope inside the sub-drawing
+    // takes none, so both effects read one snapshot and share their blur.
+    auto d = drawing({ fill(0.0f, 0.0f, 400.0f, 300.0f),
+            scope({ group() }) });
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("CD|S|cd|P|P|P|f|f|F|", f.picture(frame));
+
+    auto finals = f.draws(frame, "f");
+    ASSERT_EQ(2u, finals.size());
+    EXPECT_EQ(f.draws(frame, "d")[0]->getFramebuffer(),
+            finals[0]->getFramebuffer());
+    expectScissor(glassBounds, *finals[0]);
+}
+
+TEST(EffectRendering, textAndTranslucentContentDrawIntoASubDrawing)
+{
+    Fixture f;
+    avg::Font font("data/fonts/OpenSans-Regular.ttf", 0);
+    avg::Brush const translucent(avg::Color(1.0f, 1.0f, 1.0f, 0.5f));
+
+    auto content = drawing({
+            avg::Drawing::ShapeElement{ box(100.0f, 80.0f, 200.0f, 40.0f),
+                translucent, std::nullopt },
+            avg::TextEntry(font, avg::Transform().scale(20.0f)
+                    .translate(avg::Vector2f(5.0f, 4.0f)), "Glass",
+                    avg::Brush(white), std::nullopt) });
+    auto d = drawing({ only(avg::groupOpacity(heap, std::move(content),
+                    0.5f)) });
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("C|cdd|F|", f.picture(frame));
+
+    auto painted = f.draws(frame, "d");
+    ASSERT_EQ(2u, painted.size());
+    EXPECT_EQ(f.painter.getPipeline(translucent),
+            painted[0]->getPipeline());
+    EXPECT_EQ(f.painter.getTextPipeline(), painted[1]->getPipeline());
+    EXPECT_EQ(painted[0]->getFramebuffer(), painted[1]->getFramebuffer());
+}
+

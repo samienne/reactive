@@ -1,5 +1,6 @@
 #pragma once
 
+#include "effect.h"
 #include "region.h"
 #include "shape.h"
 #include "textentry.h"
@@ -10,12 +11,12 @@
 #include <pmr/memory_resource.h>
 
 #include <memory>
+#include <optional>
 #include <variant>
+#include <vector>
 
 namespace avg
 {
-    class Effect;
-
     /**
      * @brief The flat, ordered list of elements a frame rasterises.
      *
@@ -67,19 +68,38 @@ namespace avg
         };
 
         /**
-         * @brief A backdrop effect drawn through shape.
+         * @brief One input of an effect element: a sub-drawing, or the
+         * backdrop of the enclosing scope when subDrawing is empty.
          *
-         * The effect's final pass paints shape; the passes before it sample
-         * the enclosing scope's backdrop around shape's bounds. shape is in
-         * the element's own space and transform maps it, together with the
-         * effect's logical units, into the drawing's space. Build the
-         * effect once and share the pointer across elements and frames.
+         * controlBb is the sub-drawing's bounds in the element's space,
+         * strokes included.
+         */
+        struct EffectInput
+        {
+            std::optional<pmr::heap<SubDrawing>> subDrawing;
+            Rect controlBb;
+        };
+
+        /**
+         * @brief Runs one pass over its inputs and draws the result.
+         *
+         * inputs line up with the pass's samplers. With a shape the pass
+         * paints it; without one the pass covers its sub-drawing inputs'
+         * content grown by its reach, at the scale the element is drawn
+         * at, and its premultiplied result is composited over what is
+         * below. The inputs and the shape are in the element's space,
+         * which transform maps into the drawing's space. controlBb, in the
+         * element's space, is the shape's bounds, or else the sub-drawing
+         * inputs' bounds grown by the pass's reach in logical units. Make
+         * one with Drawing::effect.
          */
         struct EffectElement
         {
-            Shape shape;
-            std::shared_ptr<Effect const> effect;
+            pmr::vector<EffectInput> inputs;
+            ElementPass pass;
+            std::optional<Shape> shape;
             Transform transform;
+            Rect controlBb;
         };
 
         using Element = std::variant<ShapeElement, TextEntry, ClipElement,
@@ -151,6 +171,21 @@ namespace avg
         [[nodiscard]]
         static Drawing over(Drawing below, Drawing above);
 
+        /**
+         * @brief A drawing holding one EffectElement that runs pass over
+         * inputs, painting shape when there is one.
+         *
+         * An empty input is the backdrop of the enclosing scope; any other
+         * becomes a sub-drawing of the element, and its pending shadows
+         * move onto the result. Throws std::invalid_argument when the
+         * number of inputs is not the pass's, or when neither a shape nor a
+         * sub-drawing input bounds the result.
+         */
+        [[nodiscard]]
+        static Drawing effect(pmr::memory_resource* memory, ElementPass pass,
+                std::vector<std::optional<Drawing>> inputs,
+                std::optional<Shape> shape = std::nullopt);
+
         [[nodiscard]]
         Drawing operator*(float scale) &&;
 
@@ -166,8 +201,8 @@ namespace avg
         /**
          * @brief The bounds of the elements and the pending shadows.
          *
-         * An effect element counts as its shape's bounds; the margin its
-         * passes sample beyond them is added when the frame is rendered.
+         * An effect element counts as its controlBb; the margin its passes
+         * sample beyond that is added when the frame is rendered.
          */
         Rect getControlBb() const;
 

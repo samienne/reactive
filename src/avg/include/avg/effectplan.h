@@ -141,13 +141,13 @@ namespace avg
      * @brief One pass an effect runs: where it draws and the scratch
      * textures it reads and writes.
      *
-     * pass indexes the effect's passes and region is in the pixels of its
-     * own target. inputs line up with the pass's inputs; output is absent
-     * for the final pass.
+     * index is the pass's index among the effect's passes and region is in
+     * the pixels of its own target. inputs line up with the pass's inputs;
+     * output is absent for the final pass.
      */
     struct AVG_EXPORT PassAllocation
     {
-        size_t pass = 0;
+        size_t index = 0;
         size_t step = 0;
         PixelRect region;
         std::vector<ScratchSlot> inputs;

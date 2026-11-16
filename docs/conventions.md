@@ -154,6 +154,23 @@ grid) concatenate flat. An unused scope costs nothing, so the rule is
 unconditional rather than "only when an effect is present": the author of a
 modifier cannot know what its child will hold.
 
+## Effect pass shaders
+
+A pass shader (`avg`'s built-in effects, `src/avg/src/builtineffects.cpp`)
+follows two rules the renderer relies on:
+
+- **Colour is premultiplied, in and out.** Every input is premultiplied: a
+  sub-drawing renders that way into a target cleared to transparent, and a
+  backdrop sample is opaque. A final (Shape) pass blends One /
+  OneMinusSrcAlpha, as the painter does, so it must write premultiplied
+  colour too.
+- **A Region pass must not depend on its own region.** Equal passes with
+  an output are shared within a frame and run once over the bounding box
+  of every reader's region, so a Region pass whose result reads
+  `pass.region` would change when another panel shares it. Only a final
+  pass, which is never shared, may use the region (frosted glass's edge
+  highlight does).
+
 ## Compiler warnings
 
 The project builds at `warning_level=3`; **third-party code does not**. Every

@@ -793,7 +793,7 @@ TEST(ScratchPlan, aSharedValueLivesUntilItsLastReader)
     auto const& second = plan.effects[1].passes;
     ASSERT_EQ(4u, first.size());
     ASSERT_EQ(1u, second.size());
-    EXPECT_EQ(3u, second[0].pass);
+    EXPECT_EQ(3u, second[0].index);
     EXPECT_EQ(5u, second[0].step);
 
     EXPECT_EQ(first[2].output->slot, second[0].inputs[0]);

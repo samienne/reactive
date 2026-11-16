@@ -79,7 +79,8 @@ namespace avg
      * The same fragment source, geometry and target colour and depth
      * formats give the same pipeline, so an effect whose parameters change
      * keeps its pipelines. A Region pipeline overwrites its target; a Shape
-     * one blends source alpha over the main target.
+     * one blends its premultiplied result over the target it draws into
+     * (One, OneMinusSrcAlpha), as the painter does.
      */
     class AVG_EXPORT PassPipelineCache
     {

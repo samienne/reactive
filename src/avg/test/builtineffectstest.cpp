@@ -391,7 +391,7 @@ TEST(BuiltinEffects, twoGlassesAtOneDivisorShareTheCopyPass)
     ASSERT_EQ(1u, plan.snapshots.size());
     ASSERT_EQ(2u, plan.effects.size());
     ASSERT_EQ(3u, plan.effects[1].passes.size());
-    EXPECT_EQ(1u, plan.effects[1].passes[0].pass);
+    EXPECT_EQ(1u, plan.effects[1].passes[0].index);
     EXPECT_EQ(plan.effects[0].passes[0].step, plan.snapshots[0].lastUse);
     EXPECT_EQ(plan.effects[1].passes[0].step,
             plan.effects[0].passes[0].output->lastUse);
@@ -415,7 +415,7 @@ TEST(BuiltinEffects, twoEqualGlassesShareEverythingButTheShapePass)
 
     EXPECT_EQ(5u, graph.getNodes().size());
     ASSERT_EQ(1u, plan.effects[1].passes.size());
-    EXPECT_EQ(3u, plan.effects[1].passes[0].pass);
+    EXPECT_EQ(3u, plan.effects[1].passes[0].index);
     EXPECT_EQ(plan.effects[0].passes[3].inputs[0],
             plan.effects[1].passes[0].inputs[0]);
 }

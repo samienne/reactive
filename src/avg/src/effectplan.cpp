@@ -701,7 +701,7 @@ ScratchPlan planScratch(PassGraph const& graph)
             PassGraph::Node const& node = nodes[n];
 
             PassAllocation pass;
-            pass.pass = i;
+            pass.index = i;
             pass.step = nodeSteps[n];
             pass.region = node.region;
 

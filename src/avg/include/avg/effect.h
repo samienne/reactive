@@ -140,9 +140,10 @@ namespace avg
      * the pass samples its inputs (a blur reads its radius beyond every
      * edge); the planner grows the inputs' regions by it. A Region pass
      * needs an output; the final Shape pass has none, since it draws into
-     * the main target. parameters are the contents of one uniform block
-     * the shader's interface declares, uploaded as they are for every
-     * draw of the pass; a pass whose shader takes none leaves it empty.
+     * the target the effect is drawn in, the main target or a sub-drawing's.
+     * parameters are the contents of one uniform block the shader's
+     * interface declares, uploaded as they are for every draw of the pass;
+     * a pass whose shader takes none leaves it empty.
      */
     struct AVG_EXPORT Pass
     {
@@ -181,7 +182,7 @@ namespace avg
 
     /**
      * @brief A directed acyclic graph of passes that ends by drawing a
-     * shape into the main target.
+     * shape into the target the effect is drawn in.
      *
      *     avg::Effect glass = avg::frostedGlass(options);
      *

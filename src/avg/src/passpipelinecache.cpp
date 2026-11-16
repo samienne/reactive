@@ -27,7 +27,7 @@ namespace
 
         if (geometry == Geometry::Shape)
         {
-            desc.blend = ase::BlendFunc{ ase::BlendMode::SrcAlpha,
+            desc.blend = ase::BlendFunc{ ase::BlendMode::One,
                 ase::BlendMode::OneMinusSrcAlpha };
         }
 

@@ -56,27 +56,43 @@ outgrows one file.
   outside the clip would show, so the renderer asserts, as it does for a
   rotated `ClipElement`. The snapshot text collector
   (`rendertree/snapshot.cpp`) recurses into scopes like clips.
-- **`EffectElement`** is a `Shape`, a `std::shared_ptr<Effect const>` and a
-  `Transform`: the effect's final pass paints the shape, the passes before
-  it sample the enclosing scope's backdrop around it. The shape stays in
-  the element's own space and `transform`, `translate` and `operator*`
-  compose into the element's transform as they do for a scope, so the
-  renderer still sees the element's own scale. The `Effect` is shared,
-  never copied:
-  one effect keeps its identity across elements and frames, which is what
-  the emitter's caches key on. Bounds (`getControlBb`, `filterByRect`, the
-  renderer's culling) are the transformed shape bounds with no padding;
-  the margin the passes sample is derived at render time
-  (`deriveRegions`). `clip` wraps it like any element: the renderer
-  intersects the element's bounds with the clip rect before deriving the
-  regions, so the final pass's scissor is the clipped bounds and the
-  passes sample no further than they need. The renderer turns the element
-  into an effect draw in device pixels (*Effects*); the snapshot text
-  collector ignores it.
+- **`EffectElement`** runs one pass over a list of inputs: an
+  `ElementPass` (`effect.h`, opaque like `Effect`, made through
+  `makeElementPass` in the private `src/effectfactory.h`; it holds the
+  shader, padding, parameters and the output scale and format), inputs
+  that are each a sub-drawing or the backdrop of the enclosing scope, an
+  optional shape, a transform and a `controlBb`. With a shape the pass
+  paints it; without one it covers `controlBb` and its premultiplied
+  result is composited over what is below. A multi-pass effect is nested
+  elements: a sub-drawing input holding nothing but an element without a
+  shape is lowered as that element's Region pass writing at its output,
+  not drawn into a target of its own. `Drawing::effect` is the one
+  construction path: it takes the inputs as `Drawing`s (an empty one is
+  the backdrop), moves their pending shadows onto the result, and sets
+  `controlBb` to the shape's bounds or to the sub-drawing inputs' painted
+  bounds grown by the pass's reach (`getReach()`, per axis, times its
+  output divisor, in logical units; it is the padding unless the factory
+  gives less, as `contentBlur`'s one-axis blurs do, since the planner's
+  padding is the same in both axes); a shapeless element with no sub-drawing input throws,
+  having nothing to bound it. **An element's sizes follow its content**:
+  the renderer lowers the pass at the scaling factor times the scale of
+  the element's transform to the root, the scale its sub-drawings are
+  drawn at, and bounds it by their content grown by the lowered pass's
+  reach, not by `controlBb`. `controlBb` is that bound at a pixel scale
+  of one; at another scale the lowered reach is rounded to whole texels
+  and can exceed it by less than one output divisor in pixels, which is
+  what culling a `Drawing` by it may cut. The inputs and shape stay in the element's
+  space, so `transform`, `translate` and `operator*` compose into the
+  element's transform, moving the element and its sub-drawings together,
+  and `clip` wraps it like any element. The renderer turns it into an
+  element draw (*Effects*); the snapshot text collector recurses into its
+  sub-drawing inputs. An effect brush (below) is the short form for an
+  effect over the backdrop painted through a geometry; it keeps the
+  multi-pass `Effect`.
 - **A `Brush` is a colour or an `Effect`** (`brush.h`, `src/brush.cpp`),
   held in a variant; `getColor` is only valid for a colour brush. A
   `ShapeElement` fill or pen, a `RegionFill` or a `TextEntry` with an
-  effect brush paints like an `EffectElement` with that geometry: the
+  effect brush paints the effect through that geometry: the
   renderer lowers it to an effect draw (*Effects*), so it reads the
   enclosing scope's backdrop and never batches with colour meshes. `lerp`
   interpolates colour to colour and effect to effect of one kind
@@ -176,23 +192,25 @@ written against and `builtineffects.h` the effects avg ships; none of them
 touches `ase` beyond naming a `Format`, a `ShaderInterface` and
 `UniformValues`. `scratchpool.h`, `passpipelinecache.h` and
 `effectemitter.h` are the GPU-facing half: they turn a planned effect into
-`ase` commands. A `Drawing::EffectElement` or an effect brush places an
-effect in a frame (see *Shapes and drawings*) and `SurfaceNode` animates
-one (see *Render tree*); `rendering.cpp` runs the scope pre-pass that snapshots backdrops
-and drives the emitter, with the pool and the cache owned by the `Painter`
-(the last bullets below). `docs/design/backdrop-effects.md` is the design,
-with the rejected alternatives and the places the code departed from it;
+`ase` commands. An effect brush places an effect in a frame, a
+`Drawing::EffectElement` one element pass (see *Shapes and drawings*) and
+`SurfaceNode` animates one (see *Render tree*); `rendering.cpp` runs the
+scope pre-pass that snapshots backdrops and drives the emitter, with the
+pool and the cache owned by the `Painter` (the last bullets below).
+`docs/design/backdrop-effects.md` and
+`docs/design/effect-brushes-and-shadows.md` are the design, with the
+rejected alternatives and the places the code departed from it;
 `docs/decisions.md` records the decisions.
 
 - An `Effect` is a list of passes in execution order, so it is a DAG by
-  construction: a pass names its inputs as the backdrop (the enclosing
-  scope's snapshot) or an earlier pass, its output target as a divisor of
-  the screen size (1, 2, 4 or 8) plus a format, and a padding, in pixels of
-  its own output, for how far outside its region it samples. The last pass,
-  and only the last, draws the shape into the main target and has no
-  output. Construction validates and throws listing every broken rule
-  (`validate` returns the same list); an output nobody reads is an error, so
-  the planner never sees dead work.
+  construction: a pass names its inputs as the backdrop (the enclosing scope's
+  snapshot) or an earlier pass, its output target as a divisor of the screen
+  size (1, 2, 4 or 8) plus a format, and a padding, in pixels of its own output,
+  for how far outside its region it samples. The last pass, and only the last,
+  draws the shape into the target the effect is drawn in (the main target or a
+  sub-drawing's) and has no output. Construction validates and throws listing
+  every broken rule (`validate` returns the same list); an output nobody reads
+  is an error, so the planner never sees dead work.
 - **An `Effect` is opaque.** It has no public constructor: the factories
   in `builtineffects.cpp` make one through `makeEffect` in the private
   `src/effectfactory.h`, which tests use too for hand-written passes.
@@ -220,26 +238,48 @@ with the rejected alternatives and the places the code departed from it;
   size divided and rounded up). The union of the backdrop reads, at full
   size, is what the scope's snapshot copy must cover. A union here is
   always the bounding box (`PixelRect::unionWith`).
-- **A frame's effects are lowered into one `PassGraph`.** It lists the
-  frame's snapshots and effects in execution order; `addEffect` derives the
-  effect's regions at the graph's screen size and turns each pass into a
-  node whose inputs are resolved to the scope's snapshot or to earlier
-  nodes. A Region pass equal (`Pass ==`) to an existing node over the same
-  snapshot, whose resolved inputs are the same, is merged into it, and the
-  node's region grows to the bounding box of both. Two panels with equal
-  blur parameters in one scope therefore compute the copy and blur passes
-  once, over the box that spans both, and only their final passes differ.
-  Final passes never merge (each draws its own shape), different scopes
-  never share (their snapshots differ), and a differing pass ends the
-  shared prefix: two glasses with different tints share the whole blur,
-  two with different radii at one divisor the copy pass only. Sharing is
-  unconditional: nothing splits a merged node or decides against merging,
-  even when the box over two far-apart panels shades more pixels than two
-  chains would (the counters show it). A node runs at its first user, as
-  part of that effect's allocation; a snapshot's region is the union of
-  the backdrop regions of the effects reading it. Merging compares passes
-  with their effect-local inputs too, so equal work at different positions
-  in two effects' pass lists is not found.
+- **A frame's effects are lowered into one `PassGraph`.** It lists the frame's
+  snapshots and effects in execution order; `addEffect` derives the effect's
+  regions at the graph's screen size and turns each pass into a node whose
+  inputs are resolved to the scope's snapshot or to earlier nodes. A Region pass
+  equal (`Pass ==`) to an existing node over the same snapshot, whose resolved
+  inputs are the same, is merged into it, and the node's region grows to the
+  bounding box of both. Two panels with equal blur parameters in one scope
+  therefore compute the copy and blur passes once, over the box that spans both,
+  and only their final passes differ. Final passes never merge (each draws its
+  own shape), different scopes never share (their snapshots differ), and a
+  differing pass ends the shared prefix: two glasses with different tints share
+  the whole blur, two with different radii at one divisor the copy pass only.
+  Sharing is unconditional: nothing splits a merged node or decides against
+  merging, even when the box over two far-apart panels shades more pixels than
+  two chains would (the `pixelsShaded` counter measures it). A node runs at its
+  first user, as part of that effect's allocation; a snapshot's region is the
+  union of the backdrop regions of the effects reading it. Merging compares
+  passes with their effect-local inputs too, so equal work at different
+  positions in two effects' pass lists is not found.
+- **Effect elements join the pass graph.** `addSubDrawing` adds a node
+  that renders a sub-drawing into a divisor-1 `FORMAT_SRGBA` target where
+  it is added; `addElement` adds one element pass reading `Source`s (the
+  snapshot, a sub-drawing or an earlier element pass) and counts it among
+  the effects, so `plan.effects` has one entry per element with at most
+  one pass. A Shape element pass covers the region it is given; a Region
+  one starts from the region it is given, at its output's divisor
+  (`GraphBuilder` gives a nested element's pass none), and grows as later
+  passes read it. Each reader grows what it reads, by its padding and
+  rescaled to the source's divisor, and the growth carries on through
+  that source's own sources, so a sub-drawing is needed only where the
+  passes above it sample. The renderer draws a sub-drawing's content up
+  to that reach past the visible or clip rect, so content just outside a
+  clip still blurs into it; the targets are screen-sized and regions
+  clamp to the screen, so content off the target contributes nothing and
+  sampling clamps to its edge. Sub-drawing nodes never merge, not even two
+  with equal content, and a final element pass never merges. Equal
+  Region element passes over the same sources merge like effect passes,
+  which is only correct because a merged pass's result must not depend on
+  the region it covers: the emitter hands every pass its node's region, so
+  a Region pass whose shader reads `pass.region` must not be mergeable.
+  `planScratch` gives a sub-drawing a value at its own step, in the
+  snapshot's pool key, live until its last reader (`plan.subDrawings`).
 - **Scratch is allocated by liveness over the pass graph.** `planScratch`
   numbers every snapshot and node as a step in execution order (a merged node
   once, at its first user) and finds each value's last reader across the whole
@@ -309,101 +349,139 @@ with the rejected alternatives and the places the code departed from it;
   measured from the pass's *region* (the shape's screen bounds, clamped):
   an approximation that an SDF would replace, kept as the
   parameter slot for one.
+- **Built-in elements** (`src/builtinelements.h`, private, implemented in
+  `builtineffects.cpp`): `groupOpacity` is one shapeless element whose
+  pass multiplies the premultiplied input by alpha; `contentBlur` nests
+  four shapeless elements around the content: a downsample copy, a
+  horizontal and a vertical Gaussian at `frostedGlassDivisor(radius)` in
+  `FORMAT_RGBA16F`, and a composite copy with padding divisor / 2; at
+  radius zero it returns the content itself, since even the smallest
+  divisor would soften it. Their passes carry an `ElementPassRecipe` so
+  the renderer rebuilds them at the scale the element is drawn at
+  (`toPixels`). None of their Region passes reads
+  `pass.region`, so equal ones may merge.
 - **`tint`** is one Shape pass reading the backdrop and mixing a colour in
   by strength times the colour's alpha; result alpha is always 1, as the
   final pass is opaque by design.
 - **Scratch textures live in a `ScratchPool`** (`scratchpool.h`), one per
   window: a pool per `ScratchKey`, every texture full-screen at its key's
   divisor (`targetSize`), each in a framebuffer of its own with no depth
-  attachment. `acquire(slot)` makes the slot's texture on first use, so a
+  attachment. `acquireWithDepth` hands out the same texture in a second
+  framebuffer that also holds the pool's one depth buffer for that size
+  (`TargetImage::depthFormat`), used only while a sub-drawing renders
+  into the texture; depth buffers idle out and drop on resize like
+  textures. `acquire(slot)` makes the slot's texture on first use, so a
   frame allocates exactly what its `ScratchPlan` asks for; textures persist
   across frames, `beginFrame(screenSize)` with a new size drops them all,
   and `endFrame` drops a texture no frame has acquired for
   `scratchIdleFrameLimit` (120) frames, so a window that stops showing
   effects gives the memory back. Apart from a resize, the idle release is
   the only way the pool shrinks.
-- **Programs are cached per fragment source, pipelines per (program,
-  geometry, colour format, depth format)** in `PassPipelineCache`
-  (`passpipelinecache.h`), so a shader compiles once however many target
-  formats it draws into. A program links `passVertexSource` with the
-  fragment source against the pass's declared interface; a pipeline entry
-  resolves the `PassBlock` and `ParamBlock` bindings and the sampler count
-  once and draws with depth test and write off; a Region pipeline does not
-  blend (the quad overwrites its region) and declares no depth, since
-  scratch targets have none; the Shape pipeline blends source alpha over
-  the main target and declares its depth format, read from the main
-  target's framebuffer. Parameters are in neither key, so an animated
-  radius keeps its pipelines. Each entry owns a
-  small pool of `UniformSet`s handed out per draw and recycled by
-  `beginFrame`: a set is read when its draw executes, so two draws of one
-  pipeline in a frame sharing a set would both see the last ranges bound.
-  This differs from the painter's single `MatrixBlock` set, which is
+- **Programs are cached per fragment source, pipelines per (program, geometry,
+  colour format, depth format)** in `PassPipelineCache` (`passpipelinecache.h`),
+  so a shader compiles once however many target formats it draws into. A program
+  links `passVertexSource` with the fragment source against the pass's declared
+  interface; a pipeline entry resolves the `PassBlock` and `ParamBlock` bindings
+  and the sampler count once and draws with depth test and write off; a Region
+  pipeline does not blend (the quad overwrites its region) and declares no
+  depth, since scratch targets have none; the Shape pipeline blends One /
+  OneMinusSrcAlpha, as the painter does, since every pass result is
+  premultiplied (frosted glass's and tint's final passes write alpha 1, group
+  opacity's and content blur's write their input's alpha, scaled by the opacity
+  for group opacity), and declares the depth format of the framebuffer it draws
+  into. Parameters are in neither key, so an animated radius keeps its
+  pipelines. Each entry owns a small pool of `UniformSet`s handed out per draw
+  and recycled by `beginFrame`: a set is read when its draw executes, so two
+  draws of one pipeline in a frame sharing a set would both see the last ranges
+  bound. This differs from the painter's single `MatrixBlock` set, which is
   constant over a frame.
-- **`EffectEmitter`** (`effectemitter.h`) records a frame's effect draws
-  into the painter's command buffer. It is built per frame over the
-  context, the command buffer, the `UniformRing`, the pool, the cache and
-  the main `TargetImage`, whose size is the screen size the regions and
-  plan were derived for. `emitSnapshot(slot, region)` is one quad draw with
-  the copy shader, sampling the main target's texture into the divisor-1
-  slot, scissored to the scope's backdrop union, between two barriers.
-  `emitEffect(effect, allocation, triangles)` then, per pass the
-  allocation lists: acquires the input textures it names (a backdrop input
-  is the snapshot's slot, resolved by `planScratch`), fills `PassBlock`
-  (`targetSize` at the pass divisor, `targetDivisor`, `region`, one
-  `texel` per input with `1/size` and the input's divisor, zero beyond),
-  writes it and the pass's `ParamBlock` bytes into the ring, binds them by
-  number on a fresh uniform set, uploads a vertex buffer (six `pos` vertices
-  for a Region quad; the caller's pixel-space triangle list for the Shape
-  pass), pushes the draw with the pass's textures in input order and a
-  scissor on the region (the Shape draw too, so stray triangles never leave
-  the derived bounds), and ends with a barrier. A barrier is skipped when
-  the buffer already ends in one, so a snapshot followed by its effect is
-  `barrier, copy, barrier, pass, barrier, ...`. No pass clears: a Region
-  quad overwrites its whole region and the Shape pass draws over the main
-  target. A pass with an empty region is skipped, and the barrier before
-  the first pass is pushed only once a pass draws, so an effect whose
-  regions are all empty records nothing. `getPassCount` and
-  `getSnapshotCount`
-  count the pass and snapshot draws the emitter has recorded, and
-  `getPixelsShaded` sums their regions' areas.
+- **`EffectEmitter`** (`effectemitter.h`) records a frame's effect draws into
+  the painter's command buffer. It is built per frame over the context, the
+  command buffer, the `UniformRing`, the pool, the cache and the main
+  `TargetImage`, whose size is the screen size the regions and plan were derived
+  for. `emitSnapshot(slot, region)` is one quad draw with the copy shader,
+  sampling the main target's texture into the divisor-1 slot, scissored to the
+  scope's backdrop union, between two barriers. `emitEffect(effect, allocation,
+  triangles)` then, per pass the allocation lists: acquires the input textures
+  it names (a backdrop input is the snapshot's slot, resolved by `planScratch`),
+  fills `PassBlock` (`targetSize` at the pass divisor, `targetDivisor`,
+  `region`, one `texel` per input with `1/size` and the input's divisor, zero
+  beyond), writes it and the pass's `ParamBlock` bytes into the ring, binds them
+  by number on a fresh uniform set, uploads a vertex buffer (six `pos` vertices
+  for a Region quad; the caller's pixel-space triangle list for the Shape pass),
+  pushes the draw with the pass's textures in input order and a scissor on the
+  region (the Shape draw too, so stray triangles never leave the derived
+  bounds), and ends with a barrier. A barrier is skipped when the buffer already
+  ends in one, so a snapshot followed by its effect is `barrier, copy, barrier,
+  pass, barrier, ...`. No pass clears: a Region quad overwrites its whole region
+  and the Shape pass draws over its target. A pass with an empty region is
+  skipped, and the barrier before the first pass is pushed only once a pass
+  draws, so an effect whose regions are all empty records nothing.
+  `getPassCount` and `getSnapshotCount` count the pass and snapshot draws the
+  emitter has recorded, and `getPixelsShaded` sums their regions' areas.
+  `emitElement` draws an element's one pass the same way.
+  `beginSubDrawing(slot)` pushes a barrier and clears the slot's depth
+  framebuffer (colour to transparent, depth and stencil) and returns it for the
+  content draws; a final pass given a `target` slot draws into that framebuffer
+  instead of the main target.
 - **Counters per render.** `render` returns a `RenderCounters`
-  (`rendercounters.h`), and `paintToImage`/`paintToWindow` pass it on.
-  `draws` counts the `DrawCommand`s pushed after the buffer's size on
-  entry, so several `render` calls into one buffer each count their own;
-  `passes`, `snapshots` and `pixelsShaded` are the frame emitter's (zero
-  when the frame has no effect and makes none); `scratchTargets` and
-  `scratchBytes` come from the `ScratchPlan`'s pool sizes at the target's
-  size, so they are what the frame uses, not what the pool holds across
-  frames. Nothing is kept between calls. `rendercounterstest.cpp` pins
-  them for a fixed scene set at 800x600 in one table, the place to update
-  when a change moves the numbers on purpose.
+  (`rendercounters.h`), and `paintToImage`/`paintToWindow` pass it on. `draws`
+  counts the `DrawCommand`s pushed after the buffer's size on entry, so several
+  `render` calls into one buffer each count their own; `passes`, `snapshots` and
+  `pixelsShaded` are the frame emitter's (zero when the frame has no effect and
+  makes none); `scratchTargets` and `scratchBytes` come from the `ScratchPlan`'s
+  pool sizes at the target's size, so they are what the frame uses, not what the
+  pool holds across frames, plus the shared depth buffer's bytes when the frame
+  renders a sub-drawing. Content drawn into a sub-drawing counts in `draws`; an
+  element pass counts as a pass. Nothing is kept between calls.
+  `rendercounterstest.cpp` pins them for a fixed scene set at 800x600 in one
+  table, the place to update when a change moves the numbers on purpose.
 - **PassBlock in C++** is `avg::PassBlock`, a plain struct of float arrays
   whose std140 placement `ase::UniformBlock` checks against `passInterface`
   when the emitter is constructed, so a layout drift fails at the first
   frame, not on the GPU.
-- **The scope pre-pass is the mesh pass.** `rendering.cpp` flattens a
-  drawing once, in paint order, into items that are meshes, text quads, a
-  `ScopeEntry` or an `EffectDraw`. `render` opens the root scope (the
-  implicit one every effect outside a `BackdropScope` reads) and puts its
-  entry first; the `BackdropScope` visitor appends a scope record, emits
-  its entry and recurses with that scope as the current one, while a
-  `ClipElement` keeps its parent's. Every effect is lowered by
-  `lowerEffect`: the `EffectElement` visitor, and a fill, pen or
-  `RegionFill` with an effect brush (a fill's bounds are the shape's
-  control bounds, a pen's the stroked region's bounding box). It maps the
-  bounds (intersected with the clip rect when inside a clip)
-  through `toRoot` and the scaling factor to a `PixelRect`, clamps it to
-  the target and drops the element when nothing is left; otherwise it
-  triangulates the geometry at the element's point size into a
-  device-pixel triangle list and drops the element when the
-  list is empty (a shape without area), so such an effect costs no
-  snapshot. Only then does it convert the effect to pixels (`toPixels`,
-  below), mark the current scope used and keep the clamped bounds for the
-  pass graph, which derives the regions. Culling
-  applies to scopes and effects as to any element, so a culled scope has
-  no record and a culled effect uses none. The culling rect is the target
-  in logical units (its pixel size over the scaling factor); the effect
-  regions and `screenSize` are in pixels.
+- **The scope pre-pass is the mesh pass.** `rendering.cpp` flattens a drawing
+  once, in paint order, into items that are meshes, text quads, a `ScopeEntry`,
+  an `EffectDraw` or an `ElementDraw`. `render` opens the root scope (the
+  implicit one every effect outside a `BackdropScope` reads) and puts its entry
+  first; the `BackdropScope` visitor appends a scope record, emits its entry and
+  recurses with that scope as the current one, while a `ClipElement` keeps its
+  parent's. Every effect is lowered by `lowerEffect`: a fill, pen, text or
+  `RegionFill` with an effect brush (a fill's bounds are the shape's control
+  bounds, a pen's the stroked region's bounding box). It maps the bounds
+  (intersected with the clip rect when inside a clip) through `toRoot` and the
+  scaling factor to a `PixelRect`, clamps it to the target and drops the element
+  when nothing is left; otherwise it triangulates the geometry at the element's
+  point size into a device-pixel triangle list and drops the element when the
+  list is empty (a shape without area), so such an effect costs no snapshot.
+  Only then does it convert the effect to pixels (`toPixels`, below), mark the
+  current scope used and keep the clamped bounds for the pass graph, which
+  derives the regions. Culling applies to scopes and effects as to any element,
+  so a culled scope has no record and a culled effect uses none. The culling
+  rect is the target in logical units (its pixel size over the scaling factor);
+  the effect regions and `screenSize` are in pixels.
+- **Effect elements lower to element draws.** `lowerElement`
+  (`rendering.cpp`) converts the pass to pixels, sets its inputs (the
+  backdrop, or `PassInput::pass(i)` as a placeholder for input i) and,
+  for an element drawn into a target, Shape geometry with the bounds
+  mapped as for an effect and the shape's triangles, or a quad over the
+  bounds without a shape. A backdrop input marks the current scope used.
+  A sub-drawing input is flattened by the same walk into an item list of
+  its own, its meshes mapped to the root, with the culling rect mapped
+  into the element's space; a lone shapeless element input is lowered as
+  a nested element with a Region pass. Inside a sub-drawing a
+  `BackdropScope` opens no scope: effects there read the scope that
+  encloses the element, whose snapshot is taken in the main target
+  before any sub-drawing renders.
+- **Sub-drawings render self-contained.** `GraphBuilder` adds the items to
+  the graph and `FrameDrawer` draws them in one order: an element at the
+  top level runs its inputs where it stands (each sub-drawing, each
+  nested element's pass), then its own pass; a sub-drawing first runs the
+  inputs of every element drawn into it, then begins (barrier and clear)
+  and draws its items with their own segments and z range, its elements
+  and effects drawing their final passes into it. So no sub-drawing is
+  interrupted by another needing the same depth buffer, and one pooled
+  depth buffer serves them all.
 - **A clip cuts an effect with a device-pixel scissor only.** The clip
   rect shrinks the bounds the regions are derived from, and every pass
   draw is scissored to its region, but the final pass still draws the
@@ -416,33 +494,38 @@ with the rejected alternatives and the places the code departed from it;
   divisor, paddings and parameter bytes are fixed when it is built, before
   the scaling factor is known. The renderer converts at lowering:
   `toPixels` (`src/effectfactory.h`) rebuilds the effect from its recipe's
-  parameters with every size multiplied by the factor, so the `EffectDraw`
-  owns an effect in device pixels. At a factor of one, and for an effect
-  without a recipe (the tests' hand-written passes), it is the same effect.
-  A frame at another factor therefore rebuilds every effect it draws.
-- **Graph, plan and emission.** After the walk, `render` builds the
-  `PassGraph` from the items in order (a snapshot per *used* scope entry,
-  an effect per draw naming its scope's snapshot and its bounds), and when
-  it holds
-  no effect draws everything as one batch: no emitter is made and the
-  commands are those of a drawing without scopes. Otherwise `planScratch`
-  runs once, `Painter::makeEffectEmitter` hands out the emitter over the
-  frame's command buffer and target, and `drawItems` walks the items:
-  meshes gather into a segment; a used scope entry and an effect draw each
-  **flush the segment into draws first** and then call `emitSnapshot` with
-  the graph's backdrop region for the scope, or `emitEffect` with the next
-  `plan.effects` entry.
-  The emitter's barriers bracket every one of its draws, so the flushed
-  content is a run of its own before the snapshot and the next segment a
-  run after the final pass: the snapshot sees exactly what paint order put
-  below the scope, and the final pass lies between the content below and
-  above it. Z is still assigned over the whole frame (`generateElements`
-  takes the segment's first index and the frame's mesh count), so the
-  depth test orders opaque content across segments, and a frame
-  with no effects is one segment with the same z values and no barrier.
-  This was chosen over giving the final pass a z: the Shape pipeline
-  neither tests nor writes depth, so z would not order it against opaque
-  content anyway, and a run boundary costs nothing when no effect is drawn.
+  parameters with every size multiplied by a scale, so the `EffectDraw`
+  owns an effect in device pixels. The scale is the scaling factor times the
+  scale of the transform to the root, for an effect brush as for an element,
+  and scaling a brush or a pen (`Transform * Drawing`) scales its effect's
+  sizes the same way, so an effect scales with the drawing it is in. A
+  `TextEntry`'s brush and pen scale with a transform applied to the entry,
+  not with the entry's own transform, which carries the font size. At a
+  scale of one, and for an effect without a recipe (the tests' hand-written
+  passes), it is the same effect. A frame at another scale therefore
+  rebuilds every effect it draws.
+- **Graph, plan and emission.** After the walk, `render` builds the `PassGraph`
+  from the items in order (`GraphBuilder`: a snapshot per *used* scope entry, an
+  effect per draw naming its scope's snapshot and its bounds, the sub-drawings
+  and passes of each element draw), and when it holds no effect draws everything
+  as one batch: no emitter is made and the commands are those of a drawing
+  without scopes. Otherwise `planScratch` runs once,
+  `Painter::makeEffectEmitter` hands out the emitter over the frame's command
+  buffer and target, and `FrameDrawer::drawItems` walks the items: meshes gather
+  into a segment; a used scope entry, an effect draw and an element draw each
+  **flush the segment into draws first** and then call `emitSnapshot` with the
+  graph's backdrop region for the scope, or `emitEffect` or `emitElement` with
+  the `plan.effects` entry of the index the graph gave the draw. The emitter's
+  barriers bracket every one of its draws, so the flushed content is a run of
+  its own before the snapshot and the next segment a run after the final pass:
+  the snapshot sees exactly what paint order put below the scope, and the final
+  pass lies between the content below and above it. Z is still assigned over the
+  whole frame (`generateElements` takes the segment's first index and the
+  frame's mesh count), so the depth test orders opaque content across segments,
+  and a frame with no effects is one segment with the same z values and no
+  barrier. This was chosen over giving the final pass a z: the Shape pipeline
+  neither tests nor writes depth, so z would not order it against opaque content
+  anyway, and a run boundary costs nothing when no effect is drawn.
 - **The painter's share.** `Painter` owns the `ScratchPool` and the
   `PassPipelineCache` next to its pipelines. `beginFrame` begins the cache's
   frame with the uniform ring's; `makeEffectEmitter(commands, mainTarget)`
@@ -452,16 +535,17 @@ with the rejected alternatives and the places the code departed from it;
   was begun. `render` therefore takes the `TargetImage` it draws into, not
   a framebuffer and a size: the window path passes `windowTarget_`, the
   image path the caller's image, and the emitter samples that target.
-- `effectrenderingtest.cpp` pins the command structure of frames with
-  effects on the dummy backend (clear, content, barrier, snapshot, passes,
-  final pass, content; one snapshot per used scope, none for an unused
-  one; two equal effects in one scope sharing their chain over the
-  bounding box, and a shared value staying live across an inner scope; the
-  innermost scope's snapshot; the root snapshot; a clipped
-  effect's regions; a `SurfaceNode` in a stack end to end; an effect-brush
-  fill drawing like the equivalent `EffectElement`, an effect-brush stroke
-  and a brush at a scaling factor of two), and that a drawing with unused
-  scopes renders byte-for-byte like one without.
+- `effectrenderingtest.cpp` pins the command structure of frames with effects on
+  the dummy backend (clear, content, barrier, snapshot, passes, final pass,
+  content; one snapshot per used scope, none for an unused one; two equal
+  effects in one scope sharing their chain over the bounding box, and a shared
+  value staying live across an inner scope; the innermost scope's snapshot; the
+  root snapshot; a clipped effect's regions; a `SurfaceNode` in a stack end to
+  end; an effect-brush stroke and a brush at a scaling factor of two; a backdrop
+  element drawing like the equivalent brush; group opacity, content blur, nested
+  sub-drawings rendered before the outer one, an effect inside a sub-drawing
+  reading the enclosing scope, text and translucent content in a sub-drawing),
+  and that a drawing with unused scopes renders byte-for-byte like one without.
 - Shader compilation and the look are the one thing these tests cannot
   reach: the dummy backend compiles nothing, so the GLSL is only checked
   textually (version line, declared names present, no binding qualifiers)

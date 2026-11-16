@@ -6,6 +6,9 @@
 #include <pmr/new_delete_resource.h>
 #include <pmr/heap.h>
 
+#include <stdexcept>
+#include <string>
+
 namespace avg
 {
 
@@ -67,8 +70,7 @@ namespace
                     [](Drawing::EffectElement const& effect) -> Rect
                     {
                         return (effect.transform *
-                                avg::Obb(effect.shape.getControlBb()))
-                            .getBoundingRect();
+                                avg::Obb(effect.controlBb)).getBoundingRect();
                     }
                     },
                 e
@@ -155,7 +157,7 @@ namespace
                     [](Drawing::EffectElement const& effect)
                         -> pmr::memory_resource*
                     {
-                        return effect.shape.getResource();
+                        return effect.inputs.get_allocator().resource();
                     }},
                 e);
     }
@@ -232,10 +234,30 @@ namespace
                     [&](Drawing::EffectElement const& effect)
                         -> Drawing::Element
                     {
+                        pmr::vector<Drawing::EffectInput> inputs(memory);
+                        inputs.reserve(effect.inputs.size());
+                        for (auto const& input : effect.inputs)
+                        {
+                            Drawing::EffectInput copy{ std::nullopt,
+                                input.controlBb };
+                            if (input.subDrawing)
+                            {
+                                copy.subDrawing.emplace(withResource(memory,
+                                            **input.subDrawing), memory);
+                            }
+                            inputs.push_back(std::move(copy));
+                        }
+
+                        std::optional<Shape> shape;
+                        if (effect.shape)
+                            shape = effect.shape->with_resource(memory);
+
                         return Drawing::EffectElement {
-                            effect.shape.with_resource(memory),
-                            effect.effect,
-                            effect.transform
+                            std::move(inputs),
+                            effect.pass,
+                            std::move(shape),
+                            effect.transform,
+                            effect.controlBb
                         };
                     }},
                 e);
@@ -489,6 +511,73 @@ Drawing Drawing::scope() &&
             });
     result.shadows_ = std::move(shadows_);
     result.controlBb_ = controlBb_;
+
+    return result;
+}
+
+Drawing Drawing::effect(pmr::memory_resource* memory, ElementPass pass,
+        std::vector<std::optional<Drawing>> inputs, std::optional<Shape> shape)
+{
+    if (inputs.size() != pass.getInputCount())
+    {
+        throw std::invalid_argument("an effect element with "
+                + std::to_string(inputs.size()) + " inputs for a pass with "
+                + std::to_string(pass.getInputCount()));
+    }
+
+    Drawing result(memory);
+    pmr::vector<EffectInput> elementInputs(memory);
+    Rect inputBb;
+    bool bounded = shape.has_value();
+
+    for (auto& input : inputs)
+    {
+        if (!input)
+        {
+            elementInputs.push_back(EffectInput{ std::nullopt, Rect() });
+            continue;
+        }
+
+        appendElements(result.shadows_, std::move(input->shadows_));
+
+        Rect const bb = combinePaintedRects(input->elements_);
+        inputBb = combineRects(inputBb, bb);
+        bounded = true;
+
+        elementInputs.push_back(EffectInput{
+                pmr::make_heap<SubDrawing>(memory,
+                    std::move(input->elements_)),
+                bb
+                });
+    }
+
+    if (!bounded)
+    {
+        throw std::invalid_argument("an effect element without a shape needs"
+                " a sub-drawing input to bound it");
+    }
+
+    Vector2f const reach = (pass.getReach()
+            * toInt(pass.getPass().output->divisor)).cast<float>();
+
+    Rect controlBb;
+    if (shape)
+        controlBb = shape->getControlBb();
+    else if (!inputBb.isEmpty())
+    {
+        controlBb = Rect(inputBb.getBottomLeft() - reach,
+                inputBb.getSize() + 2.0f * reach);
+    }
+
+    result.elements_.push_back(EffectElement{
+            std::move(elementInputs),
+            std::move(pass),
+            std::move(shape),
+            Transform(),
+            controlBb
+            });
+    result.controlBb_ = combineDrawingRects(result.elements_,
+            result.shadows_);
 
     return result;
 }
