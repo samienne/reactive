@@ -27,7 +27,8 @@ Configuration (environment):
                      BQUI_BUILD_DIR if set.
 
 Run `python bqui_mcp.py --selftest` to launch the app, describe it, print the
-generated tools, and exit — no MCP client needed.
+generated tools, and exit — no MCP client needed. `--save-screenshot <path>`
+also writes the self-test's screenshot there.
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ import os
 import shlex
 import struct
 import sys
+import zlib
 from typing import Any
 
 LENGTH_PREFIX = 4  # bytes, big-endian; matches the StreamTransport framing.
@@ -99,12 +101,16 @@ class AppConnection:
         cmd = app_command(endpoint)
         log("launching:", " ".join(cmd))
         self._proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL, env=app_env())
+            *cmd, stdout=asyncio.subprocess.DEVNULL, env=app_env())
 
-        try:
-            await asyncio.wait_for(self._connected, timeout=30)
-        except asyncio.TimeoutError:
+        exited = asyncio.ensure_future(self._proc.wait())
+        done, _ = await asyncio.wait({self._connected, exited}, timeout=30,
+                                     return_when=asyncio.FIRST_COMPLETED)
+        if self._connected not in done:
+            exited.cancel()
+            if exited in done:
+                raise RuntimeError("bqui app exited with code "
+                                   f"{self._proc.returncode} before connecting")
             raise RuntimeError("bqui app did not connect within 30s")
 
     async def _on_connected(self, reader, writer) -> None:
@@ -284,6 +290,83 @@ async def run_mcp(conn: AppConnection, methods: list[dict],
         await server.run(r, w, server.create_initialization_options())
 
 
+def png_pixels(data: bytes) -> tuple[int, int, list[bytes]]:
+    """Decodes an 8-bit RGB or RGBA PNG to its size and unfiltered rows."""
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise RuntimeError("not a PNG")
+    pos, ihdr, idat = 8, None, b""
+    while pos < len(data):
+        (length,) = struct.unpack(">I", data[pos:pos + 4])
+        kind = data[pos + 4:pos + 8]
+        body = data[pos + 8:pos + 8 + length]
+        (crc,) = struct.unpack(">I", data[pos + 8 + length:pos + 12 + length])
+        if zlib.crc32(kind + body) != crc:
+            raise RuntimeError(f"PNG chunk {kind!r}: bad CRC")
+        if kind == b"IHDR":
+            ihdr = struct.unpack(">IIBBBBB", body)
+        elif kind == b"IDAT":
+            idat += body
+        elif kind == b"IEND":
+            break
+        pos += 12 + length
+    if ihdr is None:
+        raise RuntimeError("PNG has no IHDR")
+    width, height, depth, colour, _, _, interlace = ihdr
+    channels = {2: 3, 6: 4}.get(colour)
+    if depth != 8 or channels is None or interlace:
+        raise RuntimeError(f"PNG format not handled: depth {depth}, "
+                           f"colour type {colour}, interlace {interlace}")
+    raw = zlib.decompress(idat)
+    stride = width * channels
+    if len(raw) != height * (stride + 1):
+        raise RuntimeError("PNG image data has the wrong size")
+    rows, prior = [], bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        kind, line = raw[start], bytearray(raw[start + 1:start + 1 + stride])
+        for i in range(stride):
+            a = line[i - channels] if i >= channels else 0
+            b = prior[i]
+            c = prior[i - channels] if i >= channels else 0
+            if kind == 1:
+                line[i] = (line[i] + a) & 0xFF
+            elif kind == 2:
+                line[i] = (line[i] + b) & 0xFF
+            elif kind == 3:
+                line[i] = (line[i] + (a + b) // 2) & 0xFF
+            elif kind == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                pred = a if pa <= pb and pa <= pc else b if pb <= pc else c
+                line[i] = (line[i] + pred) & 0xFF
+            elif kind != 0:
+                raise RuntimeError(f"PNG row {y}: unknown filter {kind}")
+        rows.append(bytes(line))
+        prior = line
+    return width, height, rows
+
+
+def check_screenshot(shot: dict, data: bytes) -> None:
+    """Checks a screenshot PNG matches its reply's size and is not blank."""
+    width, height, rows = png_pixels(data)
+    if (width, height) != (shot["width"], shot["height"]):
+        raise RuntimeError(f"screenshot PNG is {width}x{height}, the reply "
+                           f"says {shot['width']}x{shot['height']}")
+    channels = len(rows[0]) // width
+    first = rows[0][:channels]
+    if all(row == first * width for row in rows):
+        raise RuntimeError("screenshot is a single flat colour")
+
+
+def option_value(name: str) -> str | None:
+    if name not in sys.argv:
+        return None
+    i = sys.argv.index(name)
+    if i + 1 >= len(sys.argv):
+        raise RuntimeError(f"{name} needs a value")
+    return sys.argv[i + 1]
+
+
 async def selftest(conn: AppConnection, methods: list[dict],
                    read_length: int | None) -> int:
     print("methods:", [m["name"] for m in methods])
@@ -309,11 +392,16 @@ async def selftest(conn: AppConnection, methods: list[dict],
                 and wl["windows"][0].get("canCapture")):
             shot = await conn.request("window.screenshot", {"window": wid})
             data = await fetch_blob(conn, shot["blob"], read_length)
-            if not data.startswith(b"\x89PNG\r\n\x1a\n"):
-                raise RuntimeError(
-                    "window.screenshot did not answer with a PNG")
+            check_screenshot(shot, data)
             print(f"screenshot ok, {shot['width']}x{shot['height']},",
                   len(data), "bytes")
+            save = option_value("--save-screenshot")
+            if save:
+                with open(save, "wb") as f:
+                    f.write(data)
+                print("screenshot saved to", save)
+        else:
+            print("screenshot skipped: the window cannot capture")
     print("SELFTEST OK")
     return 0
 
