@@ -529,4 +529,34 @@ Drawing contentBlur(pmr::memory_resource* memory, Drawing content,
     return result;
 }
 
+Drawing shadowOf(pmr::memory_resource* memory, Outlines outlines,
+        Vector2f offset, float radius, Color const& colour)
+{
+    Drawing result(memory);
+    radius = clampNonNegative(radius);
+
+    if (outlines.isEmpty() || colour.getAlpha() <= 0.0f)
+        return result;
+
+    std::optional<Shape> casters;
+    for (Shape const& shape : outlines.getShapes())
+    {
+        if (casters)
+            casters = std::move(*casters).add(Shape(shape));
+        else
+            casters = shape;
+    }
+
+    result += Drawing::ShapeElement{
+        std::move(*casters).translate(offset),
+        Brush(colour),
+        std::nullopt
+    };
+
+    if (radius <= 0.0f)
+        return result;
+
+    return contentBlur(memory, std::move(result), radius);
+}
+
 } // namespace avg

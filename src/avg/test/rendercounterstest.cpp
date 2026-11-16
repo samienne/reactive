@@ -6,6 +6,7 @@
 #include <avg/targetimage.h>
 #include <avg/builtineffects.h>
 #include <avg/effect.h>
+#include <avg/outlines.h>
 #include <avg/brush.h>
 #include <avg/color.h>
 #include <avg/pathbuilder.h>
@@ -108,6 +109,50 @@ namespace
                 drawing(std::move(content)), 8.0f).getElements().front();
     }
 
+    avg::Vector2f const shadowOffset(4.0f, -4.0f);
+    float const shadowRadius = 8.0f;
+    avg::Color const shadowColour(0.0f, 0.0f, 0.0f, 0.5f);
+
+    // What a shadow boundary over the whole screen draws for casters: the
+    // shadow of their union, then content
+    std::vector<avg::Drawing::Element> shadowed(
+            std::vector<avg::Rect> casters,
+            std::vector<avg::Drawing::Element> content)
+    {
+        avg::Outlines outlines(pmr::new_delete_resource());
+        for (avg::Rect const& r : casters)
+        {
+            outlines += box(r.getLeft(), r.getBottom(), r.getWidth(),
+                    r.getHeight());
+        }
+
+        auto shadow = avg::shadowOf(pmr::new_delete_resource(),
+                std::move(outlines), shadowOffset, shadowRadius,
+                shadowColour);
+
+        std::vector<avg::Drawing::Element> result(
+                shadow.getElements().begin(), shadow.getElements().end());
+
+        for (auto& element : content)
+            result.push_back(std::move(element));
+
+        return result;
+    }
+
+    // contentBlur(8) pixels: the composite over the shadow grown by 9 on
+    // each side, then the half-size vertical, horizontal and downsample
+    // passes, each 1, 4 and 4 half pixels wider on each side than the last.
+    size_t const oneCasterShadowPixels =
+        218 * 168 + 110 * 85 + 118 * 93 + 126 * 101;
+    size_t const unionShadowPixels =
+        318 * 243 + 160 * 123 + 168 * 131 + 176 * 139;
+    size_t const onePanelPixels = 144'330;
+
+    avg::Rect rectAt(float x, float y, float width, float height)
+    {
+        return avg::Rect(avg::Vector2f(x, y), avg::Vector2f(width, height));
+    }
+
     avg::Drawing scene(std::vector<avg::Drawing::Element> over)
     {
         auto elements = backdrop();
@@ -189,6 +234,33 @@ namespace
                         group({ fill(200, 200, 200, 150, grey) }) }) });
             },
             { 2, 5, 0, 2, 5'760'000, 105'000 } },
+        { "oneCaster",
+            []()
+            {
+                return scene(shadowed({ rectAt(100, 100, 200, 150) },
+                            { fill(100, 100, 200, 150, white) }));
+            },
+            { 4, 7, 0, 3, 5'760'000, oneCasterShadowPixels } },
+        { "twoOverlappingCasters",
+            []()
+            {
+                return scene(shadowed({ rectAt(100, 100, 200, 150),
+                            rectAt(200, 175, 200, 150) },
+                            { fill(100, 100, 200, 150, white),
+                            fill(200, 175, 200, 150, white) }));
+            },
+            { 4, 7, 0, 3, 5'760'000, unionShadowPixels } },
+        { "castersAndGlassInTheCombinedBoundary",
+            []()
+            {
+                return scene(shadowed({ rectAt(100, 100, 200, 150),
+                            rectAt(200, 175, 200, 150) },
+                            { scope({ fill(100, 100, 200, 150, white),
+                                fill(200, 175, 200, 150, white),
+                                panel(450, 100, 200, 150) }) }));
+            },
+            { 8, 12, 1, 3, 5'760'000,
+                unionShadowPixels + onePanelPixels } },
     };
 } // anonymous namespace
 
