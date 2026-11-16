@@ -15,9 +15,9 @@ wants arbitrary ase content inside the UI: placed by layout, clipped,
 transformed, animated, possibly rounded, and composited with everything
 around it. This note designs an **image slot** and **image brush** in avg,
 and a **frame hook** and the **`renderView`** widget in bqui, for four uses:
-a 3D viewport in the layout; a fullscreen 3D background under glass;
-several viewports of one scene; one application-sized texture in several
-shapes.
+a 3D viewport in the layout; a fullscreen 3D background under glass,
+drawn straight into the window's UI target when allowed; several viewports
+of one scene; one application-sized texture in several shapes.
 
 ## Decided
 
@@ -29,7 +29,7 @@ shapes.
   frame and the result is composited in that same frame: no swapchain, no
   added latency, 3D and UI in sync. When the UI redraws for its own reasons
   and nothing requests a frame, the last images are reused and the
-  application is not called.
+  application is not called - except for a direct view (below).
 - **Two primitives.** A brush over a texture; and a frame hook in the
   widget hierarchy, tied to a shared handle, called once per window frame
   with a list of views. A fixed-size image is the application's own
@@ -39,7 +39,7 @@ shapes.
   shows its own image, carries an application key, and is listed to its
   handle's hook. It has no callback of its own.
 - **The handle requests frames**, from any thread; a timed variant comes in
-  stage 4. A request makes every window holding a hook of that handle
+  stage 5. A request makes every window holding a hook of that handle
   produce a frame. Scope is per window: a handle used in two windows gets
   one call per window frame, each with that window's views.
 - **avg sees only the texture.** Filling it before the `Drawing` is painted
@@ -50,8 +50,13 @@ shapes.
   animations, entering and leaving nodes).
 - **Exact extent every frame, for the first version.** A view's extent is
   its exact animated size in that frame's drawing, so a size animation
-  means a new image size every frame. A view the hook does not update in a
-  frame shows its old image stretched to the new geometry.
+  means a new image size every frame. A textured view the hook does not
+  update in a frame shows its old image stretched to the new geometry.
+- **Direct views.** A view whose options allow it, and which covers the
+  whole window, is drawn by the engine straight into the window's UI
+  target: no texture of its own, no textured quad. Allowing is opt-in;
+  once allowed, detection is automatic each frame, with no special widget
+  (*Direct views*). It is a stage of the design, after the textured path.
 - **Stability** is aimed for only at the widget/modifier level. The render
   tree, avg and ase may change freely, with no seams added for them.
 - **Naming.** "View", not "surface": the effect branch already has
@@ -135,10 +140,20 @@ shapes.
   is the bound framebuffer's full size. The colour formats are
   `FORMAT_SRGBA`, `FORMAT_R8` and `FORMAT_RGBA16F`
   (`src/ase/include/ase/format.h`).
-- **The effect branch renders every frame offscreen**; backdrop effects
-  sample snapshots at `BackdropScope`s, stacked containers put later
-  children over earlier ones, and its ase adds `PipelineDesc`,
-  `makeShader`, `getClipSpaceAdjustment`, scissors and barriers.
+- **The effect branch renders every frame offscreen**; its ase adds
+  `PipelineDesc`, `makeShader`, `getClipSpaceAdjustment`, scissors and
+  barriers. The painter's *UI target* is a `TargetImage` per window, remade
+  on resize, cleared (opaque black, colour and depth) every frame and
+  copied to the window by one quad (`src/avg/src/painter.cpp`). z descends
+  in paint order under GL's default less-than test; opaque meshes draw
+  first (`src/avg/src/rendering.cpp`). Snapshots copy the UI target; the
+  root is an implicit scope. ase has no viewport state.
+- **The window's drawing.** The bridge puts a theme rectangle under the
+  root through `modifier::background` (`windowBackground`), which stacks,
+  and a stacked container paints each later child through
+  `Drawing::over`, inside a `BackdropScope`. So
+  `content | background(renderView(...))` draws the theme rectangle, then a
+  scope that starts with the view and holds `content` in a nested scope.
 
 ## The API, sketched
 
@@ -332,9 +347,11 @@ the drawn local size - the layout size at this frame's animated obb -
 times the window's scaling factor, rounded), `logicalSize()`,
 `scalingFactor()`, `key()`, `reason()` - *requested* (the handle has a due
 request), *created* (found for the first time), *revealed* (found again
-after frames unlisted, its texture released), *resized*, or none (listed
-while the hook runs for another reason) - the present call and target
-helper below, and a per-view resource slot (*Open questions* 4).
+after frames unlisted, its texture released), *resized*, *retargeted*
+(entering or leaving the direct path), *repaint* (a direct view on a frame
+painted for any other reason), or none (listed while the hook runs for
+another reason) - the present call and target helper below, a read-only
+`isDirect()`, and a per-view resource slot (*Open questions* 4).
 `pixelSize()` excludes any transform scale - static, from a zoomed
 container, or animated - so a scale-in keeps one size and a zoomed view
 is stretched (*Open questions* 8). A view drawn more than once takes the
@@ -345,7 +362,8 @@ due request, a view of it is *created*, *revealed* or *resized*, or the
 hook was just mounted (so it can make resources first). Created, revealed
 and resized views come only from new drawings, which already ride a frame,
 so a size animation calls the hook every frame; a hover animation
-elsewhere in the UI repaints without calling it.
+elsewhere in the UI repaints without calling it, unless a view of the
+handle is direct: then every frame the window paints calls it.
 
 **The key** is a template parameter, `RenderHandle<Key>` (an empty type by
 default, for the brush-only case), so `key()` is typed; registry, cells and
@@ -381,6 +399,8 @@ recreates it, with its textures, only when the size changes; it never
 retargets one an earlier submit may still use. A size animation therefore
 recreates and stalls on the GL queue every frame: a known limit of
 exact-extent sizing, which grow-only allocation (*Future stages*) lifts.
+When the view is direct, `target()` returns the window's UI target instead
+(*Direct views*); `present(texture)` is never direct.
 
 **Accepted textures.** `present` takes a non-empty `FORMAT_SRGBA` texture,
 the contract being SDR; `RGBA16F` waits for the HDR option. Proposed
@@ -436,13 +456,17 @@ questions* 1).
    tag; application slots and slots whose owner has expired (leaving
    views) are skipped. Views are grouped by handle; a view found for the
    first time is *created*, one found again after frames unlisted
-   *revealed*, a changed extent *resized*.
+   *revealed*, a changed extent *resized*. Views allowed to be direct are
+   then qualified, every frame, from the cached list and window size.
 4. **Call the due hooks**, once each, with their handle's views, from a
    copy of the hook list (strong references) so a callback cannot
    invalidate the iteration. A `present()` sets the view's slot at once.
+   In a frame with a direct view, the painter first submits the UI
+   target's clear on its own, so it precedes the hooks' submits.
 5. **Settle**: clear the slots of views not found, releasing their
-   textures and lazy targets (*Open questions* 5).
-6. **Paint, present and flush**, as today. Lowering reads each slot now, so
+   textures and lazy targets (*Open questions* 5), and of direct views.
+6. **Paint, present and flush**, as today, or, when a direct view's target
+   was taken, as *Direct views* orders it. Lowering reads each slot now, so
    an image presented in step 4 is composited in this frame. The bridge
    returns the earlier of the UI's delay and the earliest due hook, and
    **zero when `needsUpdate_` is set or a cell is pending after the
@@ -466,9 +490,10 @@ listed *revealed*; hooks run before the same frame's paint, so it is
 presented before it is composited, with no blank frame. **A request means
 the handle**: the next call lists every view as *requested*; the
 application redraws what it chooses. Animating one view is
-`handle.requestFrame()` plus the engine drawing only that view.
+`handle.requestFrame()` plus the engine drawing only that view. A direct
+view is also listed on every frame the window paints (*Direct views*).
 
-A listed view that is not presented keeps what its slot holds: its
+A listed textured view that is not presented keeps what its slot holds: its
 previous image, stretched over a changed extent; if never presented or
 released while unlisted, nothing, and whatever is behind shows (*Open
 questions* 2). The drawing never samples undefined memory.
@@ -536,11 +561,99 @@ clips only to rectangles, so this is how a viewport is rounded.
 - **Identity.** Size and transform changes make new nodes with an equal
   brush over the same slot; a rebuilt widget is a new view, *created*. A
   removed view dies with its widget, in a transaction.
-- **Options**, fixed per widget: depth format for the target helper (none,
-  or `FORMAT_DEPTH24_STENCIL8`), opaque (default on, *Open questions* 6),
-  later the colour format (the HDR hook).
+- **Options**: plain values fixed per widget - depth format for the
+  target helper (none, or `FORMAT_DEPTH24_STENCIL8`), opaque (default on,
+  *Open questions* 6), later the colour format (the HDR hook) - and one
+  signal, `allowDirect` (default off, *Direct views*).
 - **Layout and input**: stretches (natural size zero); input is the usual
   modifiers, in local logical coordinates.
+
+## Direct views
+
+A **direct view** is drawn by the engine straight into the window's UI
+target, with no texture of its own and no quad sampling one.
+
+**Opt-in, then automatic.** `allowDirect`, a per-placement `renderView`
+option (decided), allows it; setting it is the application's consent to
+the contract below. It only allows: an allowed view that does not qualify
+in a frame is textured. Off, `target()` always hands out the view's own
+framebuffer. `present(texture)` is never direct, whatever the option. On
+and qualifying, `target()` hands out the UI target (its formats, so the
+depth option does not apply) and the view's element is not painted; the
+read-only `isDirect()`, known before the hook runs, tells the engine.
+The option is a signal, as other bqui parameters are (`background`'s
+brush, `frame`'s radius and colour). avg knows nothing of direct views,
+so it skips the render tree: the view's state holds the current value,
+updated when its instance evaluates, and qualification reads it each
+frame. A change moves the view on the next frame by the transition rules
+below. Its cost is one more input to the view's instance; the other
+options stay plain values, fixed with the brush and target they shape.
+
+**Qualifying**, after bridge step 3, from the search's walk, each use
+also recording its walk position, its clip and whether it is inside an
+effect input. An allowed view is direct when it is opaque and found once;
+not inside an effect input (those paint into scratch targets); clipped by
+nothing inside the window; the unshaped form, whose fill is its mapping
+rectangle (avg cannot tell a rectangular `Shape` from another, so bqui
+answers from the view it built), with that mapping axis-aligned,
+unmirrored and covering the window; of the UI target's pixel size; and
+not followed by an effect reading a snapshot taken before it (below). No
+tint or group opacity exists to check. If two views qualify, the later in
+paint order is direct and the earlier, under it, stays textured.
+
+**The prefix.** "Precedes" means earlier in the renderer's walk: depth
+first, in element order, into clips and backdrop scopes but not effect
+inputs. Content reaches the UI target in that order: z descends along it,
+opaque meshes resolve by depth, blended ones follow in order, snapshots
+and effects are fenced by barriers. So an opaque view covering the target
+hides all that precedes it, and the painter skips it rather than
+requiring it absent. "Top level only" cannot hold: the root's content is
+always inside a backdrop scope (*Where the code is*), so enclosing scopes
+are allowed, and the window's theme rectangle is the usual prefix. A
+skipped element is still seen through a snapshot taken before the view
+(the root scope's, or one entered before it): textured, it holds the
+prefix; direct, the engine's pixels. Its readers are effects after the
+view in such a scope; `Drawing::over` gives each later child its own
+scope, so stacking never makes one, but a flat combination can, and it
+disqualifies the view: direct pixels always equal textured ones.
+
+**Frame order**, in a frame with a direct view:
+
+1. Before the hooks, the painter records the UI target's colour and depth
+   clear and submits it alone; today `clearWindow` only records, and
+   `flush` submits after the paint. FIFO puts it ahead of the engine.
+2. The hooks run; the engine's pipelines declare the UI target's formats.
+3. If its target was taken, the painter records a depth-only clear:
+   UI z lies in (0.5, 1) under a less-than test, and the engine's depth
+   would hide UI wherever it is nearer. It then paints the drawing without
+   the prefix and the view's element, presents and flushes.
+
+Backdrop snapshots above the view are taken in step 3, after the engine,
+so glass blurs the 3D as in the textured path; a `window.screenshot`
+readback follows the frame's submits and sees it too. If the hook
+presents instead, or takes neither, the frame paints textured after the
+early clear. ase has no viewport state, so the engine's draws cover the
+whole framebuffer: one reason the first version is fullscreen-only.
+
+**The contract.** The UI target is cleared every frame and remade on
+resize: a direct view has no old image to stretch or reuse. It is
+therefore **listed on every frame the window paints**, as *repaint* when
+no other reason applies, and must be drawn; "no update keeps the old
+image" does not hold, and a hover re-renders the 3D. An engine for which
+that costs too much leaves the option off or presents its own texture.
+A target taken with nothing drawn shows the clear colour, opaque black,
+the prefix still skipped. The UI target is a new framebuffer after a
+resize, and a view entering or leaving the direct path switches between
+it and its own, listed *retargeted*: engines take `target()` every frame,
+never keep it, and never change its attachments. A direct view's slot is
+cleared, so one leaving the direct path must be presented that frame,
+and one leaving the tree shows nothing during its exit.
+
+**What it saves**: one full-window colour texture and framebuffer, one
+full-window textured draw, and painting the prefix. For an engine that
+renders HDR and tone-maps, its tone-map pass writes into the UI target:
+the saving is one SDR texture and one blit, no more. Its HDR targets
+remain, and so does the painter's copy of the UI target to the window.
 
 ## Timed requests, and what is left for later
 
@@ -570,10 +683,13 @@ it repaints without calling the engine. Undocked into another window, it
 is a new view there, *created*.
 
 **Fullscreen background with glass.** `content | background(renderView(
-scene, mainCamera))`. On the effect branch `background` stacks, so a
-frosted-glass card's snapshot blurs the 3D. The engine presents its
-tone-mapped output directly: one full-window textured quad over a bare
-engine, plus the effects.
+scene, mainCamera, options))` with `allowDirect` set. The view covers the
+window, so it is direct: the engine renders into `target()`, the UI
+target, its tone-map pass writing there; the theme rectangle is skipped,
+and a frosted-glass card's snapshot, taken after the engine's commands,
+blurs the 3D. Every UI repaint calls the hook. Without the option, or
+with `present(texture)`, the output costs one full-window textured quad
+and a hover repaints without calling the engine.
 
 **Four viewports on one handle.** Four `renderView(scene, camera)` in a
 grid, one hook. A worker thread's `scene.requestFrame()` wakes the window
@@ -610,10 +726,23 @@ with the renderer's culling, the early return, mapping composition, uv
 under rotation and stretching, brush equality and the stage 1 brush
 sites.
 
+**Direct views (dummy).** Each failing condition - option off, a
+translucent view, two uses, an effect input, a cutting clip, the shaped
+form, an offset or mirrored mapping, a size mismatch, a later reader of an
+earlier snapshot - keeps the textured path; an allowed
+`background(renderView)` under the window background is direct. Recorded
+commands: the clear submitted before the hook's buffers, a depth-only
+clear after them, then no quad for the view and no theme rectangle; a
+hover repaint lists the view *repaint*; a resize and toggling the
+`allowDirect` signal list it *retargeted* with a new framebuffer; a
+target taken with nothing submitted paints the clear colour; `present`
+instead paints textured.
+
 **Real GL (manual, CI-dark).** sRGB round trip, row order, blending and
 glass over 3D need readback (`bquiheadlesstest` or the remote-screenshot
 branch's `window.screenshot`): a known clear colour must read back exactly
-inside the viewport, the background outside its rounded corner.
+inside the viewport, the background outside its rounded corner, and a
+direct view under glass must read back as its textured form does.
 
 ## Dependencies on unmerged work
 
@@ -647,13 +776,19 @@ Each stage is one PR, after the effect branch is on master.
    and 5, the view entries with `present(texture)` and the format check,
    the lazy target, the shown-image rules, leaving views (verifying the
    assumption above), options and the shaped form.
-4. **Timed requests.** The `GenericWindow` change, the bridge's combined
+4. **Direct views.** The search records walk position, enclosing clip and
+   effect-input nesting; the painter submits a clear on its own, clears
+   depth alone and paints with a prefix and an element skipped; bqui adds
+   `allowDirect`, qualification, `isDirect`, the UI target from
+   `target()`, the *repaint* and *retargeted* reasons and the frame order.
+   Dummy tests above; the glass readback by hand.
+5. **Timed requests.** The `GenericWindow` change, the bridge's combined
    delay and the timed form on the handle, tested under a pause token.
-5. **Demo and docs.** A 3D page in `testapp1` for the four uses, the
+6. **Demo and docs.** A 3D page in `testapp1` for the four uses, the
    screenshot script, the bqui readme, the bqui and avg `AGENTS.md`, and
    a `docs/decisions.md` entry.
 
-The ase 3D gaps proceed on their own and do not block stages 1-4.
+The ase 3D gaps proceed on their own and do not block stages 1-5.
 
 ## Future stages
 
@@ -672,8 +807,9 @@ The ase 3D gaps proceed on their own and do not block stages 1-4.
   textures. Stage 1 therefore keeps `present` a slot operation taking a
   texture, reads each slot once per paint, and does not tie a view's
   image to a toolkit-owned target - the reason (A) is only a helper.
-- **Into the window target:** saves the background's full-screen copy, but
-  the engine's depth collides with avg's; only if profiling says so.
+- **Partial direct views:** a view that does not cover the window drawn
+  into the UI target through a per-draw viewport, with a scissored depth
+  clear and an occlusion test in place of the skipped prefix.
 - **Foreign producers and external memory:** share-group GL, Vulkan,
   platform buffers, with explicit synchronisation.
 - **UI inside a 3D scene**, **whole-UI HDR** (the colour format becomes a
@@ -719,6 +855,16 @@ None of these is decided; each carries this note's recommendation.
     application-made context handed to `App` (engine-first apps, start-up
     work). *Recommendation:* frame object in stage 1; `App::renderContext`
     as its own later stage, after loader-thread safety is checked.
+15. **Skip the prefix or require the view first.** Requiring it first never
+    qualifies a view under the window background. *Recommendation:* skip.
+16. **Readers of an earlier snapshot** (an effect after the view in a scope
+    entered before it; stacking never makes one). *Recommendation:*
+    disqualify, so direct pixels always equal textured ones.
+17. **An undrawn direct view** shows the clear colour, opaque black, not
+    the theme. *Recommendation:* accept; the engine took the target.
+18. **The early clear.** `flush` also ends the uniform ring's frame; the
+    code does not settle whether two ring frames per window frame are
+    safe. *Recommendation:* a painter entry that submits only the clear.
 
 ## Non-goals
 
