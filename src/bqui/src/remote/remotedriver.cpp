@@ -201,7 +201,7 @@ public:
 
         if (pauseToken_)
         {
-            pauseToken_->onWake([this]
+            pauseToken_->setWakeCallback([this]
                 {
                     if (pendingStep_)
                         post([this] { resumeStep(); });

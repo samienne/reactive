@@ -30,8 +30,9 @@ namespace ase
      * one. Dropping it resumes the free-running cadence. Move-only: the token's
      * lifetime is the paused mode, so it cannot be copied.
      *
-     * Loop-thread-only: `Platform::pause()`, `step(dt)`, and this token's
-     * destruction must all be called from the loop thread. */
+     * Loop-thread-only: `Platform::pause()`, `step(dt)`, `finishStep()`,
+     * `setWakeCallback()`, and this token's destruction must all be called
+     * from the loop thread. */
     class ASE_EXPORT PauseToken
     {
     public:
@@ -54,7 +55,7 @@ namespace ase
          * A step skips a due window whose frames in flight are at their limit.
          * Reports whether the stepped frame is complete, which it is at once
          * when nothing was skipped. While it reports false, call it again from
-         * the `onWake` callback.
+         * the wake callback.
          */
         bool finishStep();
 
@@ -62,10 +63,12 @@ namespace ase
          * @brief Call `callback` on the loop thread each time the loop is
          * woken while paused, as a window finishing a frame in flight wakes it.
          *
-         * The platform holds one such callback for all its tokens. Destroying
-         * the token that set it clears it.
+         * A platform has one wake callback: setting one replaces whichever
+         * callback any token set before. It lasts only as long as this token,
+         * so destroying the token stops it, and leaves alone a callback another
+         * token set since.
          */
-        void onWake(std::function<void()> callback);
+        void setWakeCallback(std::function<void()> callback);
 
     private:
         friend class Platform;
@@ -74,7 +77,7 @@ namespace ase
         void release();
 
         std::shared_ptr<PlatformImpl> platform_;
-        bool hasWake_ = false;
+        std::shared_ptr<std::function<void()>> wake_;
     };
 
     class ASE_EXPORT Platform

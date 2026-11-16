@@ -244,7 +244,10 @@ void PlatformBase::resumeFrames()
         --pauseCount_;
 
     if (pauseCount_ == 0)
+    {
+        stepSkipped_.clear();
         requestFrame();
+    }
 }
 
 bool PlatformBase::stepFrame(std::chrono::microseconds dt)
@@ -274,9 +277,10 @@ bool PlatformBase::finishStepFrame()
     return stepSkipped_.empty();
 }
 
-void PlatformBase::setPausedWake(std::function<void()> callback)
+void PlatformBase::setWakeCallback(
+        std::weak_ptr<std::function<void()>> callback)
 {
-    pausedWake_ = std::move(callback);
+    wakeCallback_ = std::move(callback);
 }
 
 void PlatformBase::requestFrame()
@@ -287,10 +291,11 @@ void PlatformBase::requestFrame()
             {
                 wakePosted_ = false;
 
-                if (pauseCount_ != 0 && pausedWake_)
+                if (pauseCount_ != 0)
                 {
-                    auto wake = pausedWake_;
-                    wake();
+                    auto wake = wakeCallback_.lock();
+                    if (wake && *wake)
+                        (*wake)();
                 }
 
                 if (scheduleTick_)

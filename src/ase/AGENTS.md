@@ -67,9 +67,12 @@ are in the top-level `docs/`.
   the skipped windows: `finishStep()` renders those that have a slot by now, on
   the stepped frame's own time and dt, and reports whether any are left. While
   paused, each loop wake (`requestFrame`, which a completing fence calls) also
-  runs the callback set with `PauseToken::onWake`, on the loop thread, so the
-  holder knows when to call `finishStep()` again. The platform has one such
-  callback, not one per token. The dummy context can stand in for a busy GPU:
+  runs the callback set with `PauseToken::setWakeCallback`, on the loop thread,
+  so the holder knows when to call `finishStep()` again. The platform has one
+  such callback, not one per token: setting one replaces the last, and the
+  platform holds it weakly, so it ends with the token that set it and a stale
+  token cannot clear a newer one. Resuming the cadence forgets the skipped
+  windows. The dummy context can stand in for a busy GPU:
   `DummyRenderContext::holdFences()` leaves fences pending until
   `releaseFences()`.
 - **`PlatformImpl` is a pure interface; `PlatformBase` holds the shared guts.**
@@ -77,8 +80,8 @@ are in the top-level `docs/`.
   (`include/ase/platformimpl.h`) is only the public platform virtuals the
   `Platform` handle and its `PauseToken` call (`makeWindow`, `makeRenderContext`,
   `run`, `pauseFrames`/`resumeFrames`/`stepFrame`/`finishStepFrame`/
-  `setPausedWake`, `requestFrame`, `runLoop`) plus
-  the `getImplOfType` type-erasure plumbing. Every backend derives instead from
+  `setWakeCallback`, `requestFrame`, `runLoop`) plus the `getImplOfType`
+  type-erasure plumbing. Every backend derives instead from
   `PlatformBase` (`include/ase/platformbase.h`, `src/platformbase.cpp`), which
   owns the injected `loop_`, the shared frame-loop body, the pause/step state, and
   the loop-contract *protected* virtuals a backend fills in (`handleEvents`,

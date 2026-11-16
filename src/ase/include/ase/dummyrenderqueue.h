@@ -11,8 +11,10 @@ namespace ase
     class DummyRenderQueue : public RenderQueueImpl
     {
     public:
-        /** @brief Headless render queue: nothing draws and fences complete
-         * inline on submit(), unless they are being held. */
+        /**
+         * @brief Headless render queue: nothing draws and fences complete
+         * inline on submit(), unless they are being held.
+         */
         DummyRenderQueue() = default;
 
         // From RenderQueueImpl
