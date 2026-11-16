@@ -477,4 +477,14 @@ avg::Snapshot WindowBridge::snapshot() const
             std::chrono::duration_cast<std::chrono::milliseconds>(timer_));
 }
 
+bool WindowBridge::canCapture() const
+{
+    return aseWindow.canCapture();
+}
+
+void WindowBridge::captureNextFrame(ase::CaptureCallback callback)
+{
+    aseWindow.captureNextFrame(std::move(callback));
+}
+
 } // namespace bqui

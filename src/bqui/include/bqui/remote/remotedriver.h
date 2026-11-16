@@ -12,6 +12,7 @@
 #include <ase/keyevent.h>
 #include <ase/platform.h>
 #include <ase/pointerbuttonevent.h>
+#include <ase/readback.h>
 #include <ase/vector.h>
 
 #include <btl/runloop.h>
@@ -65,6 +66,23 @@ namespace bqui::remote
          * window-space box the window presents.
          */
         virtual avg::Snapshot snapshot() const = 0;
+
+        /**
+         * @brief Whether `captureNextFrame` can return pixels.
+         *
+         * When false, a capture fails with `ase::ReadbackError::Unsupported`.
+         * False unless overridden.
+         */
+        virtual bool canCapture() const;
+
+        /**
+         * @brief Capture the next frame this window presents.
+         *
+         * The callback runs exactly once, on any thread, with the contract of
+         * `ase::Window::captureNextFrame`. Unless overridden it fails with
+         * `ase::ReadbackError::Unsupported` before this call returns.
+         */
+        virtual void captureNextFrame(ase::CaptureCallback callback);
     };
 
     /**

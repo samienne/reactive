@@ -1,6 +1,7 @@
 # bqui — agent notes
 
-*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework.*
+*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework;
+the remote capture paragraph against `19e8c214` (2026-11-16).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -214,6 +215,21 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
   and pull marked methods' blobs itself.
 - **`base64Encode` (`src/remote/base64.h`) is the chunk encoding**, exported
   for its tests.
+
+**A capture result comes back on the render thread, not the loop.** No driver
+method arms a capture yet; one is to arm it through `captureOnLoop`
+(`src/remote/capture.h`, exported for its tests), which posts the result to the
+loop and drops it if the driver is gone by then. `window.list` reports
+`canCapture` from the same `RemoteWindow` seam. Two traps for the handler that
+arms one:
+
+- **The completion runs outside the driver's `ControllerScope`.** It is a loop
+  callback and is handed a `Controller&`, but the driver's controller slot,
+  which `safeSend` asserts, is unset there. Resolving a responder from it needs
+  a `ControllerScope` first, as the driver's private `post` sets up.
+- **A capture waits for the next present and schedules none.** The handler
+  must step the app or request a frame; a paused or idle app never completes
+  it.
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and

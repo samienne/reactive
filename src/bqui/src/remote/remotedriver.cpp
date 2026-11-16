@@ -31,6 +31,16 @@ using nlohmann::json;
 
 RemoteWindow::~RemoteWindow() = default;
 
+bool RemoteWindow::canCapture() const
+{
+    return false;
+}
+
+void RemoteWindow::captureNextFrame(ase::CaptureCallback callback)
+{
+    callback(ase::ReadbackError::Unsupported);
+}
+
 namespace
 {
 
@@ -631,7 +641,10 @@ private:
 
         json windows = json::array();
         for (auto& window : app_.liveWindows())
-            windows.push_back({ { "id", window.get().id().getValue() } });
+            windows.push_back({
+                    { "id", window.get().id().getValue() },
+                    { "canCapture", window.get().canCapture() },
+                    });
 
         return { { "windows", windows } };
     }
@@ -736,7 +749,8 @@ private:
             } });
 
         dispatcher_.add({ "window.list",
-            "List the live windows by id.",
+            "List the live windows by id, with whether each can be "
+            "captured (`canCapture`).",
             {},
             [this](json const& p, Responder&) { return windowList(p); } });
 
