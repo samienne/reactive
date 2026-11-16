@@ -801,3 +801,44 @@ TEST(ScratchPlan, aSharedValueLivesUntilItsLastReader)
     EXPECT_EQ(5u, plan.snapshots[0].lastUse);
     EXPECT_EQ(2u, plan.getPoolSize(halfKey));
 }
+
+TEST(ElementPass, needsAnOutputRegionGeometryAndNoInputs)
+{
+    Pass pass = regionPass({}, Divisor::Two, ase::FORMAT_RGBA16F, 3);
+    pass.shader.interface = samplers(2);
+
+    avg::ElementPass element = avg::makeElementPass(pass);
+    EXPECT_EQ(2u, element.getInputCount());
+    EXPECT_EQ(pass, element.getPass());
+    EXPECT_EQ(element, avg::makeElementPass(pass));
+
+    Pass withoutOutput = pass;
+    withoutOutput.output.reset();
+    EXPECT_THROW(avg::makeElementPass(withoutOutput), std::invalid_argument);
+
+    Pass withInputs = pass;
+    withInputs.inputs = { PassInput::backdrop(), PassInput::backdrop() };
+    EXPECT_THROW(avg::makeElementPass(withInputs), std::invalid_argument);
+
+    Pass negative = pass;
+    negative.padding = -1;
+    EXPECT_THROW(avg::makeElementPass(negative), std::invalid_argument);
+}
+
+TEST(ElementPass, reachesItsPaddingUnlessGivenLessPerAxis)
+{
+    Pass pass = regionPass({}, Divisor::Two, ase::FORMAT_RGBA16F, 3);
+    pass.shader.interface = samplers(1);
+
+    EXPECT_EQ(avg::Vector2i(3, 3), avg::makeElementPass(pass).getReach());
+
+    avg::ElementPass const horizontal = avg::makeElementPass(pass, nullptr,
+            avg::Vector2i(3, 0));
+    EXPECT_EQ(avg::Vector2i(3, 0), horizontal.getReach());
+    EXPECT_NE(avg::makeElementPass(pass), horizontal);
+
+    EXPECT_THROW(avg::makeElementPass(pass, nullptr, avg::Vector2i(4, 0)),
+            std::invalid_argument);
+    EXPECT_THROW(avg::makeElementPass(pass, nullptr, avg::Vector2i(0, -1)),
+            std::invalid_argument);
+}

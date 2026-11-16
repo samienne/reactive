@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vector.h"
 #include "avgvisibility.h"
 
 #include <ase/format.h>
@@ -221,6 +222,53 @@ namespace avg
 
     AVG_EXPORT std::ostream& operator<<(std::ostream& stream,
             Effect const& effect);
+
+    /**
+     * @brief The one pass an effect element runs over its inputs.
+     *
+     * An opaque value from a factory, like Effect. getPass() holds the
+     * shader, the padding, the parameters and the output: the scale and
+     * format of the element's result when another element reads it. Its
+     * inputs are empty and its geometry is Region. Copies share the pass;
+     * two are equal when their passes are.
+     */
+    class AVG_EXPORT ElementPass
+    {
+    public:
+        ElementPass(ElementPass const&) = default;
+        ~ElementPass();
+
+        ElementPass& operator=(ElementPass const&) = default;
+
+        Pass const& getPass() const;
+
+        /**
+         * @brief How many inputs the pass reads: the samplers its shader
+         * declares.
+         */
+        size_t getInputCount() const;
+
+        /**
+         * @brief How far the result reaches past the content of the
+         * element's sub-drawing inputs, per axis, in pixels of the output.
+         *
+         * The padding in both axes unless the factory gives less, as a
+         * blur in one direction does.
+         */
+        Vector2i getReach() const;
+
+        bool operator==(ElementPass const& rhs) const;
+        bool operator!=(ElementPass const& rhs) const;
+
+    private:
+        friend class EffectAccess;
+
+        struct Content;
+
+        explicit ElementPass(std::shared_ptr<Content const> content);
+
+        std::shared_ptr<Content const> content_;
+    };
 
     /**
      * @brief True when a and b come from the same factory, so lerp()
