@@ -1,7 +1,8 @@
 # bqui — agent notes
 
 *Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework;
-the remote capture paragraph against `19e8c214` (2026-11-16).*
+the remote capture paragraph against `19e8c214` (2026-11-16); the remote
+screenshot paragraph against `e2bb7232` (2026-11-16).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -250,11 +251,13 @@ whose frame has not rendered yet renders the zero-time frame then. What holds:
   `kCaptureUnsupported` (-32010), checked at request time and mapped again from
   the capture result; `Cancelled` and `Failed` are internal errors with the
   reason in the error data.
-- **Encoding runs on the btl thread pool.** The job crops and scales
-  (`planScreenshot` / `renderScreenshot`), encodes (`encodePng`,
+- **Encoding runs on the btl thread pool.** The loop plans the crop
+  (`planScreenshot`, `src/remote/screenshot.h`, beside the request parsing);
+  `ScreenshotEncoder` (`src/remote/screenshotencoder.h`) runs the job, which
+  crops and scales with `renderScreenshot`, encodes (`encodePng`,
   `src/remote/png.h`, zlib with a hand-written container) and posts the bytes
   back; the blob is added on the loop, so the outstanding cap is checked after
-  the encode. The driver's destructor waits for the jobs that have started,
+  the encode. Destroying the encoder waits for the jobs that have started,
   since each posts to the loop; one that starts later does nothing.
 - **A screenshot's geometry is read right after the frame it captures**: after
   each frame the driver renders, a screenshot whose window's
