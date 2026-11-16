@@ -9,7 +9,9 @@ frames.
 The app is client-agnostic and speaks plain JSON-RPC 2.0 over a framed stream.
 This bridge owns that stream (framing, request-id correlation, notifications)
 and re-exposes every protocol method as an MCP tool. The tool list is generated
-at startup from the app's own `system.describe`, so it never drifts.
+at startup from the app's own `system.describe`, so it never drifts. The
+`blob.*` methods are not tools: when a method answers with a blob descriptor,
+the bridge pulls the blob, releases it, and returns its content instead.
 
 Lifecycle: the app CONNECTS to an endpoint the client LISTENS on. So this
 bridge opens a loopback TCP listener, launches inspectorapp pointed at it,
@@ -30,6 +32,7 @@ generated tools, and exit — no MCP client needed.
 from __future__ import annotations
 
 import asyncio
+import base64
 import glob
 import json
 import os
@@ -188,11 +191,51 @@ def tool_schema(method: dict) -> dict:
     return {"type": "object", "properties": props, "required": required}
 
 
-async def run_mcp(conn: AppConnection, methods: list[dict]) -> None:
+def tool_methods(methods: list[dict]) -> list[dict]:
+    return [m for m in methods if not m["name"].startswith("blob.")]
+
+
+def blob_read_length(described: dict) -> int | None:
+    return described.get("limits", {}).get("blob", {}).get("maxRead")
+
+
+async def fetch_blob(conn: AppConnection, blob: dict,
+                     length: int | None) -> bytes:
+    """Pull a blob's bytes in chunks, then release it."""
+    data = bytearray()
+    try:
+        while True:
+            params = {"id": blob["id"], "offset": len(data)}
+            if length:
+                params["length"] = length
+            chunk = await conn.request("blob.read", params)
+            data += base64.b64decode(chunk["data"])
+            if chunk["end"]:
+                return bytes(data)
+    finally:
+        await conn.request("blob.release", {"id": blob["id"]})
+
+
+def blob_content(types: Any, blob: dict, data: bytes) -> Any:
+    content_type = blob.get("contentType", "")
+    if content_type.startswith("image/"):
+        return types.ImageContent(type="image", mimeType=content_type,
+                                  data=base64.b64encode(data).decode("ascii"))
+    if content_type.startswith("text/") or content_type.endswith("json"):
+        return types.TextContent(type="text", text=data.decode("utf-8"))
+    return types.TextContent(
+        type="text", text=f"{len(data)} bytes of {content_type}, base64: "
+                          + base64.b64encode(data).decode("ascii"))
+
+
+async def run_mcp(conn: AppConnection, methods: list[dict],
+                  read_length: int | None) -> None:
     import mcp.server.stdio
     import mcp.types as types
     from mcp.server import Server
 
+    methods = tool_methods(methods)
+    returns_blob = {m["name"] for m in methods if m.get("returnsBlob")}
     tools = [types.Tool(name=m["name"].replace(".", "_"),
                         description=m.get("doc", ""),
                         inputSchema=tool_schema(m)) for m in methods]
@@ -211,15 +254,20 @@ async def run_mcp(conn: AppConnection, methods: list[dict]) -> None:
         if method is None:
             raise ValueError(f"unknown tool {name}")
         result = await conn.request(method, arguments or None)
+        blob = result.get("blob") if isinstance(result, dict) else None
+        if method in returns_blob and isinstance(blob, dict):
+            data = await fetch_blob(conn, blob, read_length)
+            return [blob_content(types, blob, data)]
         return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
     async with mcp.server.stdio.stdio_server() as (r, w):
         await server.run(r, w, server.create_initialization_options())
 
 
-async def selftest(conn: AppConnection, methods: list[dict]) -> int:
+async def selftest(conn: AppConnection, methods: list[dict],
+                   read_length: int | None) -> int:
     print("methods:", [m["name"] for m in methods])
-    for m in methods:
+    for m in tool_methods(methods):
         print(f"  tool {m['name'].replace('.', '_')}  params={[p['name'] for p in m.get('params', [])]}")
     wl = await conn.request("window.list")
     print("window.list:", wl)
@@ -227,6 +275,11 @@ async def selftest(conn: AppConnection, methods: list[dict]) -> int:
         wid = wl["windows"][0]["id"]
         intro = await conn.request("window.introspect", {"window": wid})
         print("introspect ok, root type:", intro["introspection"].get("role") or intro["introspection"].get("name"))
+        tree = await conn.request("window.renderTree", {"window": wid, "asBlob": True})
+        data = await fetch_blob(conn, tree["blob"], read_length)
+        inline = await conn.request("window.renderTree", {"window": wid})
+        assert json.loads(data) == inline, "renderTree blob differs from the inline reply"
+        print("renderTree blob ok,", len(data), "bytes, same as the inline reply")
     print("SELFTEST OK")
     return 0
 
@@ -236,10 +289,11 @@ async def amain() -> int:
     await conn.start()
     described = await conn.request("system.describe")
     methods = described.get("methods", [])
+    read_length = blob_read_length(described)
     try:
         if "--selftest" in sys.argv:
-            return await selftest(conn, methods)
-        await run_mcp(conn, methods)
+            return await selftest(conn, methods, read_length)
+        await run_mcp(conn, methods, read_length)
         return 0
     finally:
         await conn.close()
