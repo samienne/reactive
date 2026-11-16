@@ -3,6 +3,8 @@
 #include "tcpsocket.h"
 
 #ifdef _WIN32
+#   include "overlappedwriter.h"
+
 #   include <btl/win32/nativehandle_win32.h>
 #else
 #   include <btl/posix/nativehandle_posix.h>
@@ -84,10 +86,23 @@ std::optional<TcpAddress> parseTcpEndpoint(std::string const& endpoint)
     return TcpAddress{ std::move(host), static_cast<uint16_t>(port) };
 }
 
+#ifdef _WIN32
+TcpTransport::TcpTransport(TcpSocket sock) :
+    sock_(sock),
+    writer_(std::make_unique<OverlappedWriter>(
+                reinterpret_cast<HANDLE>(static_cast<RawSocket>(sock))))
+{
+}
+#else
 TcpTransport::TcpTransport(TcpSocket sock) : sock_(sock) {}
+#endif
 
 TcpTransport::~TcpTransport()
 {
+#ifdef _WIN32
+    writer_->cancel();
+#endif
+
     if (static_cast<RawSocket>(sock_) != kInvalidSocket)
         closeRawSocket(static_cast<RawSocket>(sock_));
 }
@@ -166,6 +181,45 @@ btl::NativeHandle TcpTransport::nativeHandle()
     return btl::fromFd(static_cast<int>(static_cast<RawSocket>(sock_)));
 #endif
 }
+
+btl::NativeHandle TcpTransport::writableHandle()
+{
+#ifdef _WIN32
+    return btl::fromHandle(writer_->event());
+#else
+    return nativeHandle();
+#endif
+}
+
+size_t TcpTransport::writeReady(void const* data, size_t size)
+{
+#ifdef _WIN32
+    return writer_->write(data, size);
+#else
+    for (;;)
+    {
+        auto wrote = ::send(static_cast<RawSocket>(sock_), data, size,
+                kSendFlags | MSG_DONTWAIT);
+        if (wrote >= 0)
+            return static_cast<size_t>(wrote);
+
+        int err = lastSocketError();
+        if (err == EINTR)
+            continue;
+        if (err == EAGAIN || err == EWOULDBLOCK)
+            return 0;
+
+        throw tcpError("send");
+    }
+#endif
+}
+
+#ifdef _WIN32
+bool TcpTransport::writePending()
+{
+    return writer_->pending();
+}
+#endif
 
 bool TcpTransport::fillReady(std::string& out)
 {

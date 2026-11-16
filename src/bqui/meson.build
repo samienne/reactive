@@ -1,5 +1,6 @@
 libbquisrc = [
   'src/remote/introspectionjson.cpp',
+  'src/remote/overlappedwriter.cpp',
   'src/remote/remotedriver.cpp',
   'src/remote/streamtransport.cpp',
   'src/remote/pipetransport.cpp',
@@ -114,6 +115,7 @@ bquitestsrc = [
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
   'test/rendertreetest.cpp',
+  'test/scriptedtransport.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
   'test/transporttest.cpp',

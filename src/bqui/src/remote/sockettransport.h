@@ -29,11 +29,13 @@ namespace bqui::remote
 
         void close() override;
         btl::NativeHandle nativeHandle() override;
+        btl::NativeHandle writableHandle() override;
 
     protected:
         void writeAll(void const* data, size_t size) override;
         bool readAll(void* data, size_t size) override;
         bool fillReady(std::string& out) override;
+        size_t writeReady(void const* data, size_t size) override;
 
     private:
         int fd_;
