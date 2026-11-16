@@ -166,7 +166,11 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         Frame frame { steppedTime, dt };
 
         bool keepRunning = frameCallback(frame);
-        renderDirtyWindows(frame);
+
+        stepSkipped_.clear();
+        stepTime_ = frame.time;
+        stepDt_ = frame.dt;
+        renderDirtyWindows(frame, &stepSkipped_);
 
         return keepRunning;
     };
@@ -196,7 +200,8 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     stepFrame_ = nullptr;
 }
 
-void PlatformBase::renderDirtyWindows(Frame const& frame)
+void PlatformBase::renderDirtyWindows(Frame const& frame,
+        std::vector<std::weak_ptr<WindowBase>>* skipped)
 {
     ZoneScopedN("renderDirtyWindows");
 
@@ -210,15 +215,23 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
             // saturated one is skipped without blocking, and its fence wakes the
             // loop through requestFrame() to retry it.
             auto due = window->nextFrameTime();
-            if (due && *due <= frame.time && window->canAcquire())
-            {
-                window->frame(frame);
-                window->submitFrameFence([this] { requestFrame(); });
-            }
+            if (!due || *due > frame.time)
+                continue;
+
+            if (window->canAcquire())
+                renderWindow(*window, frame);
+            else if (skipped)
+                skipped->push_back(weakWindow);
         }
     }
 
     FrameMark;
+}
+
+void PlatformBase::renderWindow(WindowBase& window, Frame const& frame)
+{
+    window.frame(frame);
+    window.submitFrameFence([this] { requestFrame(); });
 }
 
 std::optional<std::chrono::microseconds>
@@ -271,12 +284,43 @@ void PlatformBase::resumeFrames()
         --pauseCount_;
 
     if (pauseCount_ == 0)
+    {
+        stepSkipped_.clear();
         requestFrame();
+    }
 }
 
 bool PlatformBase::stepFrame(std::chrono::microseconds dt)
 {
     return stepFrame_ ? stepFrame_(dt) : false;
+}
+
+bool PlatformBase::finishStepFrame()
+{
+    auto owed = std::move(stepSkipped_);
+    stepSkipped_.clear();
+
+    Frame frame { stepTime_, stepDt_ };
+
+    for (auto& weakWindow : owed)
+    {
+        auto window = weakWindow.lock();
+        if (!window)
+            continue;
+
+        if (window->canAcquire())
+            renderWindow(*window, frame);
+        else
+            stepSkipped_.push_back(std::move(weakWindow));
+    }
+
+    return stepSkipped_.empty();
+}
+
+void PlatformBase::setWakeCallback(
+        std::weak_ptr<std::function<void()>> callback)
+{
+    wakeCallback_ = std::move(callback);
 }
 
 void PlatformBase::requestFrame()
@@ -286,6 +330,14 @@ void PlatformBase::requestFrame()
         loop_.post([this](btl::RunLoop::Controller& controller)
             {
                 wakePosted_ = false;
+
+                if (pauseCount_ != 0)
+                {
+                    auto wake = wakeCallback_.lock();
+                    if (wake && *wake)
+                        (*wake)();
+                }
+
                 if (scheduleTick_)
                     scheduleTick_(controller);
             });

@@ -72,13 +72,26 @@ are in the top-level `docs/`.
   produces one frame off the same callback/render path an auto tick takes;
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
   pumping), and dropping the token resumes the cadence. `step` lives only on the
-  token, so a free-running loop cannot be stepped by construction.
+  token, so a free-running loop cannot be stepped by construction. A step, like
+  a tick, skips a due window that has no free in-flight slot, but it remembers
+  the skipped windows: `finishStep()` renders those that have a slot by now, on
+  the stepped frame's own time and dt, and reports whether any are left. While
+  paused, each loop wake (`requestFrame`, which a completing fence calls) also
+  runs the callback set with `PauseToken::setWakeCallback`, on the loop thread,
+  so the holder knows when to call `finishStep()` again. The platform has one
+  such callback, not one per token: setting one replaces the last, and the
+  platform holds it weakly, so it ends with the token that set it and a stale
+  token cannot clear a newer one. Resuming the cadence forgets the skipped
+  windows. The dummy context can stand in for a busy GPU:
+  `DummyRenderContext::holdFences()` leaves fences pending until
+  `releaseFences()`.
 - **`PlatformImpl` is a pure interface; `PlatformBase` holds the shared guts.**
   Mirroring the `WindowImpl`/`WindowBase` split below: `PlatformImpl`
   (`include/ase/platformimpl.h`) is only the public platform virtuals the
   `Platform` handle and its `PauseToken` call (`makeWindow`, `makeRenderContext`,
-  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`, `requestFrame`, `runLoop`) plus
-  the `getImplOfType` type-erasure plumbing. Every backend derives instead from
+  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`/`finishStepFrame`/
+  `setWakeCallback`, `requestFrame`, `runLoop`) plus the `getImplOfType`
+  type-erasure plumbing. Every backend derives instead from
   `PlatformBase` (`include/ase/platformbase.h`, `src/platformbase.cpp`), which
   owns the injected `loop_`, the shared frame-loop body, the pause/step state, and
   the loop-contract *protected* virtuals a backend fills in (`handleEvents`,
