@@ -237,7 +237,7 @@ namespace
     };
 
     // A fake that can capture: it holds each armed callback until the test
-    // completes it, as a render thread would.
+    // completes it.
     class CapturableFakeWindow : public FakeRemoteWindow
     {
     public:
@@ -364,9 +364,20 @@ namespace
             serverThread.join();
         }
     };
+
+    [[nodiscard]] btl::RunLoop::Timer failUnlessStoppedSoon(
+            btl::RunLoop::Controller& controller)
+    {
+        return controller.addTimer(std::chrono::seconds(10),
+                [](btl::RunLoop::Controller& c)
+                {
+                    ADD_FAILURE() << "the capture result never arrived";
+                    c.stop();
+                });
+    }
 } // namespace
 
-TEST(session, windowListReturnsIdsOnly)
+TEST(session, windowListIdentifiesById)
 {
     auto idA = btl::makeUniqueId();
     auto idB = btl::makeUniqueId();
@@ -411,9 +422,11 @@ TEST(session, captureResultReachesTheLoopThread)
 
     std::optional<ase::CaptureResult> received;
     std::thread::id receivedOn;
+    btl::RunLoop::Timer guard;
 
     loop.post([&](btl::RunLoop::Controller& controller)
         {
+            guard = failUnlessStoppedSoon(controller);
             captureOnLoop(window, loop, alive,
                     [&](btl::RunLoop::Controller& c, ase::CaptureResult result)
                     {
@@ -430,7 +443,6 @@ TEST(session, captureResultReachesTheLoopThread)
                 return;
             }
 
-            // Complete it from another thread, as a render thread would.
             std::thread([callback = std::move(armed.front())]
                 {
                     ase::FrameCapture capture;
@@ -458,9 +470,11 @@ TEST(session, unsupportedCaptureIsDeliveredLaterNotInline)
 
     std::optional<ase::CaptureResult> received;
     bool armedReturned = false;
+    btl::RunLoop::Timer guard;
 
-    loop.post([&](btl::RunLoop::Controller&)
+    loop.post([&](btl::RunLoop::Controller& controller)
         {
+            guard = failUnlessStoppedSoon(controller);
             captureOnLoop(window, loop, alive,
                     [&](btl::RunLoop::Controller& controller,
                         ase::CaptureResult result)
@@ -495,7 +509,9 @@ TEST(session, captureResultIsDroppedOnceTheOwnerIsGone)
                     });
 
             alive.reset();
-            for (auto& callback : window.takeArmed())
+            auto armed = window.takeArmed();
+            EXPECT_EQ(1u, armed.size());
+            for (auto& callback : armed)
                 callback(ase::ReadbackError::Cancelled);
 
             // Posted after the result, so it runs after the dropped delivery.
