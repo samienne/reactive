@@ -70,34 +70,6 @@ bool hasBrushAnimationEnded(std::optional<Animated<Brush>> const& brush,
     return !brush || brush->hasAnimationEnded(time);
 }
 
-UpdateResult updatedChild(
-        RenderTree const& oldTree,
-        RenderTree const& newTree,
-        std::shared_ptr<RenderTreeNode> const& oldChild,
-        std::shared_ptr<RenderTreeNode> const& newChild,
-        std::optional<AnimationOptions> const& options,
-        std::chrono::milliseconds time
-        )
-{
-    if (!oldChild && !newChild)
-        return { nullptr, std::nullopt };
-
-    if (!oldChild)
-        return newChild->update(oldTree, newTree, nullptr, newChild, options,
-                time);
-
-    if (!newChild)
-        return oldChild->update(oldTree, newTree, oldChild, nullptr, options,
-                time);
-
-    if (oldChild->getId() != newChild->getId())
-        return newChild->update(oldTree, newTree, nullptr, newChild, options,
-                time);
-
-    return newChild->update(oldTree, newTree, oldChild, newChild, options,
-            time);
-}
-
 } // anonymous namespace
 
 SurfaceNode::SurfaceNode(
@@ -136,7 +108,7 @@ UpdateResult SurfaceNode::update(
         // Appear
         auto const& surface = asSurface(newNode);
 
-        auto [child, nextUpdate] = updatedChild(oldTree, newTree, nullptr,
+        auto [child, nextUpdate] = updateNode(oldTree, newTree, nullptr,
                 surface.childNode_, animationOptions, time);
 
         if (!child)
@@ -161,7 +133,7 @@ UpdateResult SurfaceNode::update(
         // Disappear
         auto const& surface = asSurface(oldNode);
 
-        auto [child, nextUpdate] = updatedChild(oldTree, newTree,
+        auto [child, nextUpdate] = updateNode(oldTree, newTree,
                 surface.childNode_, nullptr, animationOptions, time);
 
         if (!child)
@@ -191,7 +163,7 @@ UpdateResult SurfaceNode::update(
         : animationOptions
         ;
 
-    auto [child, nextUpdate] = updatedChild(oldTree, newTree,
+    auto [child, nextUpdate] = updateNode(oldTree, newTree,
             oldSurface.childNode_, newSurface.childNode_, animationOptions,
             time);
 
