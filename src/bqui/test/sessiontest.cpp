@@ -46,6 +46,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -521,6 +522,66 @@ TEST(session, captureResultIsDroppedOnceTheOwnerIsGone)
     loop.run();
 
     EXPECT_FALSE(delivered);
+}
+
+TEST(session, captureCompletionIsDestroyedOnTheLoopThread)
+{
+    struct RecordsDestroyingThread
+    {
+        explicit RecordsDestroyingThread(std::thread::id* where)
+            : destroyedOn(where)
+        {
+        }
+
+        ~RecordsDestroyingThread()
+        {
+            *destroyedOn = std::this_thread::get_id();
+        }
+
+        std::thread::id* destroyedOn;
+    };
+
+    CapturableFakeWindow window(btl::makeUniqueId(), "w");
+    btl::RunLoop loop;
+    auto alive = std::make_shared<bool>(true);
+
+    std::thread::id destroyedOn;
+    std::promise<void> loopDone;
+    std::thread completer;
+    btl::RunLoop::Timer guard;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            guard = failUnlessStoppedSoon(controller);
+            auto recorder =
+                std::make_shared<RecordsDestroyingThread>(&destroyedOn);
+            captureOnLoop(window, loop, alive,
+                    [recorder = std::move(recorder)](
+                        btl::RunLoop::Controller& c, ase::CaptureResult)
+                    {
+                        c.stop();
+                    });
+
+            auto armed = window.takeArmed();
+            ASSERT_EQ(1u, armed.size());
+
+            // Holds the completed callback until the loop is done, so any copy
+            // of the completion left in it would be destroyed last, here.
+            completer = std::thread(
+                    [callback = std::move(armed.front()),
+                    done = loopDone.get_future()]() mutable
+                    {
+                        callback(ase::ReadbackError::Cancelled);
+                        done.wait();
+                    });
+        });
+
+    loop.run();
+    loopDone.set_value();
+    if (completer.joinable())
+        completer.join();
+
+    EXPECT_EQ(std::this_thread::get_id(), destroyedOn);
 }
 
 TEST(session, introspectResolvesByIdAndErrorsOnUnknown)

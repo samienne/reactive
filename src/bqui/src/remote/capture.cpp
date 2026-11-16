@@ -10,9 +10,10 @@ void captureOnLoop(RemoteWindow& window, btl::RunLoop& loop,
 {
     window.captureNextFrame(
             [&loop, alive = std::move(alive), done = std::move(done)](
-                ase::CaptureResult result)
+                ase::CaptureResult result) mutable
             {
-                loop.post([alive, done, result = std::move(result)](
+                loop.post([alive = std::move(alive), done = std::move(done),
+                        result = std::move(result)](
                             btl::RunLoop::Controller& controller) mutable
                     {
                         if (alive.expired())

@@ -26,6 +26,10 @@ namespace bqui::remote
      * `done` runs in a loop callback of its own, never inside this call, and
      * not at all once `alive` has expired by then. `loop` must outlive the
      * window's pending capture.
+     *
+     * Once the window completes the capture, only the posted task owns `done`,
+     * so `done` is destroyed on `loop`'s thread; if the loop never runs the
+     * task, it is destroyed with the loop instead.
      */
     BQUI_EXPORT void captureOnLoop(RemoteWindow& window, btl::RunLoop& loop,
             std::weak_ptr<void> alive, LoopCaptureCallback done);
