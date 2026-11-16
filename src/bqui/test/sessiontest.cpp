@@ -1237,14 +1237,16 @@ TEST(session, shutdownGivesUpOnAClientThatStopsReading)
 namespace
 {
     // Forwards to the driver's transport, reporting each frame the driver
-    // queues at the moment it queues it.
+    // queues at the moment it queues it, and when it finds the input ended.
     class RecordingTransport : public Transport
     {
     public:
         RecordingTransport(Transport& inner,
-                std::function<void(std::string const&)> onEnqueue) :
+                std::function<void(std::string const&)> onEnqueue,
+                std::function<void()> onDisconnected) :
             inner_(inner),
-            onEnqueue_(std::move(onEnqueue))
+            onEnqueue_(std::move(onEnqueue)),
+            onDisconnected_(std::move(onDisconnected))
         {
         }
 
@@ -1262,7 +1264,13 @@ namespace
         {
             return inner_.receiveReady();
         }
-        bool disconnected() const override { return inner_.disconnected(); }
+        bool disconnected() const override
+        {
+            bool ended = inner_.disconnected();
+            if (ended)
+                onDisconnected_();
+            return ended;
+        }
         void enqueue(std::string const& frame) override
         {
             onEnqueue_(frame);
@@ -1277,6 +1285,7 @@ namespace
     private:
         Transport& inner_;
         std::function<void(std::string const&)> onEnqueue_;
+        std::function<void()> onDisconnected_;
     };
 
     // Serve the driver over a paused dummy platform with one window that is
@@ -1306,6 +1315,7 @@ namespace
         std::condition_variable changed;
         int appFrames = 0;
         int rendered = 0;
+        int inputEnds = 0;
         std::vector<QueuedReply> replies;
 
         explicit SteppedPlatformFixture(std::string const& name,
@@ -1313,7 +1323,22 @@ namespace
         {
             auto endpoint = uniqueEndpoint(name);
             listener = listen(endpoint);
+            start(endpoint, stepTimeout);
+        }
 
+        struct Tcp {};
+
+        explicit SteppedPlatformFixture(Tcp)
+        {
+            auto tcp = tcpListen(*parseTcpEndpoint("127.0.0.1:0"));
+            auto endpoint = "127.0.0.1:" + std::to_string(tcp->port());
+            listener = std::move(tcp);
+            start(endpoint, kStepTimeout);
+        }
+
+        void start(std::string const& endpoint,
+                std::chrono::milliseconds stepTimeout)
+        {
             serverThread = std::thread([this, stepTimeout]
                 {
                     auto server = listener->accept();
@@ -1339,7 +1364,8 @@ namespace
                             [this](std::string const& frame)
                             {
                                 record(frame);
-                            });
+                            },
+                            [this] { count(inputEnds); });
 
                     RemoteApp app;
                     app.step = [](std::chrono::microseconds) { return true; };
@@ -1386,6 +1412,20 @@ namespace
         {
             std::unique_lock<std::mutex> lock(mutex);
             changed.wait(lock, [&] { return appFrames >= frames; });
+        }
+
+        void waitForInputEnd()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            changed.wait(lock, [&] { return inputEnds > 0; });
+        }
+
+        void releaseFences()
+        {
+            loop.post([this](btl::RunLoop::Controller&)
+                {
+                    context->releaseFences();
+                });
         }
 
         int renderedCount()
@@ -1492,13 +1532,13 @@ TEST(session, multiFrameStepRendersEachFrameBeforeTheNext)
     EXPECT_EQ(5, s.renderedCount());
 }
 
-TEST(session, disconnectWhileAStepIsPendingDropsItsReply)
+TEST(session, disconnectWhileAStepIsPendingEndsAtTheDeadline)
 {
-    SteppedPlatformFixture s("stepdisconnect");
+    SteppedPlatformFixture s("stepdisconnect", std::chrono::milliseconds(100));
 
     s.call("app.step", { { "count", 2 } });
 
-    int stepId = s.send("app.step");
+    s.send("app.step");
     s.waitForAppFrames(3);
 
     // The fixture releases the fences once the session is over and the driver
@@ -1506,9 +1546,31 @@ TEST(session, disconnectWhileAStepIsPendingDropsItsReply)
     s.client.reset();
     s.serverThread.join();
 
-    for (auto const& reply : s.queuedReplies())
-        EXPECT_NE(stepId, reply.id);
     EXPECT_EQ(2, s.renderedCount());
+}
+
+TEST(session, halfClosedClientStillGetsADeferredStepReply)
+{
+    SteppedPlatformFixture s(SteppedPlatformFixture::Tcp{});
+
+    s.call("app.step", { { "count", 2 } });
+
+    int stepId = s.send("app.step");
+    int pauseId = s.send("app.pause");
+    testkit::shutdownSending(*s.client);
+
+    s.waitForInputEnd();
+    s.releaseFences();
+
+    auto step = awaitResponse(*s.client, stepId);
+    auto pause = awaitResponse(*s.client, pauseId);
+    ASSERT_TRUE(step.is_object());
+    ASSERT_TRUE(pause.is_object());
+    EXPECT_EQ(3u, step.at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(3u, pause.at("result").at("frame").get<uint64_t>());
+
+    EXPECT_FALSE(s.client->receive());
+    s.serverThread.join();
 }
 
 TEST(session, stepResumedAfterTheDriverIsGoneDoesNothing)

@@ -289,8 +289,17 @@ private:
         if (transport_->disconnected())
             readable_ = btl::RunLoop::Source();
 
-        if (shuttingDown_ || transport_->disconnected())
+        // A step still waiting on its frame answers once it renders, as do the
+        // requests queued behind it; the step deadline bounds that wait.
+        if (shuttingDown_)
             finish();
+        else if (transport_->disconnected())
+        {
+            if (pendingStep_ && !closed_)
+                inputEnded_ = true;
+            else
+                finish();
+        }
     }
 
     void safeSend(std::string const& frame)
@@ -591,7 +600,7 @@ private:
         answer(step.responder);
         step.gate.release();
 
-        if (shuttingDown_)
+        if (shuttingDown_ || (inputEnded_ && !pendingStep_))
             finish();
     }
 
@@ -755,6 +764,7 @@ private:
     uint64_t frame_ = 0;
     State state_ = State::Paused;
     bool shuttingDown_ = false;
+    bool inputEnded_ = false;
     bool closed_ = false;
     bool frameNotifications_ = false;
     bool ticking_ = false;
