@@ -2,6 +2,7 @@
 #include "bqui/remote/transport.h"
 
 #include "debug.h"
+#include "dispatcher.h"
 #include "introspectionjson.h"
 
 #include <avg/rendertree/snapshot.h>
@@ -14,6 +15,7 @@
 #include <csignal>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -30,42 +32,12 @@ RemoteWindow::~RemoteWindow() = default;
 namespace
 {
 
-// Standard JSON-RPC 2.0 error codes.
-constexpr int kParseError = -32700;
-constexpr int kInvalidRequest = -32600;
-constexpr int kMethodNotFound = -32601;
-constexpr int kInvalidParams = -32602;
-constexpr int kInternalError = -32603;
-
 // One nominal frame at ~60 Hz — the default step when a client gives no dt.
 constexpr int64_t kNominalFrameUs = 16667;
 
 // How long an orderly shutdown waits for the client to take more of a queued
 // reply before giving up on it.
 constexpr std::chrono::seconds kShutdownFlushTimeout{ 2 };
-
-// A handler failure carrying a JSON-RPC error code.
-struct RpcError
-{
-    int code;
-    std::string message;
-    json data = nullptr;
-};
-
-struct ParamSpec
-{
-    char const* name;
-    char const* type;
-    bool required;
-};
-
-struct Method
-{
-    std::string name;
-    std::string doc;
-    std::vector<ParamSpec> params;
-    std::function<json(json const&)> handler;
-};
 
 // --- Field readers: type-checked, defaulting rather than throwing ---------
 
@@ -216,7 +188,8 @@ public:
         loop_(loop),
         transport_(&transport),
         app_(std::move(app)),
-        pauseToken_(std::move(pauseToken))
+        pauseToken_(std::move(pauseToken)),
+        dispatcher_([this](std::string const& frame) { safeSend(frame); })
     {
 #ifdef SIGPIPE
         // Linux has no per-socket SIGPIPE suppression, so ignore it
@@ -240,6 +213,11 @@ public:
         });
     }
 
+    ~Impl()
+    {
+        endSession();
+    }
+
 private:
     enum class State { Paused, Running };
 
@@ -259,6 +237,21 @@ private:
         receive();
     }
 
+    // Runs `task` in a loop callback of its own, unless the driver is gone by
+    // then.
+    void post(std::function<void()> task)
+    {
+        loop_.post([this, alive = std::weak_ptr<bool>(alive_),
+                task = std::move(task)](btl::RunLoop::Controller& controller)
+            {
+                if (alive.expired())
+                    return;
+
+                ControllerScope scope(controller_, controller);
+                task();
+            });
+    }
+
     // Keeps draining while shutting down, so a readable channel does not spin
     // the loop while the last reply flushes; those frames are discarded.
     void receive()
@@ -268,7 +261,7 @@ private:
             if (shuttingDown_)
                 break;
 
-            dispatch(frame);
+            dispatcher_.dispatch(std::move(frame));
         }
 
         // A peer that only half-closed still reads, so the queue keeps
@@ -280,12 +273,6 @@ private:
             finish();
     }
 
-    void dispatch(std::string const& frame)
-    {
-        if (auto reply = handleFrame(frame))
-            safeSend(*reply);
-    }
-
     void safeSend(std::string const& frame)
     {
         if (closed_)
@@ -294,6 +281,28 @@ private:
         try
         {
             transport_->enqueue(frame);
+        }
+        catch (std::exception const& e)
+        {
+            close(e.what());
+            return;
+        }
+
+        // A responder may answer from a loop callback that is not the
+        // driver's, where there is no Controller to register a source with.
+        if (controller_)
+            flushQueued();
+        else
+            post([this] { flushQueued(); });
+    }
+
+    void flushQueued()
+    {
+        if (closed_)
+            return;
+
+        try
+        {
             flush();
         }
         catch (std::exception const& e)
@@ -321,17 +330,9 @@ private:
     {
         ControllerScope scope(controller_, controller);
 
-        try
-        {
-            flush();
-        }
-        catch (std::exception const& e)
-        {
-            close(e.what());
-            return;
-        }
+        flushQueued();
 
-        if (!shuttingDown_)
+        if (closed_ || !shuttingDown_)
             return;
 
         if (writable_.id() == 0)
@@ -340,17 +341,29 @@ private:
             armFlushTimeout();
     }
 
+    void beginShutdown()
+    {
+        shuttingDown_ = true;
+        dispatcher_.stop();
+    }
+
+    void endSession()
+    {
+        shuttingDown_ = true;
+        dispatcher_.end();
+    }
+
     void close(char const* reason)
     {
         DBG("Remote connection closed: %1", reason);
         closed_ = true;
-        shuttingDown_ = true;
+        endSession();
         stop();
     }
 
     void finish()
     {
-        shuttingDown_ = true;
+        endSession();
 
         if (writable_.id() == 0)
             stop();
@@ -416,7 +429,7 @@ private:
         bool keepRunning = pauseToken_ ? pauseToken_->step(dt) : app_.step(dt);
         ++frame_;
         if (!keepRunning)
-            shuttingDown_ = true;
+            beginShutdown();
     }
 
     void sendFrameNotification(std::chrono::microseconds dt)
@@ -432,120 +445,12 @@ private:
         safeSend(note.dump());
     }
 
-    Method const* findMethod(std::string const& name) const
-    {
-        for (auto const& method : registry_)
-            if (method.name == name)
-                return &method;
-
-        return nullptr;
-    }
-
-    std::optional<std::string> handleFrame(std::string const& frame)
-    {
-        json request = json::parse(frame, nullptr, /*allow_exceptions=*/false);
-
-        if (request.is_discarded())
-            return errorFrame(json(), kParseError, "Parse error");
-
-        if (!request.is_object())
-            return errorFrame(json(), kInvalidRequest, "Invalid request");
-
-        json id = request.contains("id") ? request["id"] : json();
-
-        auto methodIt = request.find("method");
-        if (methodIt == request.end() || !methodIt->is_string())
-            return errorFrame(id, kInvalidRequest,
-                    "Invalid request: 'method' must be a string");
-
-        // A request without an `id` is a notification: never answered, even on
-        // error.
-        bool notification = !request.contains("id");
-
-        std::string method = methodIt->get<std::string>();
-        json params = request.contains("params") ? request["params"]
-                                                  : json::object();
-
-        Method const* entry = findMethod(method);
-        if (!entry)
-            return maybeReply(notification,
-                    errorFrame(id, kMethodNotFound,
-                        "Method not found: " + method));
-
-        try
-        {
-            checkRequiredParams(*entry, params);
-            json result = entry->handler(params);
-            return maybeReply(notification, resultFrame(id, result));
-        }
-        catch (RpcError const& e)
-        {
-            return maybeReply(notification,
-                    errorFrame(id, e.code, e.message, e.data));
-        }
-        catch (std::exception const& e)
-        {
-            return maybeReply(notification,
-                    errorFrame(id, kInternalError, e.what()));
-        }
-    }
-
-    static std::optional<std::string> maybeReply(bool notification,
-            std::string reply)
-    {
-        if (notification)
-            return std::nullopt;
-        return reply;
-    }
-
-    static void checkRequiredParams(Method const& method, json const& params)
-    {
-        for (auto const& param : method.params)
-        {
-            if (!param.required)
-                continue;
-
-            if (!params.is_object() || !params.contains(param.name))
-                throw RpcError{ kInvalidParams,
-                    std::string("missing required parameter '")
-                        + param.name + "'" };
-        }
-    }
-
-    static std::string resultFrame(json const& id, json const& result)
-    {
-        json reply = {
-            { "jsonrpc", "2.0" },
-            { "id", id },
-            { "result", result },
-        };
-        return reply.dump();
-    }
-
-    static std::string errorFrame(json const& id, int code,
-            std::string const& message, json const& data = json())
-    {
-        json error = {
-            { "code", code },
-            { "message", message },
-        };
-        if (!data.is_null())
-            error["data"] = data;
-
-        json reply = {
-            { "jsonrpc", "2.0" },
-            { "id", id },
-            { "error", error },
-        };
-        return reply.dump();
-    }
-
     // --- Handlers ---------------------------------------------------------
 
     json describe(json const&) const
     {
         json methods = json::array();
-        for (auto const& method : registry_)
+        for (auto const& method : dispatcher_.methods())
         {
             json params = json::array();
             for (auto const& param : method.params)
@@ -604,7 +509,7 @@ private:
 
     json shutdown(json const&)
     {
-        shuttingDown_ = true;
+        beginShutdown();
         return json::object();
     }
 
@@ -672,62 +577,71 @@ private:
 
     void buildRegistry()
     {
-        registry_.push_back({ "system.describe",
+        dispatcher_.add({ "system.describe",
             "List every method, its doc, and its parameter schema.",
             {},
-            [this](json const& p) { return describe(p); } });
+            [this](json const& p, Responder&) { return describe(p); } });
 
-        registry_.push_back({ "app.run",
+        dispatcher_.add({ "app.run",
             "Enter running mode: free-run frames until paused or shut down.",
             {},
-            [this](json const& p) { return run(p); } });
+            [this](json const& p, Responder&) { return run(p); } });
 
-        registry_.push_back({ "app.pause",
+        dispatcher_.add({ "app.pause",
             "Enter paused mode: hold the current frame until told otherwise.",
             {},
-            [this](json const& p) { return pause(p); } });
+            [this](json const& p, Responder&) { return pause(p); } });
 
-        registry_.push_back({ "app.step",
+        dispatcher_.add({ "app.step",
             "Advance `count` frames by `dt_us` each, then stay paused.",
             {
                 { "count", "number", false },
                 { "dt_us", "number", false },
             },
-            [this](json const& p) { return step(p); } });
+            [this](json const& p, Responder&) { return step(p); } });
 
-        registry_.push_back({ "app.shutdown",
+        dispatcher_.add({ "app.shutdown",
             "End the session and let the app release its windows.",
             {},
-            [this](json const& p) { return shutdown(p); } });
+            [this](json const& p, Responder&) { return shutdown(p); } });
 
-        registry_.push_back({ "app.setFrameNotifications",
+        dispatcher_.add({ "app.setFrameNotifications",
             "Toggle per-frame `frame` notifications while running (off by "
             "default).",
             { { "enabled", "boolean", true } },
-            [this](json const& p) { return setFrameNotifications(p); } });
+            [this](json const& p, Responder&)
+            {
+                return setFrameNotifications(p);
+            } });
 
-        registry_.push_back({ "window.list",
+        dispatcher_.add({ "window.list",
             "List the live windows by id.",
             {},
-            [this](json const& p) { return windowList(p); } });
+            [this](json const& p, Responder&) { return windowList(p); } });
 
-        registry_.push_back({ "window.introspect",
+        dispatcher_.add({ "window.introspect",
             "The window's resolved widget (introspection) tree.",
             { { "window", "number", true } },
-            [this](json const& p) { return windowIntrospect(p); } });
+            [this](json const& p, Responder&)
+            {
+                return windowIntrospect(p);
+            } });
 
-        registry_.push_back({ "window.renderTree",
+        dispatcher_.add({ "window.renderTree",
             "The window's render-tree snapshot.",
             { { "window", "number", true } },
-            [this](json const& p) { return windowRenderTree(p); } });
+            [this](json const& p, Responder&)
+            {
+                return windowRenderTree(p);
+            } });
 
-        registry_.push_back({ "window.inject",
+        dispatcher_.add({ "window.inject",
             "Queue input events onto a window for the next step.",
             {
                 { "window", "number", true },
                 { "events", "array", true },
             },
-            [this](json const& p) { return windowInject(p); } });
+            [this](json const& p, Responder&) { return windowInject(p); } });
     }
 
     btl::RunLoop& loop_;
@@ -735,7 +649,8 @@ private:
     Transport* transport_ = nullptr;
     RemoteApp app_;
     std::optional<ase::PauseToken> pauseToken_;
-    std::vector<Method> registry_;
+    Dispatcher dispatcher_;
+    std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
     uint64_t frame_ = 0;
     State state_ = State::Paused;
     bool shuttingDown_ = false;
