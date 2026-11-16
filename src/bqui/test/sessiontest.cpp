@@ -41,6 +41,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -1236,15 +1237,18 @@ TEST(session, shutdownGivesUpOnAClientThatStopsReading)
 
 namespace
 {
-    // Forwards to the driver's transport, reporting each frame the driver
-    // queues at the moment it queues it, and when it finds the input ended.
+    // Forwards to the driver's transport, reporting how many requests the
+    // driver reads, each frame it queues at the moment it queues it, and when
+    // it finds the input ended.
     class RecordingTransport : public Transport
     {
     public:
         RecordingTransport(Transport& inner,
+                std::function<void(size_t)> onReceived,
                 std::function<void(std::string const&)> onEnqueue,
                 std::function<void()> onDisconnected) :
             inner_(inner),
+            onReceived_(std::move(onReceived)),
             onEnqueue_(std::move(onEnqueue)),
             onDisconnected_(std::move(onDisconnected))
         {
@@ -1262,7 +1266,9 @@ namespace
         }
         std::vector<std::string> receiveReady() override
         {
-            return inner_.receiveReady();
+            auto frames = inner_.receiveReady();
+            onReceived_(frames.size());
+            return frames;
         }
         bool disconnected() const override
         {
@@ -1284,6 +1290,7 @@ namespace
 
     private:
         Transport& inner_;
+        std::function<void(size_t)> onReceived_;
         std::function<void(std::string const&)> onEnqueue_;
         std::function<void()> onDisconnected_;
     };
@@ -1316,6 +1323,7 @@ namespace
         int appFrames = 0;
         int rendered = 0;
         int inputEnds = 0;
+        size_t received = 0;
         std::vector<QueuedReply> replies;
 
         explicit SteppedPlatformFixture(std::string const& name,
@@ -1361,6 +1369,14 @@ namespace
                     context->holdFences();
 
                     RecordingTransport transport(*server,
+                            [this](size_t frames)
+                            {
+                                {
+                                    std::lock_guard<std::mutex> lock(mutex);
+                                    received += frames;
+                                }
+                                changed.notify_all();
+                            },
                             [this](std::string const& frame)
                             {
                                 record(frame);
@@ -1412,6 +1428,12 @@ namespace
         {
             std::unique_lock<std::mutex> lock(mutex);
             changed.wait(lock, [&] { return appFrames >= frames; });
+        }
+
+        void waitForReceived(size_t requests)
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            changed.wait(lock, [&] { return received >= requests; });
         }
 
         void waitForInputEnd()
@@ -1482,17 +1504,22 @@ TEST(session, stepRepliesOnlyAfterItsFrameRendered)
     int stepId = s.send("app.step");
     int pauseId = s.send("app.pause");
 
-    s.waitForAppFrames(3);
-    s.loop.post([&s](btl::RunLoop::Controller&)
-        {
-            s.context->releaseFences();
-        });
+    // The driver has read the pause before the window's slot frees.
+    s.waitForReceived(4);
+    s.releaseFences();
 
-    auto step = awaitResponse(*s.client, stepId);
-    auto pause = awaitResponse(*s.client, pauseId);
+    // Read both replies in whichever order they come.
+    std::map<int, json> answers;
+    while (answers.size() < 2)
+    {
+        auto raw = s.client->receive();
+        ASSERT_TRUE(raw);
+        json reply = json::parse(*raw);
+        answers[reply.at("id").get<int>()] = reply;
+    }
 
-    EXPECT_EQ(3u, step.at("result").at("frame").get<uint64_t>());
-    EXPECT_EQ(3u, pause.at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(3u, answers[stepId].at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(3u, answers[pauseId].at("result").at("frame").get<uint64_t>());
 
     // The step answered once its window had rendered, and the request behind
     // it waited for that.
@@ -1501,6 +1528,7 @@ TEST(session, stepRepliesOnlyAfterItsFrameRendered)
     EXPECT_EQ(stepId, replies[2].id);
     EXPECT_EQ(3, replies[2].renderedBefore);
     EXPECT_EQ(pauseId, replies[3].id);
+    EXPECT_EQ(3, replies[3].renderedBefore);
 }
 
 TEST(session, multiFrameStepRendersEachFrameBeforeTheNext)
