@@ -641,7 +641,10 @@ private:
 
         json windows = json::array();
         for (auto& window : app_.liveWindows())
-            windows.push_back({ { "id", window.get().id().getValue() } });
+            windows.push_back({
+                    { "id", window.get().id().getValue() },
+                    { "canCapture", window.get().canCapture() },
+                    });
 
         return { { "windows", windows } };
     }
@@ -746,7 +749,8 @@ private:
             } });
 
         dispatcher_.add({ "window.list",
-            "List the live windows by id.",
+            "List the live windows by id, with whether each can be "
+            "captured (`canCapture`, a hint checked again on capture).",
             {},
             [this](json const& p, Responder&) { return windowList(p); } });
 
