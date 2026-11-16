@@ -4,6 +4,10 @@
 // `window.introspect` to see the button and counter and `window.inject` a
 // click to watch the counter change.
 //
+// The window renders offscreen on the real backend, so `window.screenshot`
+// works; REACTIVE_PLATFORM=dummy selects the dummy platform instead where no
+// GPU is available.
+//
 // The app launches paused and connects back to the remote endpoint, taken from
 // argv[1] or, failing that, the REACTIVE_REMOTE_ENDPOINT environment variable
 // the app already uses. A TCP endpoint (`tcp://host:port`, `host:port`, or
@@ -23,12 +27,8 @@
 #include <bq/signal/input.h>
 #include <bq/signal/constant.h>
 
-#include <ase/platform.h>
-#include <ase/dummyplatform.h>
-
-#include <btl/runloop.h>
-
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <string>
 
@@ -68,13 +68,21 @@ int main(int argc, char** argv)
         })
         | modifier::focusGroup();
 
-    btl::RunLoop loop;
-
-    return App()
-        .platform(ase::makeDummyPlatform(loop))
-        .setRemoteEndpoint(endpoint)
-        .addWindow(
-                window(bq::signal::constant<std::string>("Inspector Demo")),
-                std::move(content))
-        .run();
+    try
+    {
+        return App()
+            .headless(true)
+            .setRemoteEndpoint(endpoint)
+            .addWindow(
+                    window(bq::signal::constant<std::string>("Inspector Demo")),
+                    std::move(content))
+            .run();
+    }
+    catch (std::exception const& e)
+    {
+        std::cerr << "inspectorapp: " << e.what() << "\n"
+                     "inspectorapp: set REACTIVE_PLATFORM=dummy to run without "
+                     "a GPU.\n";
+        return 1;
+    }
 }
