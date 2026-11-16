@@ -244,7 +244,7 @@ whose frame has not rendered yet renders the zero-time frame then. What holds:
   with an internal error, and a capture arriving later is dropped unencoded.
   The capture stays armed in the window until it next presents or goes away,
   so the driver counts each window's armed captures until they complete. At
-  most `kMaxScreenshotsInFlight` (`src/remote/screenshot.h`) are unanswered at
+  most `kMaxScreenshotsInFlight` (`src/remote/errors.h`) are unanswered at
   once, and a window holds at most as many armed; beyond either is
   `kCaptureBusy` (-32011). A window that cannot capture is
   `kCaptureUnsupported` (-32010), checked at request time and mapped again from

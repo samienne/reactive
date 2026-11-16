@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dispatcher.h"
+#include "errors.h"
 
 #include "bqui/remote/remotedriver.h"
 #include "bqui/widget/introspection.h"
@@ -18,13 +19,6 @@
 
 namespace bqui::remote
 {
-    inline constexpr int kCaptureUnsupported = -32010;
-    inline constexpr int kCaptureBusy = -32011;
-
-    /**
-     * @brief How many screenshots a session may have unanswered at once.
-     */
-    inline constexpr size_t kMaxScreenshotsInFlight = 4;
 
     /**
      * @brief A rectangle in window-space logical units: `x`, `y` is its

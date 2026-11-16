@@ -1,5 +1,7 @@
 #pragma once
 
+#include "errors.h"
+
 #include "bqui/remote/remotedriver.h"
 
 #include <nlohmann/json.hpp>
@@ -11,8 +13,6 @@
 
 namespace bqui::remote
 {
-    inline constexpr int kUnknownBlob = -32001;
-    inline constexpr int kBlobCapReached = -32002;
 
     /**
      * @brief The blobs one remote session has handed out and not released.
