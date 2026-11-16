@@ -30,12 +30,13 @@ of one scene; one application-sized texture in several shapes.
   frame and the result is composited in that same frame: no swapchain, no
   added latency, 3D and UI in sync. When the UI redraws for its own reasons
   and nothing requests a frame, the last images are reused and the
-  application is not called - except for a direct view (below).
+  application is not called - except for a direct view (below) and a view
+  the redraw creates, reveals or resizes.
 - **Two primitives.** A brush over a texture; and a shared handle created
   with a frame callback, run at most once per frame of a window where it
   is mounted, however many views it has there. A fixed-size image is
   the application's own texture and a brush; there is no render-image
-  object. Frame sync with no view waits (*Future stages*).
+  object. Frame sync with no mount waits (*Future stages*).
 - **The public surface is the handle and `renderView(handle, ...)`**, the
   layout-placed view. Only views mount a handle. Every placement shows its
   own image, carries an application key, and is listed to the handle's
@@ -64,8 +65,8 @@ of one scene; one application-sized texture in several shapes.
   views*); it is a stage after the textured path.
 - **Settled details.** A view never presented draws nothing. The render
   context is reachable outside the callback through the `App` in the first
-  version (*Where the application gets the render context*). A direct view
-  listed but not drawn shows the cleared target, opaque black.
+  version (*Where the application gets the render context*). A direct
+  view not drawn into or presented to shows opaque black (*Direct views*).
 - **Stability** is aimed for only at the widget/modifier level. The render
   tree, avg and ase may change freely, with no seams added for them.
 - **Naming.** "View", not "surface": the effect branch already has
@@ -97,13 +98,15 @@ of one scene; one application-sized texture in several shapes.
   (`src/avg/include/avg/rendertree/shapenode.h`); a `TransitionNode` keeps
   drawing a leaving child until its animation ends
   (`src/avg/src/rendertree/transitionnode.cpp`).
-- **Clips erase.** `ClipNode` (`src/avg/src/rendertree/clipnode.cpp`) clips
-  its child's drawing, and `Drawing::clip` drops every top-level element
-  whose painted rect misses the clip (`filterElementsByRect`,
+- **Clips drop or cull.** `ClipNode` (`src/avg/src/rendertree/clipnode.cpp`)
+  clips its child's drawing, and `Drawing::clip` drops every top-level
+  element whose painted rect misses the clip (`filterElementsByRect`,
   `src/avg/src/drawing.cpp`). `widget::bin` clips and `scrollView` wraps
   its content in a bin (`src/bqui/src/widget/bin.cpp`,
-  `src/bqui/src/widget/scrollview.cpp`), so a view scrolled out is
-  **absent** from the drawing, not present and culled.
+  `src/bqui/src/widget/scrollview.cpp`). A view scrolled out is absent
+  from the drawing, or, nested in a `BackdropScope` (every stacked child
+  after the first) that still meets the clip, culled by the renderer;
+  the search mirrors the cull and finds neither.
 - **The painter submits late.** `clearWindow` and `paintToWindow` only
   record, lowering the drawing as they go; `Painter::flush`, called from
   `presentWindow`, submits the uniform uploads and then the commands
@@ -113,8 +116,8 @@ of one scene; one application-sized texture in several shapes.
   `src/ase/src/gl/glrenderstate.cpp`).
 - **`Drawing` on the effect branch** (`src/avg/include/avg/drawing.h`) is a
   flat list of `ShapeElement`, `TextEntry`, `ClipElement`, `RegionFill`,
-  `BackdropScope` and `EffectElement`; the last three nest `SubDrawing`s
-  (an effect's in its `EffectInput`s). Transforms on shape elements are
+  `BackdropScope` and `EffectElement`; clips, scopes and effects nest
+  `SubDrawing`s (an effect's in its `EffectInput`s); shape transforms are
   baked into the geometry (`transformElement`, `src/avg/src/drawing.cpp`);
   clips, scopes and effects keep theirs. Outlines are lifted to the
   outermost drawing by every combining operation (`liftSubDrawing`). The
@@ -127,7 +130,7 @@ of one scene; one application-sized texture in several shapes.
   `operator*(Transform, Brush)` applies only the transform's scale
   (`src/avg/include/avg/brush.h`). Much code reads "not an effect" as "a
   colour" (stage 1 lists the sites). No element draws a caller's texture;
-  the glyph atlas is the only textured path.
+  the glyph atlas and effect passes sample only the toolkit's own.
 - **Elsewhere in bqui and ase.** `ase::Window::requestFrame` is loop-thread
   only (it writes `GenericWindow::nextFrame_` unguarded), and on dummy and
   offscreen windows it only records the request
@@ -144,9 +147,10 @@ of one scene; one application-sized texture in several shapes.
   thread. `makeTexture` does no GL work: storage is allocated at first use
   on the GL thread (`src/ase/src/gl/gltexture.cpp`). Textures never resize
   in place; filtering is fixed (linear, clamp, no mipmaps). A GL
-  framebuffer's destructor waits for the GL queue, and `setColorTarget`
-  mutates state the GL thread reads, so retargeting one an earlier submit
-  still uses is a race (`src/ase/src/gl/glframebuffer.cpp`). `glViewport`
+  framebuffer's destructor waits on the transfer queue (the main queue
+  only without the background context), and `setColorTarget` mutates
+  state the GL thread reads, so retargeting one an earlier submit still
+  uses is a race (`src/ase/src/gl/glframebuffer.cpp`). `glViewport`
   is the bound framebuffer's full size. The colour formats are
   `FORMAT_SRGBA`, `FORMAT_R8` and `FORMAT_RGBA16F`
   (`src/ase/include/ase/format.h`).
@@ -222,8 +226,8 @@ flag.
 
 - **Mapping.** A brush made without one takes the bounds of the shape it
   fills when the `ShapeElement` is made, at the node's local size, before
-  its transform. Elements are made by `Shape::fill`
-  (`src/bqui/src/shape/shape.cpp`) and directly
+  its transform. Elements are made by `Shape::fill` and its siblings
+  (`src/avg/src/shape.cpp`) and directly
   (`src/avg/src/rendertree/surfacenode.cpp`,
   `src/avg/src/builtineffects.cpp`), so one helper resolves an unset
   mapping on every path; `renderView` sets its own, and lowering asserts in
@@ -288,8 +292,8 @@ the local size under the accumulated transform).
   operations that drop elements (`clip`, `filterByRect`, `withResource`):
   an upper bound, so a drawing with none returns at once. Otherwise the
   walk is O(elements) of rect and transform arithmetic. bqui calls it only
-  for a new `drawing_` or scaling factor and reuses the list otherwise,
-  which is exactly while its slot pointers stay valid.
+  for a new `drawing_` (a scaling change makes one) and reuses the list
+  otherwise, which is exactly while its slot pointers stay valid.
 
 ## The handle and its callback
 
@@ -318,13 +322,15 @@ belong to no view.
 
 **Each view** (`RenderView<Key>&`) gives `pixelSize()` (below),
 `logicalSize()` (the drawn local size: the layout size at this frame's
-animated obb), `scalingFactor()`, `key()`, `reason()` - *requested* (the
-handle has a due request), *created* (found for the first time), *revealed*
-(found again after frames unlisted, its texture released), *resized*,
-*retargeted* (entering or leaving the direct path), *repaint* (a direct view
-on a frame painted for any other reason), or none (listed while the callback
-runs for another reason) - the present call and target helper below, a
-read-only `isDirect()`, and a per-view resource slot (*Open questions* 2).
+animated obb), `scalingFactor()`, `key()`, `reasons()` - a set of flags,
+any number at once: *requested* (a request is due), *created* (found for
+the first time), *revealed* (found again after frames unlisted, its
+texture released), *resized*, *retargeted* (entering or leaving the direct
+path), *repaint* (a direct view on a frame painted for any other reason);
+empty when listed while the callback runs for another view; a first call
+is *requested* and *created*, and a due request never hides *revealed* or
+*retargeted* - the present call and target helper below, a read-only
+`isDirect()`, and a per-view resource slot (*Open questions* 2).
 
 **Pixel size** is best effort: the toolkit tries to match the image's
 pixel density to the target it is drawn into, without guaranteeing it. It
@@ -341,13 +347,14 @@ view drawn more than once takes the largest extent.
 
 **When it runs.** At most once per frame of a window where the handle is
 mounted (at least one `renderView` of it in the window's active tree),
-when a frame was requested through the handle - a first mount in a
-window counts, so resources are made before its first paint - or a view
-is listed for another reason: *created*, *revealed*, *resized*,
+when it is **due** there: a frame was requested through the handle (a
+first mount in a window counts, so resources are made before its first
+paint), a timed request's time has come (stage 4), or a view is
+listed for another reason: *created*, *revealed*, *resized*,
 *retargeted* or *repaint*. A request is honoured even with no view
 listed: the callback gets an empty list, so an engine whose resource
 management needs further frames to flush requests until done. Nothing
-runs unless requested or listed. The first three reasons come only from
+runs unless due. The first three reasons come only from
 new drawings, so a size or scale animation runs it every frame; a hover
 elsewhere repaints without running it unless a view of the handle is
 direct. A handle in two windows runs once in each window's frame, with
@@ -355,13 +362,14 @@ that window's frame and views; leaving one, it gets a final call
 (*Handle lifetime*).
 
 **The engine's tick.** The callback is also the engine's tick: an engine
-updates and renders in it and calls `requestFrame` each time to run
-continuously; there is no separate application-level or per-window
-update tick. It runs after the window's transaction, so signal values it
-sets reach the UI a frame later (*Future stages*). *Why not an
-application tick:* cadence belongs to windows (`docs/decisions.md`);
-vsync is a per-window source that goes quiet without a surface, and
-windows are meant to own their signal contexts (`docs/design/frameclock.md`).
+updates and renders in it and requests the next frame each time to run
+continuously (without capturing its own handle: *Open questions* 13).
+It runs after the window's transaction, so signal values it sets reach
+the UI a frame later (*Future stages*). *Why not an application tick:*
+`App::run`'s per-tick callback exists, but carries no window's frame,
+time or views; and cadence belongs to windows (`docs/decisions.md`),
+whose vsync goes quiet without a surface and which are meant to own
+their signal contexts (`docs/design/frameclock.md`, ahead of the code).
 
 **The key** is a template parameter, `RenderHandle<Key>` (an empty type by
 default), so `key()` is typed; registry, cells and views are type-erased in
@@ -395,7 +403,7 @@ texture it was not asked for. Framebuffers are not cheap on GL (*Where the
 code is*), so the helper keeps one framebuffer per view across frames and
 recreates it, with its textures, only when the size changes; it never
 retargets one an earlier submit may still use. A size animation therefore
-recreates and stalls on the GL queue every frame: a known limit of
+recreates and stalls on the transfer queue every frame: a known limit of
 exact-extent sizing, which grow-only allocation (*Future stages*) lifts.
 When the view is direct, `target()` returns the window's UI target instead
 (*Direct views*); `present(texture)` is never direct.
@@ -443,9 +451,9 @@ questions* 1).
 1. **Resize and transaction**, as today. The mounted handles are current.
 2. **Draw the tree**, as today, while `animating_`: `drawing_` is this
    frame's geometry at this frame's time.
-3. **Find image uses**, only for a new `drawing_` or a scaling factor that
-   differs from the last search's (`ase::Window::getScalingFactor()`,
-   compared each frame, since only a resize wakes the bridge today). Each
+3. **Find image uses**, only for a new `drawing_`; a scaling-factor change
+   goes through the window's resize callback (`GenericWindow`), so it
+   always brings one. Each
    use's slot is mapped to its live view through the owner link and bqui's
    tag; application slots and slots whose owner has expired (leaving
    views) are skipped. Views are grouped by handle; a view found for the
@@ -460,15 +468,17 @@ questions* 1).
    a direct view, the painter first submits the UI target's clear on its
    own, so it precedes the callbacks' submits.
 5. **Settle**: clear the slots of views not found, releasing their
-   textures and lazy targets (*Open questions* 3), and of direct views.
-6. **Paint, present and flush**, as today, or, when a direct view's target
-   was taken, as *Direct views* orders it. Lowering reads each slot now, so
-   an image presented in step 4 is composited in this frame. The bridge
-   returns the earlier of the UI's delay and the earliest due handle, and
-   **zero when `needsUpdate_` is set or a mounted handle's cell is pending
-   after the callbacks**: a signal set or request made in a callback asks
-   for a frame during the frame callback, and `GenericWindow::frame`
-   overwrites that with the returned delay, `nullopt` in an idle frame.
+   textures and lazy targets (*Open questions* 3), and of direct views
+   that presented no texture this frame.
+6. **Paint, present and flush**, as today, or, for a direct view with no
+   texture presented this frame, as *Direct views* orders it. Lowering
+   reads each slot now, so an image presented in step 4 is composited in
+   this frame. The bridge returns the earlier of the UI's delay and the
+   earliest timed due time, and **zero when `needsUpdate_` is set or a
+   mounted handle's cell is pending after the callbacks**: a signal set or
+   request made in a callback asks for a frame during the frame callback,
+   and `GenericWindow::frame` overwrites that with the returned delay,
+   `nullopt` in an idle frame.
 
 **There is no second transaction**: an input the callback sets is served
 next frame through that zero delay. The bridge keeps weak references to
@@ -479,13 +489,14 @@ repaints the kept `drawing_`: **a requested frame recomposites today**.
 ## Which views are listed
 
 **Every live view of the handle found in this window's drawing**, with its
-reason; a partially clipped view is listed. A view not found - scrolled
+reasons; a partially clipped view is listed. A view not found - scrolled
 out, outside the window or zero-sized - is not listed that frame, and step
 5 releases its texture but not its resource slot. Found again, it is
 listed *revealed*; callbacks run before the same frame's paint, so it is
 presented before it is composited, with no blank frame. **A request means
-the handle**: the next call lists every view as *requested*; the
-application redraws what it chooses. Animating one view is
+the handle**: the next call adds *requested* to every view's reasons; the
+application redraws what it chooses, but a view also *revealed* has an
+empty slot and one also *retargeted* a new target. Animating one view is
 `handle.requestFrame()` plus the engine drawing only that view. A direct
 view is also listed on every frame the window paints (*Direct views*).
 
@@ -523,7 +534,8 @@ The drawing never samples undefined memory.
   or the application's own copy, and is destroyed where the last of them drops;
   a bridge holds its own reference until the handle's final call there.
   Mounts drop on the loop thread; a copy kept by a worker thread for requests
-  may drop last there (*Open questions* 13).
+  may drop last there, and a copy captured by the callback itself is a
+  cycle that never drops (*Open questions* 13).
 - **Registration.** Per window, the bridge keeps a *cell* for each mounted
   handle, made pending when the handle first appears in the window's list
   and dropped at its final call, and registers it with the handle's registry
@@ -594,7 +606,8 @@ option and a signal (decided), allows it; setting it is the application's
 consent to the contract below. It only allows: an allowed view that does
 not qualify in a frame is textured. Off, `target()` always hands out the
 view's own framebuffer. `present(texture)` is never direct, whatever the
-option. On and qualifying, `target()` hands out the UI target (its
+option: a qualifying view that presents one is textured that frame. On
+and qualifying, `target()` hands out the UI target (its
 formats, so the depth option does not apply) and the view's element is
 not painted; the read-only `isDirect()`, known before the callback runs,
 tells the engine. avg knows nothing of direct views, so the option skips
@@ -636,17 +649,18 @@ disqualifies the view: direct pixels always equal textured ones.
    clear and submits it alone; today `clearWindow` only records, and `flush`
    submits after the paint. FIFO puts it ahead of the engine.
 2. The callbacks run; the engine's pipelines declare the UI target's formats.
-3. If its target was taken, the painter records a depth-only clear:
-   UI z lies in (0.5, 1) under a less-than test, and the engine's depth
-   would hide UI wherever it is nearer. It then paints the drawing without
-   the prefix and the view's element, presents and flushes.
+3. After them the painter decides. A taken target gets a depth-only
+   clear: UI z lies in (0.5, 1) under a less-than test, and the engine's
+   depth would hide UI wherever it is nearer. A presented texture makes
+   the view textured this frame, prefix included; otherwise the prefix
+   and the view's element are skipped. Then it presents and flushes.
 
 Backdrop snapshots above the view are taken in step 3, after the engine,
 so glass blurs the 3D as in the textured path; a `window.screenshot`
-readback follows the frame's submits and sees it too. If the callback
-presents instead, or takes neither, the frame paints textured after the
-early clear. ase has no viewport state, so the engine's draws cover the
-whole framebuffer: one reason the first version is fullscreen-only.
+readback follows the frame's submits and sees it too. Since the prefix is
+dropped only in step 3, a present instead costs only the early clear.
+ase has no viewport state, so the engine's draws cover the whole
+framebuffer: one reason the first version is fullscreen-only.
 
 **The contract.** The UI target is cleared every frame and remade on
 resize: a direct view has no old image to stretch or reuse. It is
@@ -654,13 +668,15 @@ therefore **listed on every frame the window paints**, as *repaint* when
 no other reason applies, and must be drawn; "no update keeps the old
 image" does not hold, and a hover re-renders the 3D. An engine for which
 that costs too much leaves the option off or presents its own texture.
-A target taken with nothing drawn shows the clear colour, opaque black,
+**A direct view not drawn** - its target taken with nothing drawn, or
+neither taken nor presented to - shows the clear colour, opaque black,
 the prefix still skipped. The UI target is a new framebuffer after a
 resize, and a view entering or leaving the direct path switches between
 it and its own, listed *retargeted*: engines take `target()` every frame,
 never keep it, and never change its attachments. A direct view's slot is
-cleared, so one leaving the direct path must be presented that frame,
-and one leaving the tree shows nothing during its exit.
+cleared each frame it presents nothing, so one leaving the direct path
+must be presented that frame, and one leaving the tree shows nothing
+during its exit.
 
 **What it saves**: one full-window colour texture and framebuffer, one
 full-window textured draw, and painting the prefix. For an engine that
@@ -673,12 +689,13 @@ remain, and so does the painter's copy of the UI target to the window.
 **Timed requests.** A request may carry a delay before which it is not
 served, relative because another thread cannot read the loop-local frame
 clock (and `stepFrame` keeps its own time): the waker's task makes it a
-due time from the window's last frame time. Each cell keeps its earliest
+due time from the bridge's frame timer. Each cell keeps its earliest
 due time; the bridge returns the earlier of the UI's delay and its cells'
 due times, which `GenericWindow::frame` already turns into `nextFrame_`.
 Two small changes: the bridge returns a delay even when the UI is idle,
 and the window gets a `requestFrame` variant that lowers `nextFrame_` to a
-given time rather than "now". A timed request freezes under pause.
+given time rather than "now", which the waker's task then calls (the
+plain one would serve it at once). A timed request freezes under pause.
 
 **ase gaps for a real 3D producer** (depth compare, culling, stencil ops,
 per-draw viewport, multisampling, mipmaps, sampler state, instancing) are ase
@@ -688,11 +705,12 @@ PRs of their own.
 
 **Viewport in a docked panel.** `renderView(scene, mainCamera,
 shape::rectangle(r))` in a `scrollView`; the view mounts `scene`. Partly
-scrolled out, it stays listed; fully out, the bin's clip erases it: unlisted,
-its texture released; scrolled back, it is listed *revealed* and presented
-before that frame's paint. A UI animation over it repaints without calling the
-engine. Undocked into another window, it is a new view there, *created*, and
-`scene` runs in that window's frames and gets a final call in the first.
+scrolled out, it stays listed; fully out, the bin's clip drops it or the
+renderer culls it: unlisted, its texture released; scrolled back, it is
+listed *revealed* and presented before that frame's paint. A UI
+animation over it repaints without calling the engine. Undocked into
+another window, it is a new view there, *created*, and `scene` runs in
+that window's frames and gets a final call in the first.
 
 **Fullscreen background with glass.** `content | background(renderView(
 scene, mainCamera, options))` with `allowDirect` set. The view covers the
@@ -731,12 +749,14 @@ animation, none while only the UI animates); a signal set or request made in the
 callback served next frame, listed or not; the final call (empty, flagged, in
 the frame the last mount leaves and never after; none while another mount
 stays); reasons and extents under stepped size and scale animations and a
-rotation; listing under a scroll (listed partly clipped, unlisted and released
-when out, *revealed* and presented in the same frame when back); the
+rotation; listing under a scroll, for a top-level and a scope-nested view
+(listed partly clipped, unlisted and released when out, *revealed* and
+presented in the same frame when back); the
 presentation rules (empty before the first present, an old image stretched, a
 leaving view frozen and unlisted the frame it is removed, the lazy target kept
 at one size, a wrong format rejected); lifetimes (requests racing a closed
-window or an unmount, captures released with the last mount and copy). In avg:
+window or an unmount, captures released with the last mount and copy, also
+when closing a window drops the last reference). In avg:
 `findImageUses` through clips, scopes and effect inputs with the renderer's
 culling, the early return, mapping composition, uv under rotation and
 stretching, brush equality and the stage 1 brush sites.
@@ -750,8 +770,9 @@ commands: the clear submitted before the callback's buffers, a depth-only
 clear after them, then no quad for the view and no theme rectangle; a
 hover repaint lists the view *repaint*; a resize and toggling the
 `allowDirect` signal list it *retargeted* with a new framebuffer; a
-target taken with nothing submitted paints the clear colour; `present`
-instead paints textured.
+target taken with nothing submitted, and a callback taking neither path,
+paint the clear colour with the prefix skipped; `present` instead paints
+textured, prefix included, and step 5 keeps the presented texture.
 
 **Real GL (manual, CI-dark).** sRGB round trip, row order, blending and
 glass over 3D need readback (`bquiheadlesstest` or the remote-screenshot
@@ -781,7 +802,9 @@ Each stage is one PR, after the effect branch is on master.
    `hash_append` in `src/avg/include/avg/brush.h` (it would read an image
    as an effect), `src/avg/src/lerp.cpp`, `src/avg/src/painter.cpp`
    (pipeline choice), `src/avg/src/rendering.cpp` (vertices, text) and the
-   opacity tests named above. Dummy tests on commands, vertices and uses.
+   opacity tests named above; the mapping helper also covers
+   `src/avg/src/shape.cpp` and the `ShapeElement` rebuilds in `drawing.cpp`
+   and `rendering.cpp`. Dummy tests on commands, vertices and uses.
 2. **bqui: handle and `renderView`.** `RenderHandle<Key>` with its
    callback, registry, cells and window wakers; views that mount it, the
    mounted-handle list on `Instance` and its deduplication; owner-linked
@@ -797,8 +820,9 @@ Each stage is one PR, after the effect branch is on master.
    `allowDirect`, qualification, `isDirect`, the UI target from
    `target()`, the *repaint* and *retargeted* reasons and the frame order.
    Dummy tests above; the glass readback by hand.
-4. **Timed requests.** The `GenericWindow` change, the bridge's combined
-   delay and the timed form on the handle, tested under a pause token.
+4. **Timed requests.** The `GenericWindow` change and the waker task's
+   switch to it, the bridge's combined delay and the timed form on the
+   handle, tested under a pause token.
 5. **Demo and docs.** A 3D page in `testapp1` for the four uses, the
    screenshot script, the bqui readme, the bqui and avg `AGENTS.md`, and
    a `docs/decisions.md` entry.
@@ -825,8 +849,8 @@ The ase 3D gaps proceed on their own and do not block stages 1-4.
   an image brush. An image slot can carry an owner link to a handle; the
   per-frame search already finds slots in the drawing, so a slot naming a
   handle can trigger its callback, with no widget-tree anchor.
-- **An application-level before- or after-frame hook** is a possible later
-  feature, not part of this design.
+- **Per-window render contexts** (`docs/design/render-architecture.md`):
+  a handle mounted in windows on two contexts would get one per window.
 - **An update phase on the handle**, run before the window's signal update,
   so values an engine writes into signals reach the UI that frame.
 - **Asynchronous teardown**: the toolkit waits for an engine to finish
@@ -871,17 +895,22 @@ None of these is decided; each carries this note's recommendation.
 10. **Readers of an earlier snapshot** (an effect after the view in a scope
     entered before it; stacking never makes one). *Recommendation:*
     disqualify, so direct pixels always equal textured ones.
-11. **The early clear.** `flush` also ends the uniform ring's frame; the
-    code does not settle whether two ring frames per window frame are
-    safe. *Recommendation:* a painter entry that submits only the clear.
+11. **The early clear.** Through `clearWindow` and `flush` it opens a
+    second uniform-ring frame per window frame: with 3 ring frames
+    (`src/ase/include/ase/uniformring.h`) and 2 window frames in flight
+    (`src/ase/src/windowbase.cpp`), 4 > 3, so a slot could be rewritten
+    while the GPU reads it. *Recommendation:* a painter entry that submits
+    only the clear.
 12. **Replacing a handle's callback** after creation. *Recommendation:*
     no; the callback switches behaviour itself, or a new handle is made.
-13. **Off-loop handle copies.** A copy kept by another thread may drop
-    last and destroy the callback's captured state off the loop thread.
-    Options: a callback-free requester taken from the handle for other
-    threads (recommended so far); the handle's shared state deferring the
-    callback's destruction to the loop thread; or documenting it as the
-    caller's responsibility.
+13. **Off-loop handle copies and self-requests.** A copy kept by another
+    thread may drop last, destroying the callback's captures off the loop
+    thread; a copy the callback captures to request its next frame is a
+    reference cycle that never drops. *Recommendation:* the frame object
+    offers the request itself, so the callback need not capture the
+    handle, and a callback-free requester serves other threads. Other
+    options: deferring the callback's destruction to the loop thread, or
+    leaving both to the caller.
 
 ## Non-goals
 
