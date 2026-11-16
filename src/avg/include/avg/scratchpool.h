@@ -5,6 +5,7 @@
 #include "avgvisibility.h"
 
 #include <ase/framebuffer.h>
+#include <ase/renderbuffer.h>
 #include <ase/rendercontext.h>
 #include <ase/texture.h>
 
@@ -17,8 +18,9 @@ namespace avg
     /**
      * @brief A scratch texture and the framebuffer that draws into it.
      *
-     * The framebuffer has no depth attachment; size is the texture's, the
-     * screen size divided by the texture's divisor and rounded up.
+     * The framebuffer has no depth attachment unless the target came from
+     * ScratchPool::acquireWithDepth; size is the texture's, the screen size
+     * divided by the texture's divisor and rounded up.
      */
     struct AVG_EXPORT ScratchTarget
     {
@@ -64,6 +66,16 @@ namespace avg
 
         ScratchTarget acquire(ScratchSlot const& slot);
 
+        /**
+         * @brief The slot's texture in a framebuffer that also holds the
+         * pool's depth buffer for the texture's size.
+         *
+         * Every texture of one size shares one depth buffer in
+         * TargetImage::depthFormat, made on first use and released as a
+         * texture is, so whoever draws with depth clears it first.
+         */
+        ScratchTarget acquireWithDepth(ScratchSlot const& slot);
+
         void endFrame();
 
         Vector2i getScreenSize() const;
@@ -73,10 +85,23 @@ namespace avg
          */
         size_t getTextureCount() const;
 
+        /**
+         * @brief How many depth buffers the pool holds right now.
+         */
+        size_t getDepthBufferCount() const;
+
     private:
         struct Entry
         {
             ScratchTarget target;
+            std::optional<ase::Framebuffer> depthFramebuffer;
+            size_t idleFrames = 0;
+        };
+
+        struct Depth
+        {
+            Vector2i size;
+            ase::Renderbuffer buffer;
             size_t idleFrames = 0;
         };
 
@@ -92,5 +117,6 @@ namespace avg
         Vector2i screenSize_ = Vector2i(0, 0);
         bool sized_ = false;
         std::vector<Pool> pools_;
+        std::vector<Depth> depths_;
     };
 }

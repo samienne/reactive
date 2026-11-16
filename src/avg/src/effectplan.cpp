@@ -260,7 +260,10 @@ size_t PassGraph::addEffect(Effect const& effect, size_t snapshot,
 
     std::vector<Pass> const& passes = effect.getPasses();
 
+    elementNodes_.push_back(std::nullopt);
+
     Item item;
+    item.kind = Kind::Effect;
     item.effect = &effect;
     item.snapshot = snapshot;
 
@@ -285,6 +288,7 @@ size_t PassGraph::addEffect(Effect const& effect, size_t snapshot,
                 [&](Node const& other)
                 {
                     return pass.output
+                        && !other.subDrawing
                         && other.snapshot == node.snapshot
                         && other.inputs == node.inputs
                         && *other.pass == pass;
@@ -307,6 +311,138 @@ size_t PassGraph::addEffect(Effect const& effect, size_t snapshot,
     return effectIndex;
 }
 
+size_t PassGraph::addSubDrawing()
+{
+    size_t const index = subDrawingNodes_.size();
+
+    Node node;
+    node.index = index;
+    node.subDrawing = true;
+
+    Item item;
+    item.kind = Kind::SubDrawing;
+    item.nodes.push_back(nodes_.size());
+    items_.push_back(std::move(item));
+
+    subDrawingNodes_.push_back(nodes_.size());
+    nodes_.push_back(std::move(node));
+    return index;
+}
+
+size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
+        std::vector<Source> const& inputs, PixelRect region)
+{
+    Node node;
+    node.pass = &pass;
+    node.snapshot = snapshot;
+    node.effect = effectCount_;
+    node.index = 0;
+
+    for (Source const& source : inputs)
+    {
+        switch (source.kind)
+        {
+            case Source::Kind::Backdrop:
+                if (snapshot >= backdropRegions_.size())
+                {
+                    throw std::invalid_argument("element reads snapshot "
+                            + std::to_string(snapshot)
+                            + ", which has not been taken");
+                }
+                node.inputs.push_back(std::nullopt);
+                break;
+            case Source::Kind::SubDrawing:
+                if (source.index >= subDrawingNodes_.size())
+                {
+                    throw std::invalid_argument("element reads sub-drawing "
+                            + std::to_string(source.index)
+                            + ", which has not been added");
+                }
+                node.inputs.push_back(subDrawingNodes_[source.index]);
+                break;
+            case Source::Kind::Element:
+                if (source.index >= elementNodes_.size()
+                        || !elementNodes_[source.index])
+                {
+                    throw std::invalid_argument("element reads element "
+                            + std::to_string(source.index)
+                            + ", which has not been added");
+                }
+                node.inputs.push_back(*elementNodes_[source.index]);
+                break;
+        }
+    }
+
+    Divisor const divisor = divisorOf(pass);
+    node.region = region.clamped(targetSize(screenSize_, divisor));
+
+    size_t const effectIndex = effectCount_++;
+
+    auto same = std::find_if(nodes_.begin(), nodes_.end(),
+            [&](Node const& other)
+            {
+                return pass.output
+                    && !other.subDrawing
+                    && other.snapshot == node.snapshot
+                    && other.inputs == node.inputs
+                    && *other.pass == pass;
+            });
+
+    size_t n = static_cast<size_t>(same - nodes_.begin());
+    PixelRect const added = node.region;
+    if (same == nodes_.end())
+    {
+        node.region = PixelRect();
+        nodes_.push_back(std::move(node));
+    }
+
+    grow(n, added, divisor);
+
+    elementNodes_.push_back(n);
+
+    Item item;
+    item.kind = Kind::Element;
+    item.snapshot = snapshot;
+    item.nodes.push_back(n);
+    items_.push_back(std::move(item));
+
+    return effectIndex;
+}
+
+void PassGraph::grow(size_t n, PixelRect region, Divisor divisor)
+{
+    Node& node = nodes_[n];
+    Divisor const own = node.pass ? divisorOf(*node.pass) : Divisor::One;
+    PixelRect const added = region.rescaled(divisor, own)
+        .clamped(targetSize(screenSize_, own));
+
+    if (added.isEmpty() || node.region.unionWith(added) == node.region)
+        return;
+
+    node.region = node.region.unionWith(added);
+
+    if (!node.pass)
+        return;
+
+    PixelRect const sampled = added.grown(node.pass->padding);
+    std::vector<std::optional<size_t>> const inputs = node.inputs;
+    size_t const snapshot = node.snapshot;
+    for (std::optional<size_t> const& input : inputs)
+    {
+        if (input)
+            grow(*input, sampled, own);
+        else
+            growBackdrop(snapshot, sampled, own);
+    }
+}
+
+void PassGraph::growBackdrop(size_t snapshot, PixelRect region,
+        Divisor divisor)
+{
+    backdropRegions_[snapshot] = backdropRegions_[snapshot].unionWith(
+            region.rescaled(divisor, Divisor::One).clamped(screenSize_));
+}
+
 PixelRect PassGraph::getBackdropRegion(size_t snapshot) const
 {
     return backdropRegions_.at(snapshot);
@@ -327,6 +463,11 @@ size_t PassGraph::getEffectCount() const
     return effectCount_;
 }
 
+size_t PassGraph::getSubDrawingCount() const
+{
+    return subDrawingNodes_.size();
+}
+
 std::vector<PassGraph::Node> const& PassGraph::getNodes() const
 {
     return nodes_;
@@ -342,6 +483,11 @@ namespace
     ScratchKey snapshotKey()
     {
         return ScratchKey();
+    }
+
+    ScratchKey subDrawingKey()
+    {
+        return ScratchKey{ Divisor::One, ase::FORMAT_SRGBA };
     }
 
     class Pools
@@ -452,7 +598,7 @@ ScratchPlan planScratch(PassGraph const& graph)
     size_t effect = 0;
     for (PassGraph::Item const& item : items)
     {
-        if (!item.effect)
+        if (item.kind == PassGraph::Kind::Snapshot)
         {
             Value value;
             value.key = snapshotKey();
@@ -460,6 +606,20 @@ ScratchPlan planScratch(PassGraph const& graph)
             value.lastUse = step;
             snapshotValues[item.snapshot] = values.size();
             values.push_back(value);
+            ++step;
+            continue;
+        }
+
+        if (item.kind == PassGraph::Kind::SubDrawing)
+        {
+            size_t const n = item.nodes.front();
+            Value value;
+            value.key = subDrawingKey();
+            value.definedAt = step;
+            value.lastUse = step;
+            nodeValues[n] = values.size();
+            values.push_back(value);
+            nodeSteps[n] = step;
             ++step;
             continue;
         }
@@ -521,11 +681,20 @@ ScratchPlan planScratch(PassGraph const& graph)
     effect = 0;
     for (PassGraph::Item const& item : items)
     {
-        if (!item.effect)
+        if (item.kind == PassGraph::Kind::Snapshot)
         {
             size_t const v = snapshotValues[item.snapshot];
             values[v].slot = pools.allocate(values[v].key);
             plan.snapshots[item.snapshot] = allocationOf(v);
+            releaseAfter(values[v].definedAt);
+            continue;
+        }
+
+        if (item.kind == PassGraph::Kind::SubDrawing)
+        {
+            size_t const v = nodeValues[item.nodes.front()];
+            values[v].slot = pools.allocate(values[v].key);
+            plan.subDrawings.push_back(allocationOf(v));
             releaseAfter(values[v].definedAt);
             continue;
         }

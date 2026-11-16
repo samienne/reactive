@@ -1,5 +1,6 @@
 #include "builtineffects.h"
 
+#include "builtinelements.h"
 #include "effectfactory.h"
 #include "effectshader.h"
 #include "lerp.h"
@@ -10,8 +11,10 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace avg
 {
@@ -73,6 +76,13 @@ namespace
         "    result = vec4(mix(colour, param.tint.rgb, param.tint.a), 1.0);\n"
         "}\n";
 
+    char const* const opacityBody =
+        "void main()\n"
+        "{\n"
+        "    result = texture(input0, inputUv(pass.texel0))"
+        " * param.opacity.x;\n"
+        "}\n";
+
     PassShader const& copyShader()
     {
         static PassShader const shader = makePassShader(1, {}, copyBody);
@@ -94,6 +104,14 @@ namespace
                 { "highlight", ase::UniformType::Float4 },
                 { "adjust", ase::UniformType::Float4 },
                 }, glassBody);
+        return shader;
+    }
+
+    PassShader const& opacityShader()
+    {
+        static PassShader const shader = makePassShader(1, {
+                { "opacity", ase::UniformType::Float4 },
+                }, opacityBody);
         return shader;
     }
 
@@ -171,6 +189,58 @@ namespace
             Effect (*build)(TParameters const&))
     {
         return std::make_shared<ParameterRecipe<TParameters> const>(
+                std::move(parameters), build);
+    }
+
+    // The element passes of contentBlur, each built from the radius.
+    enum class BlurStage
+    {
+        Downsample,
+        Horizontal,
+        Vertical,
+        Composite
+    };
+
+    struct ContentBlurParameters
+    {
+        float radius;
+        BlurStage stage;
+    };
+
+    ContentBlurParameters scaleSizes(ContentBlurParameters parameters,
+            float factor)
+    {
+        parameters.radius *= factor;
+        return parameters;
+    }
+
+    template <typename TParameters>
+    class ElementRecipe final : public ElementPassRecipe
+    {
+    public:
+        using Build = ElementPass (*)(TParameters const&);
+
+        ElementRecipe(TParameters parameters, Build build) :
+            parameters_(std::move(parameters)),
+            build_(build)
+        {
+        }
+
+        ElementPass scaled(float factor) const override
+        {
+            return build_(scaleSizes(parameters_, factor));
+        }
+
+    private:
+        TParameters parameters_;
+        Build build_;
+    };
+
+    template <typename TParameters>
+    std::shared_ptr<ElementPassRecipe const> makeElementRecipe(
+            TParameters parameters, ElementPass (*build)(TParameters const&))
+    {
+        return std::make_shared<ElementRecipe<TParameters> const>(
                 std::move(parameters), build);
     }
 
@@ -296,6 +366,56 @@ namespace
         return makeEffect(std::move(passes),
                 makeRecipe(parameters, &buildTint));
     }
+    ElementPass buildContentBlur(ContentBlurParameters const& parameters)
+    {
+        float const radius = std::max(parameters.radius, 0.0f);
+        Divisor const divisor = frostedGlassDivisor(radius);
+        float const passRadius = radius / static_cast<float>(toInt(divisor));
+        int const tapRadius = static_cast<int>(std::ceil(passRadius));
+        float const sigma = std::max(passRadius / 2.0f, 0.5f);
+
+        Pass pass;
+        std::optional<Vector2i> reach;
+        switch (parameters.stage)
+        {
+            case BlurStage::Downsample:
+                pass = regionPass(copyShader(), {}, divisor, 0);
+                break;
+            case BlurStage::Horizontal:
+                pass = blurPass(PassInput::backdrop(), divisor, tapRadius,
+                        sigma, ase::Vector2f(1.0f, 0.0f));
+                reach = Vector2i(tapRadius, 0);
+                break;
+            case BlurStage::Vertical:
+                pass = blurPass(PassInput::backdrop(), divisor, tapRadius,
+                        sigma, ase::Vector2f(0.0f, 1.0f));
+                reach = Vector2i(0, tapRadius);
+                break;
+            case BlurStage::Composite:
+                // Bilinear upsampling reaches half a blurred texel out.
+                pass = regionPass(copyShader(), {}, Divisor::One,
+                        toInt(divisor) / 2);
+                break;
+        }
+        pass.inputs.clear();
+
+        return makeElementPass(std::move(pass),
+                makeElementRecipe(parameters, &buildContentBlur), reach);
+    }
+
+    ElementPass opacityPass(float alpha)
+    {
+        PassShader const& shader = opacityShader();
+
+        ase::UniformValues values(shader.interface, "ParamBlock");
+        values.set("opacity", ase::Vector4f(alpha, 0.0f, 0.0f, 0.0f));
+
+        Pass pass = regionPass(shader, {}, Divisor::One, 0);
+        pass.output->format = ase::FORMAT_SRGBA;
+        pass.parameters = std::move(values);
+
+        return makeElementPass(std::move(pass));
+    }
 } // anonymous namespace
 
 bool operator==(FrostedGlassOptions const& lhs,
@@ -369,6 +489,38 @@ Effect tint(Color const& colour, float strength)
     requireStrength(strength, "strength");
 
     return buildTint(TintParameters{ colour, strength });
+}
+
+Drawing groupOpacity(pmr::memory_resource* memory, Drawing content,
+        float alpha)
+{
+    requireStrength(alpha, "alpha");
+
+    std::vector<std::optional<Drawing>> inputs;
+    inputs.push_back(std::move(content));
+    return Drawing::effect(memory, opacityPass(alpha), std::move(inputs));
+}
+
+Drawing contentBlur(pmr::memory_resource* memory, Drawing content,
+        float radius)
+{
+    requireNonNegative(radius, "radius");
+
+    if (radius == 0.0f)
+        return content;
+
+    Drawing result = std::move(content);
+    for (BlurStage stage : { BlurStage::Downsample, BlurStage::Horizontal,
+            BlurStage::Vertical, BlurStage::Composite })
+    {
+        std::vector<std::optional<Drawing>> inputs;
+        inputs.push_back(std::move(result));
+        result = Drawing::effect(memory, buildContentBlur(
+                    ContentBlurParameters{ radius, stage }),
+                std::move(inputs));
+    }
+
+    return result;
 }
 
 } // namespace avg

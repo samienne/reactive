@@ -295,9 +295,29 @@ struct Effect::Content
     std::shared_ptr<EffectRecipe const> recipe;
 };
 
+struct ElementPass::Content
+{
+    Pass pass;
+    Vector2i reach;
+    std::shared_ptr<ElementPassRecipe const> recipe;
+};
+
 class EffectAccess
 {
 public:
+    static ElementPass make(Pass pass, Vector2i reach,
+            std::shared_ptr<ElementPassRecipe const> recipe)
+    {
+        return ElementPass(std::make_shared<ElementPass::Content const>(
+                    ElementPass::Content{ std::move(pass), reach,
+                    std::move(recipe) }));
+    }
+
+    static ElementPassRecipe const* getRecipe(ElementPass const& pass)
+    {
+        return pass.content_->recipe.get();
+    }
+
     static Effect make(std::vector<Pass> passes,
             std::shared_ptr<EffectRecipe const> recipe)
     {
@@ -332,6 +352,97 @@ Effect makeEffect(std::vector<Pass> passes,
         message += "\n  " + error;
 
     throw std::invalid_argument(message);
+}
+
+ElementPassRecipe::~ElementPassRecipe()
+{
+}
+
+ElementPass makeElementPass(Pass pass,
+        std::shared_ptr<ElementPassRecipe const> recipe,
+        std::optional<Vector2i> reach)
+{
+    std::vector<std::string> errors;
+
+    Vector2i const resolved = reach.value_or(
+            Vector2i(pass.padding, pass.padding));
+    if (resolved.minCoeff() < 0 || resolved.maxCoeff() > pass.padding)
+        errors.push_back("the element pass's reach must be within its padding");
+
+    if (pass.geometry != Geometry::Region)
+        errors.push_back("an element pass must have Region geometry");
+
+    if (!pass.inputs.empty())
+        errors.push_back("an element pass takes its inputs from the element");
+
+    if (!pass.output)
+        errors.push_back("an element pass needs an output");
+    else
+    {
+        if (!isValid(pass.output->divisor))
+            errors.push_back("the element pass's divisor must be 1, 2, 4 or 8");
+
+        if (!isTargetFormat(pass.output->format))
+        {
+            errors.push_back("the element pass's format must be FORMAT_SRGBA,"
+                    " FORMAT_R8 or FORMAT_RGBA16F");
+        }
+    }
+
+    // The rules a single final pass shares with an element pass.
+    Pass asFinal = pass;
+    asFinal.geometry = Geometry::Shape;
+    asFinal.output.reset();
+    asFinal.inputs.assign(pass.shader.interface.getSamplers().size(),
+            PassInput::backdrop());
+    for (std::string const& error : validate({ asFinal }))
+        errors.push_back(error);
+
+    if (errors.empty())
+        return EffectAccess::make(std::move(pass), resolved,
+                std::move(recipe));
+
+    std::string message = "invalid element pass:";
+    for (std::string const& error : errors)
+        message += "\n  " + error;
+
+    throw std::invalid_argument(message);
+}
+
+ElementPass::ElementPass(std::shared_ptr<Content const> content) :
+    content_(std::move(content))
+{
+}
+
+ElementPass::~ElementPass()
+{
+}
+
+Pass const& ElementPass::getPass() const
+{
+    return content_->pass;
+}
+
+size_t ElementPass::getInputCount() const
+{
+    return content_->pass.shader.interface.getSamplers().size();
+}
+
+Vector2i ElementPass::getReach() const
+{
+    return content_->reach;
+}
+
+bool ElementPass::operator==(ElementPass const& rhs) const
+{
+    return content_ == rhs.content_
+        || (content_->pass == rhs.content_->pass
+                && content_->reach == rhs.content_->reach);
+}
+
+bool ElementPass::operator!=(ElementPass const& rhs) const
+{
+    return !(*this == rhs);
 }
 
 Effect::Effect(std::shared_ptr<Content const> content) :
@@ -376,6 +487,15 @@ Effect toPixels(Effect const& effect, float scalingFactor)
     EffectRecipe const* recipe = EffectAccess::getRecipe(effect);
     if (!recipe || scalingFactor == 1.0f)
         return effect;
+
+    return recipe->scaled(scalingFactor);
+}
+
+ElementPass toPixels(ElementPass const& pass, float scalingFactor)
+{
+    ElementPassRecipe const* recipe = EffectAccess::getRecipe(pass);
+    if (!recipe || scalingFactor == 1.0f)
+        return pass;
 
     return recipe->scaled(scalingFactor);
 }

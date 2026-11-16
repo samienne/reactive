@@ -1,3 +1,5 @@
+#include "builtinelements.h"
+
 #include <avg/rendercounters.h>
 #include <avg/painter.h>
 #include <avg/drawing.h>
@@ -57,9 +59,8 @@ namespace
     {
         avg::FrostedGlassOptions options;
         options.radius = radius;
-        return avg::Drawing::EffectElement{ box(x, y, width, height),
-            std::make_shared<avg::Effect const>(avg::frostedGlass(options)),
-            avg::Transform() };
+        return avg::Drawing::ShapeElement{ box(x, y, width, height),
+            avg::Brush(avg::frostedGlass(options)), std::nullopt };
     }
 
     avg::Drawing::Element brushPanel(float x, float y, float width,
@@ -93,6 +94,18 @@ namespace
         result.push_back(fill(0.0f, 100.0f, 800.0f, 50.0f, grey));
         result.push_back(fill(0.0f, 400.0f, 800.0f, 50.0f, grey));
         return result;
+    }
+
+    avg::Drawing::Element group(std::vector<avg::Drawing::Element> content)
+    {
+        return avg::groupOpacity(pmr::new_delete_resource(),
+                drawing(std::move(content)), 0.5f).getElements().front();
+    }
+
+    avg::Drawing::Element blurred(std::vector<avg::Drawing::Element> content)
+    {
+        return avg::contentBlur(pmr::new_delete_resource(),
+                drawing(std::move(content)), 8.0f).getElements().front();
     }
 
     avg::Drawing scene(std::vector<avg::Drawing::Element> over)
@@ -157,6 +170,25 @@ namespace
         { "oneLargePanel",
             []() { return scene({ scope({ panel(20, 20, 760, 560) }) }); },
             { 4, 6, 1, 3, 3'840'000, 1'253'324 } },
+        { "groupOpacity",
+            []()
+            {
+                return scene({ group({ fill(100, 100, 200, 150, grey) }) });
+            },
+            { 1, 3, 0, 1, 3'840'000, 30'000 } },
+        { "blurredContent",
+            []()
+            {
+                return scene({ blurred({ fill(100, 100, 200, 150, grey) }) });
+            },
+            { 4, 6, 0, 3, 5'760'000, 69'674 } },
+        { "nestedGroups",
+            []()
+            {
+                return scene({ group({ fill(100, 100, 200, 150, grey),
+                        group({ fill(200, 200, 200, 150, grey) }) }) });
+            },
+            { 2, 5, 0, 2, 5'760'000, 105'000 } },
     };
 } // anonymous namespace
 

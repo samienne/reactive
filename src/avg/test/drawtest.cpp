@@ -15,6 +15,9 @@
 
 #include <pmr/new_delete_resource.h>
 
+#include "effectfactory.h"
+#include <avg/effectshader.h>
+
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -153,25 +156,46 @@ avg::Drawing::Element stroked(avg::Drawing::Element element, float width)
     return element;
 }
 
-avg::Drawing::Element glass(std::shared_ptr<avg::Effect const> effect,
-        float x, float size)
+avg::Shape squareShape(float x, float size)
 {
-    return avg::Drawing::EffectElement{
-        avg::Shape(avg::PathBuilder(pmr::new_delete_resource())
-                .start(x, 0.0f)
-                .lineTo(x + size, 0.0f)
-                .lineTo(x + size, size)
-                .lineTo(x, size)
-                .close()
-                .build()),
-        std::move(effect),
-        avg::Transform()
-    };
+    return avg::Shape(avg::PathBuilder(pmr::new_delete_resource())
+            .start(x, 0.0f)
+            .lineTo(x + size, 0.0f)
+            .lineTo(x + size, size)
+            .lineTo(x, size)
+            .close()
+            .build());
 }
 
-std::shared_ptr<avg::Effect const> frosted()
+// A one-input element pass that reaches padding pixels at divisor.
+avg::ElementPass elementPass(int padding = 0,
+        avg::Divisor divisor = avg::Divisor::One)
 {
-    return std::make_shared<avg::Effect const>(avg::frostedGlass());
+    avg::Pass pass;
+    pass.shader = avg::makePassShader(1, {},
+            "void main() { result = texture(input0, inputUv(pass.texel0)); }");
+    pass.output = avg::PassOutput{ divisor, ase::FORMAT_RGBA16F };
+    pass.padding = padding;
+    return avg::makeElementPass(std::move(pass));
+}
+
+avg::Drawing::Element only(avg::Drawing drawing)
+{
+    return drawing.getElements().at(0);
+}
+
+// An element painting a square through a pass over the backdrop.
+avg::Drawing::Element glass(avg::ElementPass const& pass, float x, float size)
+{
+    std::vector<std::optional<avg::Drawing>> inputs;
+    inputs.push_back(std::nullopt);
+    return only(avg::Drawing::effect(pmr::new_delete_resource(), pass,
+                std::move(inputs), squareShape(x, size)));
+}
+
+avg::ElementPass frosted()
+{
+    return elementPass();
 }
 
 avg::Drawing drawing(std::vector<avg::Drawing::Element> elements)
@@ -220,8 +244,7 @@ avg::Drawing::EffectElement const& effectAt(
 
 avg::Rect boundsOf(avg::Drawing::EffectElement const& effect)
 {
-    return (effect.transform * avg::Obb(effect.shape.getControlBb()))
-        .getBoundingRect();
+    return (effect.transform * avg::Obb(effect.controlBb)).getBoundingRect();
 }
 
 } // anonymous namespace
@@ -389,8 +412,8 @@ TEST(Drawing, effectElementKeepsItsPlaceAndEffectThroughConcatenation)
 
     EXPECT_EQ((std::vector<float>{ 0.0f, -1.0f, 40.0f }),
             lefts(d.getElements()));
-    EXPECT_EQ(effect, effectAt(d.getElements(), 1).effect);
-    EXPECT_EQ(effect, effectAt(d.getPendingShadows(), 0).effect);
+    EXPECT_EQ(effect, effectAt(d.getElements(), 1).pass);
+    EXPECT_EQ(effect, effectAt(d.getPendingShadows(), 0).pass);
     expectRect(boundsOf(effectAt(d.getElements(), 1)),
             20.0f, 0.0f, 10.0f, 10.0f);
 }
@@ -421,7 +444,7 @@ TEST(Drawing, effectElementIsTransformedAndClippedLikeAScope)
     auto const& e = effectAt(moved.getElements(), 0);
     EXPECT_FLOAT_EQ(5.0f, e.transform.getTranslation().x());
     EXPECT_FLOAT_EQ(7.0f, e.transform.getTranslation().y());
-    expectRect(e.shape.getControlBb(), 20.0f, 0.0f, 10.0f, 10.0f);
+    expectRect(e.shape->getControlBb(), 20.0f, 0.0f, 10.0f, 10.0f);
     expectRect(boundsOf(e), 25.0f, 7.0f, 10.0f, 10.0f);
     expectRect(moved.getControlBb(), 25.0f, 7.0f, 10.0f, 10.0f);
 
@@ -437,6 +460,70 @@ TEST(Drawing, effectElementIsTransformedAndClippedLikeAScope)
     ASSERT_EQ(1u, clipped.getElements().size());
     auto const& inside = clipAt(clipped.getElements(), 0).subDrawing->elements;
     ASSERT_EQ(1u, inside.size());
-    EXPECT_EQ(effect, effectAt(inside, 0).effect);
+    EXPECT_EQ(effect, effectAt(inside, 0).pass);
     expectRect(clipped.getControlBb(), 0.0f, 0.0f, 20.0f, 20.0f);
+}
+
+TEST(Drawing, effectElementTakesItsSubDrawingsAndLiftsTheirShadows)
+{
+    auto content = drawing({ square(10.0f, 20.0f) })
+        .addShadow(square(40.0f, 10.0f));
+
+    std::vector<std::optional<avg::Drawing>> inputs;
+    inputs.push_back(std::move(content));
+    auto d = avg::Drawing::effect(pmr::new_delete_resource(),
+            elementPass(2, avg::Divisor::Two), std::move(inputs));
+
+    ASSERT_EQ(1u, d.getElements().size());
+    EXPECT_EQ((std::vector<float>{ 40.0f }), lefts(d.getPendingShadows()));
+
+    auto const& e = effectAt(d.getElements(), 0);
+    ASSERT_EQ(1u, e.inputs.size());
+    ASSERT_TRUE(e.inputs[0].subDrawing.has_value());
+    EXPECT_FALSE(e.shape.has_value());
+    EXPECT_EQ((std::vector<float>{ 10.0f }),
+            lefts((*e.inputs[0].subDrawing)->elements));
+    expectRect(e.inputs[0].controlBb, 10.0f, 0.0f, 20.0f, 20.0f);
+
+    // Padding 2 at divisor 2 reaches 4 units beyond the content.
+    expectRect(e.controlBb, 6.0f, -4.0f, 28.0f, 28.0f);
+    expectRect(d.getControlBb(), 6.0f, -4.0f, 44.0f, 28.0f);
+}
+
+TEST(Drawing, effectElementAndItsSubDrawingTransformAndClipTogether)
+{
+    std::vector<std::optional<avg::Drawing>> inputs;
+    inputs.push_back(drawing({ square(10.0f, 20.0f) }));
+    auto d = avg::Drawing::effect(pmr::new_delete_resource(), elementPass(),
+            std::move(inputs));
+
+    auto moved = std::move(d).translate(avg::Vector2f(5.0f, 7.0f)) * 2.0f;
+
+    auto const& e = effectAt(moved.getElements(), 0);
+    EXPECT_FLOAT_EQ(2.0f, e.transform.getScale());
+    EXPECT_FLOAT_EQ(10.0f, e.transform.getTranslation().x());
+    EXPECT_FLOAT_EQ(14.0f, e.transform.getTranslation().y());
+    // The sub-drawing stays in the element's space.
+    EXPECT_EQ((std::vector<float>{ 10.0f }),
+            lefts((*e.inputs[0].subDrawing)->elements));
+    expectRect(boundsOf(e), 30.0f, 14.0f, 40.0f, 40.0f);
+    expectRect(moved.getControlBb(), 30.0f, 14.0f, 40.0f, 40.0f);
+
+    auto clipped = std::move(moved).clip(avg::Rect(avg::Vector2f(0.0f, 0.0f),
+                avg::Vector2f(40.0f, 40.0f)));
+    ASSERT_EQ(1u, clipped.getElements().size());
+    auto const& inside = clipAt(clipped.getElements(), 0).subDrawing->elements;
+    ASSERT_EQ(1u, inside.size());
+    EXPECT_EQ(1u, effectAt(inside, 0).inputs.size());
+}
+
+TEST(Drawing, effectElementChecksItsInputs)
+{
+    EXPECT_THROW((void)avg::Drawing::effect(pmr::new_delete_resource(),
+                elementPass(), {}), std::invalid_argument);
+
+    std::vector<std::optional<avg::Drawing>> backdrop;
+    backdrop.push_back(std::nullopt);
+    EXPECT_THROW((void)avg::Drawing::effect(pmr::new_delete_resource(),
+                elementPass(), std::move(backdrop)), std::invalid_argument);
 }

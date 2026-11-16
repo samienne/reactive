@@ -84,13 +84,38 @@ namespace avg
          * allocation is planScratch's result for this effect at this
          * frame's screen size; its input slots name the snapshot the effect
          * reads. shapeTriangles are the effect's shape as a triangle list
-         * in screen pixels. A pass with an empty region draws nothing.
+         * in screen pixels. The Shape pass draws into target, a sub-drawing
+         * begun with beginSubDrawing, or into the main target when there is
+         * none. A pass with an empty region draws nothing.
          * Throws std::invalid_argument when the allocation names a pass the
          * effect does not have or the wrong number of inputs for one.
          */
         void emitEffect(Effect const& effect,
                 EffectAllocation const& allocation,
-                std::vector<Vector2f> const& shapeTriangles);
+                std::vector<Vector2f> const& shapeTriangles,
+                std::optional<ScratchSlot> const& target = std::nullopt);
+
+        /**
+         * @brief Draws an element's pass when allocation lists it: a Region
+         * pass a quad over its region into its allocated slot, a Shape pass
+         * the given triangles.
+         *
+         * pass is the element pass lowered with its inputs, geometry and
+         * output. Throws std::invalid_argument as emitEffect does.
+         */
+        void emitElement(Pass const& pass, EffectAllocation const& allocation,
+                std::vector<Vector2f> const& shapeTriangles,
+                std::optional<ScratchSlot> const& target = std::nullopt);
+
+        /**
+         * @brief Starts rendering a sub-drawing into slot, a divisor-1
+         * texture: clears its colour to transparent and the pooled depth
+         * buffer of its size, and returns the framebuffer that holds both.
+         *
+         * The caller draws the sub-drawing's content into it; the next pass
+         * reading slot starts after a barrier.
+         */
+        ase::Framebuffer beginSubDrawing(ScratchSlot const& slot);
 
         /**
          * @brief How many pass draws this emitter has recorded.
@@ -118,6 +143,9 @@ namespace avg
                 std::vector<Input> const& inputs,
                 std::optional<ase::UniformValues> const& parameters,
                 std::vector<float> const& vertices);
+        void emitPass(Pass const& pass, PassAllocation const& allocation,
+                std::vector<Vector2f> const& shapeTriangles,
+                std::optional<ScratchSlot> const& target);
         void pushBarrier();
 
         ase::RenderContext& context_;
