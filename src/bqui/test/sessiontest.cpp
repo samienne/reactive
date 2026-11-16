@@ -3,6 +3,8 @@
 #include "remote/capture.h"
 #include "remote/dispatcher.h"
 #include "remote/introspectionjson.h"
+#include "remote/png.h"
+#include "remote/screenshot.h"
 #include "remote/streamtransport.h"
 #include "remote/tcptransport.h"
 #include "scriptedtransport.h"
@@ -237,7 +239,8 @@ namespace
     };
 
     // A fake that can capture: it holds each armed callback until the test
-    // completes it, as a render thread would.
+    // completes it, as a render thread would, unless told to serve a result
+    // at once.
     class CapturableFakeWindow : public FakeRemoteWindow
     {
     public:
@@ -247,9 +250,22 @@ namespace
 
         void captureNextFrame(ase::CaptureCallback callback) override
         {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::unique_lock<std::mutex> lock(mutex_);
+            if (serveWith_)
+            {
+                auto result = *serveWith_;
+                lock.unlock();
+                callback(std::move(result));
+                return;
+            }
+
             armed_.push_back(std::move(callback));
+            armedChanged_.notify_all();
         }
+
+        void requestFrame() override { ++frameRequests_; }
+
+        float scalingFactor() const override { return scalingFactor_; }
 
         std::vector<ase::CaptureCallback> takeArmed()
         {
@@ -257,9 +273,32 @@ namespace
             return std::move(armed_);
         }
 
+        // Waits until `count` captures are armed, then takes them.
+        std::vector<ase::CaptureCallback> awaitArmed(size_t count)
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            armedChanged_.wait_for(lock, std::chrono::seconds(10),
+                    [&] { return armed_.size() >= count; });
+            return std::move(armed_);
+        }
+
+        void serveWith(ase::CaptureResult result)
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            serveWith_ = std::move(result);
+        }
+
+        void setScalingFactor(float factor) { scalingFactor_ = factor; }
+
+        int frameRequests() const { return frameRequests_.load(); }
+
     private:
         std::mutex mutex_;
+        std::condition_variable armedChanged_;
         std::vector<ase::CaptureCallback> armed_;
+        std::optional<ase::CaptureResult> serveWith_;
+        std::atomic<int> frameRequests_{ 0 };
+        float scalingFactor_ = 1.0f;
     };
 
     // Serve the driver over `fakes` on a background thread against a loopback
@@ -287,6 +326,14 @@ namespace
             start(endpoint, std::move(windows));
         }
 
+        SessionFixture(std::string const& name, RemoteWindows windows,
+                std::chrono::milliseconds stepTimeout, BlobLimits blobLimits)
+        {
+            auto endpoint = uniqueEndpoint(name);
+            listener = listen(endpoint);
+            start(endpoint, std::move(windows), stepTimeout, blobLimits);
+        }
+
         struct Tcp {};
 
         SessionFixture(Tcp, RemoteWindows windows)
@@ -297,9 +344,12 @@ namespace
             start(endpoint, std::move(windows));
         }
 
-        void start(std::string const& endpoint, RemoteWindows windows)
+        void start(std::string const& endpoint, RemoteWindows windows,
+                std::chrono::milliseconds stepTimeout = kStepTimeout,
+                BlobLimits blobLimits = {})
         {
-            serverThread = std::thread([this, windows]
+            serverThread = std::thread([this, windows, stepTimeout,
+                    blobLimits]
                 {
                     auto server = listener->accept();
 
@@ -319,7 +369,7 @@ namespace
                     app.liveWindows = [windows] { return windows; };
 
                     RemoteDriver driver(loop, *server, std::move(app),
-                            std::nullopt);
+                            std::nullopt, stepTimeout, blobLimits);
 
                     loop.run();
                 });
@@ -1074,6 +1124,9 @@ TEST(session, describeListIntrospectDriveARealApp)
     // The dummy backend cannot read pixels back.
     EXPECT_FALSE(
             list.at("result").at("windows").at(0).at("canCapture").get<bool>());
+    auto shot = rpc(*client, id++, "window.screenshot",
+            { { "window", windowId } });
+    EXPECT_EQ(kCaptureUnsupported, shot.at("error").at("code").get<int>());
 
     // window.introspect: the counter starts at 0.
     auto intro0 = rpc(*client, id++, "window.introspect",
@@ -1701,6 +1754,321 @@ TEST(session, describeMarksBlobMethodsAndReportsTheLimits)
     EXPECT_EQ(100u, blob.at("maxRead").get<size_t>());
     EXPECT_EQ(10u, blob.at("defaultRead").get<size_t>());
     EXPECT_EQ(json::array({ "base64" }), blob.at("encodings"));
+}
+
+// --- Screenshots ------------------------------------------------------------
+
+namespace
+{
+    // Red is the column times 40, green the row from the top times 60, blue
+    // 200 and alpha 128.
+    ase::FrameCapture syntheticFrame(int width, int height,
+            uint64_t presentIndex)
+    {
+        ase::FrameCapture capture;
+        capture.presentIndex = presentIndex;
+        capture.image.size = ase::Vector2i(width, height);
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x)
+                capture.image.pixels.insert(capture.image.pixels.end(), {
+                        static_cast<std::uint8_t>(x * 40),
+                        static_cast<std::uint8_t>(y * 60), 200, 128 });
+        return capture;
+    }
+
+    // The PNG of the frame's pixels from `left`, `top` (rows from the top),
+    // `width` by `height`, alpha dropped.
+    std::string expectedPng(ase::FrameCapture const& capture, int left,
+            int top, int width, int height)
+    {
+        std::vector<std::uint8_t> rgb;
+        for (int y = top; y < top + height; ++y)
+            for (int x = left; x < left + width; ++x)
+            {
+                auto const* pixel = capture.image.pixels.data()
+                    + (y * capture.image.size.x() + x) * 4;
+                rgb.insert(rgb.end(), pixel, pixel + 3);
+            }
+
+        return encodePng(static_cast<uint32_t>(width),
+                static_cast<uint32_t>(height), rgb.data());
+    }
+
+    json screenshotParams(RemoteWindow const& window,
+            json extra = json::object())
+    {
+        extra["window"] = window.id().getValue();
+        return extra;
+    }
+
+    int errorCodeOf(json const& reply)
+    {
+        return reply.at("error").at("code").get<int>();
+    }
+} // namespace
+
+TEST(session, pausedScreenshotRendersAFrameAndAnswersWithAPng)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "shot");
+    SessionFixture s("shot", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    // Paused, so the driver rendered a frame for the capture, after marking
+    // the window due.
+    EXPECT_TRUE(s.awaitSteps(1));
+    EXPECT_EQ(1, window.frameRequests());
+
+    auto frame = syntheticFrame(4, 3, 7);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    auto const& result = reply.at("result");
+    EXPECT_EQ(4, result.at("width").get<int>());
+    EXPECT_EQ(3, result.at("height").get<int>());
+    EXPECT_EQ(7u, result.at("presentIndex").get<uint64_t>());
+    EXPECT_EQ(1.0, result.at("pixelsPerUnit").get<double>());
+    EXPECT_EQ((json{ { "x", 0.0 }, { "y", 0.0 }, { "width", 4.0 },
+                { "height", 3.0 } }), result.at("region"));
+
+    auto png = expectedPng(frame, 0, 0, 4, 3);
+    auto const& blob = result.at("blob");
+    EXPECT_EQ("image/png", blob.at("contentType"));
+    EXPECT_EQ(png.size(), blob.at("size").get<size_t>());
+
+    auto read = s.call("blob.read", { { "id", blob.at("id") },
+            { "offset", 0 } });
+    EXPECT_EQ(base64Encode(png.data(), png.size()),
+            read.at("result").at("data").get<std::string>());
+    EXPECT_TRUE(read.at("result").at("end").get<bool>());
+
+    // The frame rendered for the capture moved neither time nor the index.
+    auto pause = s.call("app.pause");
+    EXPECT_EQ(0, pause.at("result").at("frame").get<int>());
+}
+
+TEST(session, screenshotOfARegionCropsAndScales)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "region");
+    window.setScalingFactor(2.0f);
+    SessionFixture s("region", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window,
+                { { "region", { { "x", 0.5 }, { "y", 0.0 },
+                    { "width", 1.0 }, { "height", 1.0 } } } }));
+
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    auto frame = syntheticFrame(6, 4, 2);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    auto const& result = reply.at("result");
+    EXPECT_EQ(2.0, result.at("pixelsPerUnit").get<double>());
+    EXPECT_EQ((json{ { "x", 0.5 }, { "y", 0.0 }, { "width", 1.0 },
+                { "height", 1.0 } }), result.at("region"));
+
+    // Logical (0.5, 0) to (1.5, 1) at two pixels a unit is columns 1 to 2
+    // of the bottom two rows.
+    auto png = expectedPng(frame, 1, 2, 2, 2);
+    auto read = s.call("blob.read", { { "id", result.at("blob").at("id") },
+            { "offset", 0 } });
+    EXPECT_EQ(base64Encode(png.data(), png.size()),
+            read.at("result").at("data").get<std::string>());
+
+    int const scaled = s.nextId++;
+    sendRequest(*s.client, scaled, "window.screenshot",
+            screenshotParams(window, { { "scale", 0.5 } }));
+    armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    armed.front()(frame);
+
+    auto half = awaitResponse(*s.client, scaled);
+    ASSERT_TRUE(half.contains("result")) << half.dump();
+    EXPECT_EQ(3, half.at("result").at("width").get<int>());
+    EXPECT_EQ(2, half.at("result").at("height").get<int>());
+    EXPECT_EQ(1.0, half.at("result").at("pixelsPerUnit").get<double>());
+}
+
+TEST(session, screenshotRejectsBadParamsAndUnknownWindows)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "params");
+    SessionFixture s("shotparams", { window });
+
+    auto unknown = s.call("window.screenshot",
+            { { "window", btl::makeUniqueId().getValue() } });
+    EXPECT_EQ(kInvalidParams, errorCodeOf(unknown));
+
+    json const region = { { "x", 0 }, { "y", 0 }, { "width", 1 },
+        { "height", 1 } };
+    for (json extra : {
+            json{ { "region", region }, { "widget", 1 } },
+            json{ { "region", { { "x", 0 }, { "y", 0 }, { "width", 0 },
+                { "height", 1 } } } },
+            json{ { "region", "everything" } },
+            json{ { "widget", 12345 } },
+            json{ { "scale", 0 } },
+            json{ { "scale", 1.5 } },
+            })
+    {
+        auto reply = s.call("window.screenshot",
+                screenshotParams(window, extra));
+        EXPECT_EQ(kInvalidParams, errorCodeOf(reply)) << extra.dump();
+    }
+
+    EXPECT_TRUE(window.takeArmed().empty());
+}
+
+TEST(session, screenshotOfAWindowThatCannotCaptureIsUnsupported)
+{
+    FakeRemoteWindow window(btl::makeUniqueId(), "plain");
+    SessionFixture s("shotunsupported", { window });
+
+    auto reply = s.call("window.screenshot", screenshotParams(window));
+
+    EXPECT_EQ(kCaptureUnsupported, errorCodeOf(reply));
+    EXPECT_EQ("unsupported",
+            reply.at("error").at("data").at("reason").get<std::string>());
+    EXPECT_EQ(0, s.steps.load());
+}
+
+TEST(session, failedCapturesAnswerWithErrors)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "failing");
+    SessionFixture s("shotfailing", { window });
+
+    std::vector<std::pair<ase::ReadbackError, int>> const cases{
+        { ase::ReadbackError::Unsupported, kCaptureUnsupported },
+        { ase::ReadbackError::Cancelled, kInternalError },
+        { ase::ReadbackError::Failed, kInternalError },
+    };
+    std::vector<std::string> const reasons{ "unsupported", "cancelled",
+        "failed" };
+
+    for (size_t i = 0; i < cases.size(); ++i)
+    {
+        int const id = s.nextId++;
+        sendRequest(*s.client, id, "window.screenshot",
+                screenshotParams(window));
+        auto armed = window.awaitArmed(1);
+        ASSERT_EQ(1u, armed.size());
+        armed.front()(cases[i].first);
+
+        auto reply = awaitResponse(*s.client, id);
+        EXPECT_EQ(cases[i].second, errorCodeOf(reply));
+        EXPECT_EQ(reasons[i],
+                reply.at("error").at("data").at("reason").get<std::string>());
+    }
+}
+
+TEST(session, tooManyScreenshotsInFlightIsBusy)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "busy");
+    SessionFixture s("shotbusy", { window });
+
+    std::vector<int> ids;
+    for (size_t i = 0; i < kMaxScreenshotsInFlight; ++i)
+    {
+        ids.push_back(s.nextId++);
+        sendRequest(*s.client, ids.back(), "window.screenshot",
+                screenshotParams(window));
+    }
+
+    auto busy = s.call("window.screenshot", screenshotParams(window));
+    EXPECT_EQ(kCaptureBusy, errorCodeOf(busy));
+
+    auto armed = window.awaitArmed(kMaxScreenshotsInFlight);
+    ASSERT_EQ(kMaxScreenshotsInFlight, armed.size());
+    for (auto& callback : armed)
+        callback(ase::ReadbackError::Cancelled);
+
+    std::vector<int> answered;
+    for (size_t i = 0; i < ids.size(); ++i)
+    {
+        auto raw = s.client->receive();
+        ASSERT_TRUE(raw);
+        answered.push_back(json::parse(*raw).at("id").get<int>());
+    }
+    std::sort(answered.begin(), answered.end());
+    EXPECT_EQ(ids, answered);
+}
+
+TEST(session, screenshotPastTheBlobCapFails)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "cap");
+    BlobLimits limits;
+    limits.maxOutstanding = 16;
+    limits.maxRead = 8;
+    limits.defaultRead = 8;
+    SessionFixture s("shotcap", { window }, kStepTimeout, limits);
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    armed.front()(syntheticFrame(4, 4, 1));
+
+    auto reply = awaitResponse(*s.client, id);
+    EXPECT_EQ(kBlobCapReached, errorCodeOf(reply));
+}
+
+TEST(session, screenshotFailsWhenNoFrameIsCapturedInTime)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "late");
+    SessionFixture s("shotlate", { window }, std::chrono::milliseconds(50),
+            {});
+
+    auto reply = s.call("window.screenshot", screenshotParams(window));
+    EXPECT_EQ(kInternalError, errorCodeOf(reply));
+
+    // A capture served after the deadline goes nowhere.
+    for (auto& callback : window.takeArmed())
+        callback(syntheticFrame(2, 2, 1));
+    auto list = s.call("window.list");
+    EXPECT_TRUE(list.contains("result"));
+}
+
+TEST(session, halfClosedClientStillGetsAScreenshot)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "halfclosed");
+    auto frame = syntheticFrame(3, 2, 5);
+    window.serveWith(frame);
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.screenshot",
+            screenshotParams(window));
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }));
+
+    auto frames = testkit::unframed(transport.wire);
+    ASSERT_EQ(1u, frames.size());
+    auto reply = json::parse(frames.front());
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    EXPECT_EQ(expectedPng(frame, 0, 0, 3, 2).size(),
+            reply.at("result").at("blob").at("size").get<size_t>());
+}
+
+TEST(session, sessionEndWhileAScreenshotIsPendingDropsIt)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "ending");
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.screenshot",
+            screenshotParams(window)) + request(2, "app.shutdown");
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }));
+
+    EXPECT_EQ((std::vector<int>{ 2 }), replyIds(transport.wire));
+
+    // The armed capture outlived the loop it would post to, so it is dropped
+    // uncalled.
+    EXPECT_EQ(1u, window.takeArmed().size());
 }
 
 // --- Stepping a platform whose window is out of in-flight frames -----------

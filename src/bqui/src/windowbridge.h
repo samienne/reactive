@@ -103,6 +103,8 @@ public:
     avg::Snapshot snapshot() const override;
     bool canCapture() const override;
     void captureNextFrame(ase::CaptureCallback callback) override;
+    void requestFrame() override;
+    float scalingFactor() const override;
 
 private:
     pmr::unsynchronized_pool_resource memoryPool_;

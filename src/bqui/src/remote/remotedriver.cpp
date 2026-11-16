@@ -2,22 +2,31 @@
 #include "bqui/remote/transport.h"
 
 #include "blobstore.h"
+#include "capture.h"
 #include "debug.h"
 #include "dispatcher.h"
 #include "introspectionjson.h"
+#include "png.h"
+#include "screenshot.h"
 
+#include <avg/rect.h>
 #include <avg/rendertree/snapshot.h>
 
 #include <btl/runloop.h>
+#include <btl/threadpool.h>
 
 #include <nlohmann/json.hpp>
 
 #include <cassert>
 #include <chrono>
+#include <cmath>
+#include <condition_variable>
 #include <csignal>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -39,6 +48,15 @@ bool RemoteWindow::canCapture() const
 void RemoteWindow::captureNextFrame(ase::CaptureCallback callback)
 {
     callback(ase::ReadbackError::Unsupported);
+}
+
+void RemoteWindow::requestFrame()
+{
+}
+
+float RemoteWindow::scalingFactor() const
+{
+    return 1.0f;
 }
 
 namespace
@@ -183,6 +201,131 @@ uint64_t requireWindowId(json const& params)
     return it->get<uint64_t>();
 }
 
+// --- Screenshots -----------------------------------------------------------
+
+struct ScreenshotRequest
+{
+    uint64_t window = 0;
+    std::optional<LogicalRect> region;
+    std::optional<uint64_t> widget;
+    float scale = 1.0f;
+};
+
+bool isFiniteNumber(json const& value)
+{
+    return value.is_number() && std::isfinite(value.get<double>());
+}
+
+LogicalRect parseRegion(json const& region)
+{
+    if (!region.is_object())
+        throw RpcError{ kInvalidParams,
+            "'region' must be an object with x, y, width and height" };
+
+    auto field = [&](char const* key)
+    {
+        auto it = region.find(key);
+        if (it == region.end() || !isFiniteNumber(*it))
+            throw RpcError{ kInvalidParams,
+                std::string("'region.") + key + "' must be a finite number" };
+        return static_cast<float>(it->get<double>());
+    };
+
+    LogicalRect rect{ field("x"), field("y"), field("width"),
+        field("height") };
+    if (!(rect.width > 0.0f) || !(rect.height > 0.0f))
+        throw RpcError{ kInvalidParams,
+            "'region' must have a positive width and height" };
+
+    return rect;
+}
+
+ScreenshotRequest parseScreenshot(json const& params)
+{
+    ScreenshotRequest request;
+    request.window = requireWindowId(params);
+
+    auto region = params.find("region");
+    auto widget = params.find("widget");
+    if (region != params.end() && widget != params.end())
+        throw RpcError{ kInvalidParams,
+            "give 'region' or 'widget', not both" };
+
+    if (region != params.end())
+        request.region = parseRegion(*region);
+
+    if (widget != params.end())
+    {
+        if (!widget->is_number_unsigned())
+            throw RpcError{ kInvalidParams,
+                "'widget' must be an introspection id" };
+        request.widget = widget->get<uint64_t>();
+    }
+
+    auto scale = params.find("scale");
+    if (scale != params.end())
+    {
+        if (!isFiniteNumber(*scale) || scale->get<double>() <= 0.0
+                || scale->get<double>() > 1.0)
+            throw RpcError{ kInvalidParams, "'scale' must be in (0, 1]" };
+        request.scale = static_cast<float>(scale->get<double>());
+    }
+
+    return request;
+}
+
+std::optional<LogicalRect> widgetBounds(widget::Introspection const& node,
+        uint64_t id)
+{
+    if (node.id && node.id->getValue() == id)
+    {
+        auto rect = node.obb.getBoundingRect();
+        return LogicalRect{ rect.getLeft(), rect.getBottom(), rect.getWidth(),
+            rect.getHeight() };
+    }
+
+    for (auto const& child : node.children)
+        if (child)
+            if (auto bounds = widgetBounds(*child, id))
+                return bounds;
+
+    return std::nullopt;
+}
+
+json toJson(LogicalRect const& rect)
+{
+    return {
+        { "x", rect.x },
+        { "y", rect.y },
+        { "width", rect.width },
+        { "height", rect.height },
+    };
+}
+
+RpcError captureError(ase::ReadbackError error, uint64_t window)
+{
+    json data = { { "window", window } };
+    std::string const name = "window " + std::to_string(window);
+
+    switch (error)
+    {
+    case ase::ReadbackError::Unsupported:
+        data["reason"] = "unsupported";
+        return { kCaptureUnsupported,
+            name + " cannot capture: its backend cannot read pixels back",
+            data };
+    case ase::ReadbackError::Cancelled:
+        data["reason"] = "cancelled";
+        return { kInternalError,
+            name + " went away before a frame was captured", data };
+    case ase::ReadbackError::Failed:
+        break;
+    }
+
+    data["reason"] = "failed";
+    return { kInternalError, name + " failed to read its frame back", data };
+}
+
 } // namespace
 
 /** @brief The inspector-protocol server behind RemoteDriver.
@@ -218,8 +361,12 @@ public:
         {
             pauseToken_->setWakeCallback([this]
                 {
-                    if (pendingStep_)
-                        post([this] { resumeStep(); });
+                    if (pendingStep_ || zeroFrameGate_)
+                        post([this]
+                            {
+                                resumeStep();
+                                resumeZeroFrame();
+                            });
                 });
         }
 
@@ -240,6 +387,9 @@ public:
     ~Impl()
     {
         endSession();
+
+        std::unique_lock<std::mutex> lock(encodes_->mutex);
+        encodes_->done.wait(lock, [this] { return encodes_->running == 0; });
     }
 
 private:
@@ -252,6 +402,26 @@ private:
         std::chrono::microseconds dt;
         Responder responder;
         DispatchGate gate;
+    };
+
+    // A `window.screenshot` not answered yet; `framed` once its frame is
+    // captured and being encoded.
+    struct PendingScreenshot
+    {
+        ScreenshotRequest request;
+        float scalingFactor = 1.0f;
+        Responder responder;
+        btl::RunLoop::Timer deadline;
+        bool framed = false;
+    };
+
+    // The encodes running on worker threads, which the destructor waits for
+    // so that none posts to a loop being torn down.
+    struct EncodeJobs
+    {
+        std::mutex mutex;
+        std::condition_variable done;
+        int running = 0;
     };
 
     // The loop-thread Controller, valid only during a callback.
@@ -308,7 +478,7 @@ private:
             finish();
         else if (transport_->disconnected())
         {
-            if (pendingStep_ && !closed_)
+            if (!idle() && !closed_)
                 inputEnded_ = true;
             else
                 finish();
@@ -391,6 +561,9 @@ private:
         dispatcher_.end();
         pendingStep_.reset();
         stepDeadline_ = btl::RunLoop::Timer();
+        screenshots_.clear();
+        zeroFrameGate_.reset();
+        zeroFrameDeadline_ = btl::RunLoop::Timer();
         blobs_.clear();
     }
 
@@ -525,6 +698,16 @@ private:
     json pause(json const&)
     {
         state_ = State::Paused;
+
+        for (auto const& entry : screenshots_)
+        {
+            if (!entry.second.framed)
+            {
+                renderZeroFrame();
+                break;
+            }
+        }
+
         return { { "state", "paused" }, { "frame", frame_ } };
     }
 
@@ -614,13 +797,271 @@ private:
         answer(step.responder);
         step.gate.release();
 
-        if (shuttingDown_ || (inputEnded_ && !pendingStep_))
+        if (shuttingDown_ || (inputEnded_ && idle()))
+            finish();
+    }
+
+    // Whether nothing is left to answer once input has ended.
+    bool idle() const
+    {
+        return !pendingStep_ && !zeroFrameGate_ && screenshots_.empty();
+    }
+
+    void finishIfIdle()
+    {
+        if (inputEnded_ && !shuttingDown_ && idle())
             finish();
     }
 
     json stepResult() const
     {
         return { { "state", "paused" }, { "frame", frame_ } };
+    }
+
+    Reply windowScreenshot(json const& params, Responder& responder)
+    {
+        ScreenshotRequest request = parseScreenshot(params);
+
+        auto windows = app_.liveWindows();
+        RemoteWindow* window = findWindow(windows, request.window);
+        if (!window)
+            throw RpcError{ kInvalidParams,
+                "no live window with id " + std::to_string(request.window) };
+
+        if (request.widget
+                && !widgetBounds(window->introspect(), *request.widget))
+            throw RpcError{ kInvalidParams,
+                "no widget with id " + std::to_string(*request.widget)
+                    + " in window " + std::to_string(request.window) };
+
+        if (!window->canCapture())
+            throw captureError(ase::ReadbackError::Unsupported,
+                    request.window);
+
+        if (screenshots_.size() >= kMaxScreenshotsInFlight)
+            throw RpcError{ kCaptureBusy, "too many screenshots in flight",
+                { { "inFlight", screenshots_.size() },
+                  { "limit", kMaxScreenshotsInFlight } } };
+
+        uint64_t const key = nextScreenshot_++;
+        PendingScreenshot& shot = screenshots_[key];
+        shot.request = request;
+        shot.scalingFactor = window->scalingFactor();
+        shot.responder = std::move(responder);
+        shot.deadline = controller_->addTimer(stepTimeout_,
+                [this, key](btl::RunLoop::Controller& controller)
+                {
+                    ControllerScope scope(controller_, controller);
+                    failScreenshot(key, RpcError{ kInternalError,
+                        "no frame was captured in time" });
+                });
+
+        captureOnLoop(*window, loop_, alive_,
+                [this, key](btl::RunLoop::Controller& controller,
+                    ase::CaptureResult result)
+                {
+                    ControllerScope scope(controller_, controller);
+                    onCaptured(key, std::move(result));
+                });
+        window->requestFrame();
+
+        if (state_ == State::Paused)
+            renderZeroFrame();
+
+        return pending;
+    }
+
+    // Renders the due windows without moving time or the frame index, so a
+    // paused app serves an armed capture. Holds the gate while a window waits
+    // for a free slot.
+    void renderZeroFrame()
+    {
+        auto const dt = std::chrono::microseconds(0);
+        bool keepRunning = pauseToken_ ? pauseToken_->step(dt) : app_.step(dt);
+        if (!keepRunning)
+        {
+            beginShutdown();
+            return;
+        }
+
+        if (pauseToken_ && !pauseToken_->finishStep() && !zeroFrameGate_)
+        {
+            zeroFrameGate_ = dispatcher_.holdGate();
+            zeroFrameDeadline_ = controller_->addTimer(stepTimeout_,
+                    [this](btl::RunLoop::Controller& controller)
+                    {
+                        ControllerScope scope(controller_, controller);
+                        endZeroFrame();
+                    });
+        }
+    }
+
+    void resumeZeroFrame()
+    {
+        if (zeroFrameGate_ && pauseToken_->finishStep())
+            endZeroFrame();
+    }
+
+    void endZeroFrame()
+    {
+        if (!zeroFrameGate_)
+            return;
+
+        zeroFrameDeadline_ = btl::RunLoop::Timer();
+        DispatchGate gate = std::move(*zeroFrameGate_);
+        zeroFrameGate_.reset();
+        gate.release();
+
+        finishIfIdle();
+    }
+
+    void onCaptured(uint64_t key, ase::CaptureResult result)
+    {
+        auto it = screenshots_.find(key);
+        if (it == screenshots_.end())
+            return;
+
+        PendingScreenshot& shot = it->second;
+        shot.deadline = btl::RunLoop::Timer();
+
+        if (!result.valid())
+        {
+            failScreenshot(key, captureError(result.err(),
+                        shot.request.window));
+            return;
+        }
+
+        std::optional<LogicalRect> region = shot.request.region;
+        if (shot.request.widget)
+        {
+            auto windows = app_.liveWindows();
+            RemoteWindow* window = findWindow(windows, shot.request.window);
+            region = window
+                ? widgetBounds(window->introspect(), *shot.request.widget)
+                : std::nullopt;
+            if (!region)
+            {
+                failScreenshot(key, RpcError{ kInvalidParams,
+                    "widget " + std::to_string(*shot.request.widget)
+                        + " is not in the captured frame" });
+                return;
+            }
+        }
+
+        ase::FrameCapture capture = std::move(result).value();
+        auto plan = planScreenshot(capture.image.size, shot.scalingFactor,
+                region, shot.request.scale);
+        if (!plan)
+        {
+            failScreenshot(key, RpcError{ kInvalidParams,
+                "the region lies outside the window" });
+            return;
+        }
+
+        shot.framed = true;
+        encode(key, std::move(capture), *plan);
+    }
+
+    void encode(uint64_t key, ase::FrameCapture capture, ScreenshotPlan plan)
+    {
+        {
+            std::lock_guard<std::mutex> lock(encodes_->mutex);
+            ++encodes_->running;
+        }
+
+        btl::ThreadPool::getInstance().async(
+                [this, key, plan, jobs = encodes_,
+                alive = std::weak_ptr<bool>(alive_),
+                capture = std::move(capture)]() mutable
+                {
+                    std::string png;
+                    std::string error;
+                    try
+                    {
+                        auto rgb = renderScreenshot(capture.image, plan);
+                        png = encodePng(
+                                static_cast<uint32_t>(plan.outputSize.x()),
+                                static_cast<uint32_t>(plan.outputSize.y()),
+                                rgb.data());
+                    }
+                    catch (std::exception const& e)
+                    {
+                        error = e.what();
+                    }
+
+                    loop_.post([this, key, plan, alive,
+                            presentIndex = capture.presentIndex,
+                            png = std::move(png), error = std::move(error)](
+                                btl::RunLoop::Controller& controller) mutable
+                        {
+                            if (alive.expired())
+                                return;
+
+                            ControllerScope scope(controller_, controller);
+                            onEncoded(key, plan, presentIndex, std::move(png),
+                                    error);
+                        });
+
+                    {
+                        std::lock_guard<std::mutex> lock(jobs->mutex);
+                        --jobs->running;
+                    }
+                    jobs->done.notify_all();
+                });
+    }
+
+    void onEncoded(uint64_t key, ScreenshotPlan const& plan,
+            uint64_t presentIndex, std::string png, std::string const& error)
+    {
+        auto it = screenshots_.find(key);
+        if (it == screenshots_.end())
+            return;
+
+        PendingScreenshot shot = std::move(it->second);
+        screenshots_.erase(it);
+
+        if (!error.empty())
+        {
+            shot.responder.reject(RpcError{ kInternalError,
+                "encoding the screenshot failed: " + error });
+            finishIfIdle();
+            return;
+        }
+
+        json blob;
+        try
+        {
+            blob = blobs_.add(std::move(png), "image/png");
+        }
+        catch (RpcError const& e)
+        {
+            shot.responder.reject(e);
+            finishIfIdle();
+            return;
+        }
+
+        shot.responder.resolve({
+                { "blob", std::move(blob) },
+                { "width", plan.outputSize.x() },
+                { "height", plan.outputSize.y() },
+                { "region", toJson(plan.captured) },
+                { "pixelsPerUnit", shot.scalingFactor * shot.request.scale },
+                { "presentIndex", presentIndex },
+                });
+        finishIfIdle();
+    }
+
+    void failScreenshot(uint64_t key, RpcError error)
+    {
+        auto it = screenshots_.find(key);
+        if (it == screenshots_.end())
+            return;
+
+        PendingScreenshot shot = std::move(it->second);
+        screenshots_.erase(it);
+
+        shot.responder.reject(std::move(error));
+        finishIfIdle();
     }
 
     json setFrameNotifications(json const& params)
@@ -776,6 +1217,27 @@ private:
         renderTree.returnsBlob = true;
         dispatcher_.add(std::move(renderTree));
 
+        Method screenshot{ "window.screenshot",
+            "Capture the window's next frame as a PNG blob; while paused, a "
+            "frame with no elapsed time is rendered for it. `region` {x, y, "
+            "width, height} in window-space units (x, y its bottom-left "
+            "corner) or `widget` (an introspection id), not both, defaults to "
+            "the whole window; `scale` in (0, 1] shrinks the image. Answers "
+            "with the blob, the image `width` and `height`, the captured "
+            "`region`, `pixelsPerUnit` and the frame's `presentIndex`.",
+            {
+                { "window", "number", true },
+                { "region", "object", false },
+                { "widget", "number", false },
+                { "scale", "number", false },
+            },
+            [this](json const& p, Responder& r)
+            {
+                return windowScreenshot(p, r);
+            } };
+        screenshot.returnsBlob = true;
+        dispatcher_.add(std::move(screenshot));
+
         dispatcher_.add({ "window.inject",
             "Queue input events onto a window for the next step.",
             {
@@ -808,6 +1270,10 @@ private:
     BlobStore blobs_;
     Dispatcher dispatcher_;
     std::optional<PendingStep> pendingStep_;
+    std::map<uint64_t, PendingScreenshot> screenshots_;
+    uint64_t nextScreenshot_ = 1;
+    std::optional<DispatchGate> zeroFrameGate_;
+    std::shared_ptr<EncodeJobs> encodes_ = std::make_shared<EncodeJobs>();
     std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
     uint64_t frame_ = 0;
     State state_ = State::Paused;
@@ -820,6 +1286,7 @@ private:
     btl::RunLoop::Source writable_;
     btl::RunLoop::Timer flushTimeout_;
     btl::RunLoop::Timer stepDeadline_;
+    btl::RunLoop::Timer zeroFrameDeadline_;
 };
 
 RemoteDriver::RemoteDriver(btl::RunLoop& loop, Transport& transport,
