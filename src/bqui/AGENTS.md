@@ -109,6 +109,28 @@ event injection are a capability of the glue — available for any window — an
 driver addresses each glue by its `UniqueId`. The transport and JSON-RPC protocol
 are reused unchanged (see `docs/decisions.md`).
 
+**The driver never blocks the loop thread on the client, in either direction.**
+Reads are a readable source; sends go through an outgoing queue the transport
+owns (`Transport::enqueue` / `flushReady`, implemented once in `StreamTransport`
+over a per-transport `writeReady`). Replies and notifications share that one
+queue, so frames leave in the order they were produced, and a frame cut short
+resumes where it stopped. The driver registers a writable source only while
+`flushReady` reports bytes left, and drops it when the queue empties. Traps:
+
+- On Windows both the pipe and the TCP socket write through `OverlappedWriter`
+  (`src/remote/overlappedwriter.h`) and wait on its completion event, not on
+  socket writability: the Win32 run loop uses `WSAEventSelect`, and a second
+  selection on a socket replaces the first, so a readable and a writable source
+  on one socket cannot coexist.
+- The queue is capped (`kMaxQueuedBytes`). Passing the cap, like a write error,
+  drops the queue and ends the session with a logged reason; nothing is dropped
+  silently to make room.
+- An orderly end (`app.shutdown`, the app finishing) waits a bounded time
+  (`kShutdownFlushTimeout`) for queued replies to drain to a connected client
+  before the loop stops; commands arriving meanwhile are discarded.
+- The blocking `send`/`receive` remain for the client role and tests. A
+  transport is used one way or the other, never both.
+
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception
