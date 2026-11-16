@@ -1,9 +1,15 @@
 #pragma once
 
+#include "dispatcher.h"
+
+#include "bqui/remote/remotedriver.h"
+#include "bqui/widget/introspection.h"
 #include "bqui/bquivisibility.h"
 
 #include <ase/readback.h>
 #include <ase/vector.h>
+
+#include <nlohmann/json.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -69,4 +75,52 @@ namespace bqui::remote
      */
     BQUI_EXPORT std::vector<std::uint8_t> renderScreenshot(
             ase::ReadbackImage const& image, ScreenshotPlan const& plan);
+
+    /**
+     * @brief What a `window.screenshot` request asks for.
+     */
+    struct ScreenshotRequest
+    {
+        uint64_t window = 0;
+        std::optional<LogicalRect> region;
+        std::optional<uint64_t> widget;
+        float scale = 1.0f;
+    };
+
+    /**
+     * @brief Parse the params of a `window.screenshot` of `window`.
+     *
+     * Invalid params are thrown as `RpcError`.
+     */
+    ScreenshotRequest parseScreenshot(nlohmann::json const& params,
+            uint64_t window);
+
+    /**
+     * @brief The bounds of the widget `id` in a resolved introspection tree.
+     */
+    std::optional<LogicalRect> widgetBounds(widget::Introspection const& node,
+            uint64_t id);
+
+    /**
+     * @brief What a screenshot's plan takes from the frame it captures.
+     */
+    struct FrameGeometry
+    {
+        float scalingFactor = 1.0f;
+        std::optional<LogicalRect> region;
+        bool widgetMissing = false;
+    };
+
+    /**
+     * @brief The geometry of `request` in `window`'s current frame.
+     */
+    FrameGeometry readGeometry(RemoteWindow const& window,
+            ScreenshotRequest const& request);
+
+    nlohmann::json toJson(LogicalRect const& rect);
+
+    /**
+     * @brief The error a screenshot answers with when its capture failed.
+     */
+    RpcError captureError(ase::ReadbackError error, uint64_t window);
 } // namespace bqui::remote

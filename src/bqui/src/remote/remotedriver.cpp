@@ -9,7 +9,6 @@
 #include "png.h"
 #include "screenshot.h"
 
-#include <avg/rect.h>
 #include <avg/rendertree/snapshot.h>
 
 #include <btl/runloop.h>
@@ -20,12 +19,10 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
-#include <cmath>
 #include <condition_variable>
 #include <csignal>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -206,165 +203,6 @@ uint64_t requireWindowId(json const& params)
             "'window' must be a numeric window id" };
 
     return it->get<uint64_t>();
-}
-
-// --- Screenshots -----------------------------------------------------------
-
-struct ScreenshotRequest
-{
-    uint64_t window = 0;
-    std::optional<LogicalRect> region;
-    std::optional<uint64_t> widget;
-    float scale = 1.0f;
-};
-
-std::optional<float> finiteFloat(json const& value)
-{
-    if (!value.is_number())
-        return std::nullopt;
-
-    double const number = value.get<double>();
-    if (!std::isfinite(number)
-            || std::abs(number) > (std::numeric_limits<float>::max)())
-    {
-        return std::nullopt;
-    }
-
-    return static_cast<float>(number);
-}
-
-LogicalRect parseRegion(json const& region)
-{
-    if (!region.is_object())
-        throw RpcError{ kInvalidParams,
-            "'region' must be an object with x, y, width and height" };
-
-    auto field = [&](char const* key)
-    {
-        auto it = region.find(key);
-        auto value = it == region.end() ? std::nullopt : finiteFloat(*it);
-        if (!value)
-            throw RpcError{ kInvalidParams,
-                std::string("'region.") + key + "' must be a finite number" };
-        return *value;
-    };
-
-    LogicalRect rect{ field("x"), field("y"), field("width"),
-        field("height") };
-    if (!(rect.width > 0.0f) || !(rect.height > 0.0f))
-        throw RpcError{ kInvalidParams,
-            "'region' must have a positive width and height" };
-
-    return rect;
-}
-
-ScreenshotRequest parseScreenshot(json const& params)
-{
-    ScreenshotRequest request;
-    request.window = requireWindowId(params);
-
-    auto region = params.find("region");
-    auto widget = params.find("widget");
-    if (region != params.end() && widget != params.end())
-        throw RpcError{ kInvalidParams,
-            "give 'region' or 'widget', not both" };
-
-    if (region != params.end())
-        request.region = parseRegion(*region);
-
-    if (widget != params.end())
-    {
-        if (!widget->is_number_unsigned())
-            throw RpcError{ kInvalidParams,
-                "'widget' must be an introspection id" };
-        request.widget = widget->get<uint64_t>();
-    }
-
-    auto scale = params.find("scale");
-    if (scale != params.end())
-    {
-        auto value = finiteFloat(*scale);
-        if (!value || !(*value > 0.0f) || *value > 1.0f)
-            throw RpcError{ kInvalidParams, "'scale' must be in (0, 1]" };
-        request.scale = *value;
-    }
-
-    return request;
-}
-
-std::optional<LogicalRect> widgetBounds(widget::Introspection const& node,
-        uint64_t id)
-{
-    if (node.id && node.id->getValue() == id)
-    {
-        auto rect = node.obb.getBoundingRect();
-        return LogicalRect{ rect.getLeft(), rect.getBottom(), rect.getWidth(),
-            rect.getHeight() };
-    }
-
-    for (auto const& child : node.children)
-        if (child)
-            if (auto bounds = widgetBounds(*child, id))
-                return bounds;
-
-    return std::nullopt;
-}
-
-// What a screenshot's plan takes from the frame it captures.
-struct FrameGeometry
-{
-    float scalingFactor = 1.0f;
-    std::optional<LogicalRect> region;
-    bool widgetMissing = false;
-};
-
-FrameGeometry readGeometry(RemoteWindow const& window,
-        ScreenshotRequest const& request)
-{
-    FrameGeometry geometry;
-    geometry.scalingFactor = window.scalingFactor();
-    geometry.region = request.region;
-    if (request.widget)
-    {
-        geometry.region = widgetBounds(window.introspect(), *request.widget);
-        geometry.widgetMissing = !geometry.region;
-    }
-
-    return geometry;
-}
-
-json toJson(LogicalRect const& rect)
-{
-    return {
-        { "x", rect.x },
-        { "y", rect.y },
-        { "width", rect.width },
-        { "height", rect.height },
-    };
-}
-
-RpcError captureError(ase::ReadbackError error, uint64_t window)
-{
-    json data = { { "window", window } };
-    std::string const name = "window " + std::to_string(window);
-
-    switch (error)
-    {
-    case ase::ReadbackError::Unsupported:
-        data["reason"] = "unsupported";
-        return { kCaptureUnsupported,
-            name + " cannot capture: its backend cannot read pixels back",
-            data };
-    case ase::ReadbackError::Cancelled:
-        data["reason"] = "cancelled";
-        return { kInternalError,
-            name + " went away before a frame was captured", data };
-    case ase::ReadbackError::Failed:
-        break;
-    }
-
-    data["reason"] = "failed";
-    return { kInternalError, name + " failed to read its frame back", data };
 }
 
 } // namespace
@@ -920,7 +758,8 @@ private:
 
     Reply windowScreenshot(json const& params, Responder& responder)
     {
-        ScreenshotRequest request = parseScreenshot(params);
+        ScreenshotRequest request = parseScreenshot(params,
+                requireWindowId(params));
 
         auto windows = app_.liveWindows();
         RemoteWindow* window = findWindow(windows, request.window);
