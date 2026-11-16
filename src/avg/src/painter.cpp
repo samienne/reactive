@@ -325,21 +325,22 @@ void Painter::clearWindow(ase::Window& target)
     commandBuffer_.pushClear(windowTarget(target).getFramebuffer());
 }
 
-void Painter::paintToImage(TargetImage& target, float scalingFactor,
+RenderCounters Painter::paintToImage(TargetImage& target, float scalingFactor,
         Drawing const& drawing)
 {
     ZoneScoped;
     beginFrame();
-    render(memory_, commandBuffer_, renderContext_, target, scalingFactor,
-            *this, drawing);
+    return render(memory_, commandBuffer_, renderContext_, target,
+            scalingFactor, *this, drawing);
 }
 
-void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
+RenderCounters Painter::paintToWindow(ase::Window& target,
+        Drawing const& drawing)
 {
     ZoneScoped;
 
     beginFrame();
-    render(memory_, commandBuffer_, renderContext_, windowTarget(target),
+    return render(memory_, commandBuffer_, renderContext_, windowTarget(target),
             target.getScalingFactor(), *this, drawing);
 }
 

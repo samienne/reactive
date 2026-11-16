@@ -101,6 +101,12 @@ namespace avg
 
         size_t getSnapshotCount() const;
 
+        /**
+         * @brief The area of every region drawn so far, each in its own
+         * target's pixels.
+         */
+        size_t getPixelsShaded() const;
+
     private:
         struct Input
         {
@@ -125,5 +131,6 @@ namespace avg
         ase::UniformBlock<PassBlock> passBlock_;
         size_t passCount_ = 0;
         size_t snapshotCount_ = 0;
+        size_t pixelsShaded_ = 0;
     };
 }

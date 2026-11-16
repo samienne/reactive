@@ -7,6 +7,8 @@
 
 #include <mapbox/earcut.hpp>
 
+#include <tracy/Tracy.hpp>
+
 #include <pmr/vector.h>
 #include <pmr/shared_ptr.h>
 #include <pmr/queue.h>
@@ -432,6 +434,8 @@ Region Region::offset(JoinType join, EndType end, float offset) const
 std::pair<pmr::vector<Vector2f>, pmr::vector<uint32_t> >
     Region::triangulate(pmr::memory_resource* memory) const
 {
+    ZoneScopedN("Region::triangulate");
+
     if (!d() || !d()->polyTree_)
         return {pmr::vector<Vector2f>(memory), pmr::vector<uint32_t>(memory)};
 

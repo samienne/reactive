@@ -317,7 +317,19 @@ with the rejected alternatives and the places the code departed from it;
   quad overwrites its whole region and the Shape pass draws over the main
   target. An effect whose Shape region is empty records nothing; a pass
   with an empty region is skipped. `getPassCount` and `getSnapshotCount`
-  count the pass and snapshot draws the emitter has recorded.
+  count the pass and snapshot draws the emitter has recorded, and
+  `getPixelsShaded` sums their regions' areas.
+- **Counters per render.** `render` returns a `RenderCounters`
+  (`rendercounters.h`), and `paintToImage`/`paintToWindow` pass it on.
+  `draws` counts the `DrawCommand`s pushed after the buffer's size on
+  entry, so several `render` calls into one buffer each count their own;
+  `passes`, `snapshots` and `pixelsShaded` are the frame emitter's (zero
+  when the frame has no effect and makes none); `scratchTargets` and
+  `scratchBytes` come from the `ScratchPlan`'s pool sizes at the target's
+  size, so they are what the frame uses, not what the pool holds across
+  frames. Nothing is kept between calls. `rendercounterstest.cpp` pins
+  them for a fixed scene set at 800x600 in one table, the place to update
+  when a change moves the numbers on purpose.
 - **PassBlock in C++** is `avg::PassBlock`, a plain struct of float arrays
   whose std140 placement `ase::UniformBlock` checks against `passInterface`
   when the emitter is constructed, so a layout drift fails at the first
