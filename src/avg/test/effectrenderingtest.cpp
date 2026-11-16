@@ -589,8 +589,8 @@ TEST(EffectRendering, aGlassSurfaceInAStackDrawsOverTheChildrenBelowIt)
                 std::make_optional(avg::Brush(white)),
                 std::make_optional(avg::SurfaceShadow{
                         avg::Vector2f(2.0f, -2.0f), 0.0f, avg::Brush(black) }),
-                std::make_optional(avg::SurfaceEffect(
-                        avg::SurfaceFrostedGlass{ options })),
+                std::make_optional(avg::Animated<avg::Effect>(
+                        avg::frostedGlass(options))),
                 std::make_shared<avg::RectNode>(
                     avg::Obb(avg::Vector2f(20.0f, 20.0f)),
                     std::nullopt,

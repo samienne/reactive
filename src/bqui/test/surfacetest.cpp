@@ -158,7 +158,7 @@ TEST(Surface, surfaceYieldsASurfaceNodeWithWhatItWasGiven)
                     constant(4.0f),
                     constant(avg::Brush(black))
                 },
-                modifier::SurfaceFrostedGlass{ constant(glassOptions()) }
+                constant(avg::frostedGlass(glassOptions()))
                 ));
 
     auto const* node = surfaceRootOf(instance);
@@ -174,10 +174,8 @@ TEST(Surface, surfaceYieldsASurfaceNodeWithWhatItWasGiven)
     EXPECT_EQ(black, node->getShadow()->brush.getValue(now).getColor());
 
     ASSERT_TRUE(node->getEffect().has_value());
-    auto const* glass = std::get_if<avg::SurfaceFrostedGlass>(
-            &*node->getEffect());
-    ASSERT_TRUE(glass);
-    EXPECT_FLOAT_EQ(32.0f, glass->options.getValue(now).radius);
+    EXPECT_EQ(avg::frostedGlass(glassOptions()),
+            node->getEffect()->getValue(now));
 
     ASSERT_TRUE(node->getChild());
 }
@@ -195,7 +193,7 @@ TEST(Surface, surfaceDrawsShadowThenEffectThenFillThenChild)
                     constant(4.0f),
                     constant(avg::Brush(black))
                 },
-                modifier::SurfaceFrostedGlass{ constant(glassOptions()) }
+                constant(avg::frostedGlass(glassOptions()))
                 )));
 
     auto const& elements = drawing.getElements();
@@ -220,10 +218,8 @@ TEST(Surface, frostedGlassSetsAFrostedGlassEffectAndNothingElse)
     EXPECT_FALSE(node->getShadow().has_value());
 
     ASSERT_TRUE(node->getEffect().has_value());
-    auto const* glass = std::get_if<avg::SurfaceFrostedGlass>(
-            &*node->getEffect());
-    ASSERT_TRUE(glass);
-    EXPECT_FLOAT_EQ(32.0f, glass->options.getValue(now).radius);
+    EXPECT_EQ(avg::frostedGlass(glassOptions()),
+            node->getEffect()->getValue(now));
 }
 
 TEST(Surface, tintSetsATintEffect)
@@ -237,10 +233,7 @@ TEST(Surface, tintSetsATintEffect)
     ASSERT_TRUE(node);
 
     ASSERT_TRUE(node->getEffect().has_value());
-    auto const* tint = std::get_if<avg::SurfaceTint>(&*node->getEffect());
-    ASSERT_TRUE(tint);
-    EXPECT_EQ(blue, tint->colour.getValue(now));
-    EXPECT_FLOAT_EQ(0.25f, tint->strength.getValue(now));
+    EXPECT_EQ(avg::tint(blue, 0.25f), node->getEffect()->getValue(now));
 }
 
 TEST(Surface, stackPaintsEachLaterChildInItsOwnBackdropScope)

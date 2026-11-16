@@ -2,20 +2,17 @@
 
 #include "rendertree/updateresult.h"
 
-#include "builtineffects.h"
 #include "effect.h"
 #include "obb.h"
 #include "pen.h"
 #include "shape.h"
 
-#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <memory>
 #include <optional>
 #include <typeindex>
 #include <utility>
-#include <variant>
 
 namespace avg
 {
@@ -54,79 +51,29 @@ bool hasShadowAnimationEnded(std::optional<SurfaceShadow> const& shadow,
                 && shadow->brush.hasAnimationEnded(time));
 }
 
-std::optional<SurfaceEffect> updatedEffect(
-        std::optional<SurfaceEffect> const& oldEffect,
-        std::optional<SurfaceEffect> const& newEffect,
+// A change of kind is not an animation: the surface shows the new effect
+// at once and asks for no further frames.
+std::optional<Animated<Effect>> updatedEffect(
+        std::optional<Animated<Effect>> const& oldEffect,
+        std::optional<Animated<Effect>> const& newEffect,
         std::optional<AnimationOptions> const& options,
         std::chrono::milliseconds time
         )
 {
-    if (!oldEffect || !newEffect || oldEffect->index() != newEffect->index())
+    if (!oldEffect || !newEffect
+            || !isSameKind(oldEffect->getFinalValue(),
+                newEffect->getInitialValue()))
+    {
         return newEffect;
-
-    if (auto const* glass = std::get_if<SurfaceFrostedGlass>(&*newEffect))
-    {
-        return SurfaceFrostedGlass{
-            std::get<SurfaceFrostedGlass>(*oldEffect).options.updated(
-                    glass->options, options, time)
-        };
     }
 
-    auto const& oldTint = std::get<SurfaceTint>(*oldEffect);
-    auto const& newTint = std::get<SurfaceTint>(*newEffect);
-
-    return SurfaceTint{
-        oldTint.colour.updated(newTint.colour, options, time),
-        oldTint.strength.updated(newTint.strength, options, time)
-    };
+    return oldEffect->updated(*newEffect, options, time);
 }
 
-bool hasEffectAnimationEnded(std::optional<SurfaceEffect> const& effect,
+bool hasEffectAnimationEnded(std::optional<Animated<Effect>> const& effect,
         std::chrono::milliseconds time)
 {
-    if (!effect)
-        return true;
-
-    if (auto const* glass = std::get_if<SurfaceFrostedGlass>(&*effect))
-        return glass->options.hasAnimationEnded(time);
-
-    auto const& tinted = std::get<SurfaceTint>(*effect);
-
-    return tinted.colour.hasAnimationEnded(time)
-        && tinted.strength.hasAnimationEnded(time);
-}
-
-float clampStrength(float strength)
-{
-    return std::clamp(strength, 0.0f, 1.0f);
-}
-
-// An overshooting curve interpolates past either end of an animation, to
-// values the built-in effects reject.
-FrostedGlassOptions clampToValid(FrostedGlassOptions options)
-{
-    options.radius = std::max(options.radius, 0.0f);
-    options.saturation = std::max(options.saturation, 0.0f);
-    options.highlightWidth = std::max(options.highlightWidth, 0.0f);
-    options.tintStrength = clampStrength(options.tintStrength);
-    options.highlightStrength = clampStrength(options.highlightStrength);
-
-    return options;
-}
-
-std::shared_ptr<Effect const> makeEffect(SurfaceEffect const& effect,
-        std::chrono::milliseconds time)
-{
-    if (auto const* glass = std::get_if<SurfaceFrostedGlass>(&effect))
-    {
-        return std::make_shared<Effect const>(frostedGlass(
-                    clampToValid(glass->options.getValue(time))));
-    }
-
-    auto const& tinted = std::get<SurfaceTint>(effect);
-
-    return std::make_shared<Effect const>(tint(tinted.colour.getValue(time),
-                clampStrength(tinted.strength.getValue(time))));
+    return !effect || effect->hasAnimationEnded(time);
 }
 
 UpdateResult updatedChild(
@@ -165,7 +112,7 @@ SurfaceNode::SurfaceNode(
         ShapeFunction shape,
         Animated<std::optional<Brush>> fill,
         std::optional<SurfaceShadow> shadow,
-        std::optional<SurfaceEffect> effect,
+        std::optional<Animated<Effect>> effect,
         std::shared_ptr<RenderTreeNode> childNode
         ) :
     RenderTreeNode(std::nullopt, std::move(obb)),
@@ -298,7 +245,8 @@ std::pair<Drawing, bool> SurfaceNode::draw(DrawContext const& context,
 
     if (effect_)
     {
-        result += Drawing::EffectElement{ shape, makeEffect(*effect_, time),
+        result += Drawing::EffectElement{ shape,
+            std::make_shared<Effect const>(effect_->getValue(time)),
             Transform() };
     }
 
@@ -369,7 +317,7 @@ std::optional<SurfaceShadow> const& SurfaceNode::getShadow() const
     return shadow_;
 }
 
-std::optional<SurfaceEffect> const& SurfaceNode::getEffect() const
+std::optional<Animated<Effect>> const& SurfaceNode::getEffect() const
 {
     return effect_;
 }

@@ -111,7 +111,7 @@ widget::AnyWidget frostedCard()
                     constant(6.0f),
                     constant(avg::Brush(avg::Color(0.0f, 0.0f, 0.0f, 0.4f)))
                 },
-                modifier::SurfaceFrostedGlass{ constant(glass) }
+                constant(avg::frostedGlass(glass))
                 )
         | modifier::margin(30.0f)
         ;

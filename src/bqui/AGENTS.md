@@ -60,8 +60,11 @@ flag:
   merged into one instance modifier, and each value is handed to the node
   as a fresh `Animated`, so the render tree interpolates it the way it does
   a `ShapeNode`'s parameters. Which of fill, shadow and effect exist is
-  fixed when the modifier is built; only their values animate. `backdrop`,
-  `frostedGlass` and `tint` are shorthands for an effect alone. A surface
+  fixed when the modifier is built; only their values animate. The effect
+  is a signal of `avg::Effect`, made by the avg factories; `backdrop`,
+  `frostedGlass` and `tint` are shorthands for an effect alone, the last
+  two mapping their option signals through `avg::frostedGlass` and
+  `avg::tint`, which throw on out-of-range values. A surface
   adds no scope of its own: it is layered by the `stack` or `background`
   it sits in.
 - The window root is `widget | background()` (`src/windowbridge.cpp`), so a
