@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <string>
 
 using namespace bqui;
@@ -37,10 +38,6 @@ using namespace bqui;
 // window or crashing. It needs a live GL backend, which the CI runners do not
 // have, so it is built everywhere (to keep it compiling) but never registered as
 // a test; run it by hand on a machine with a real GL context.
-//
-// The frame count is driven the same way apptest drives the dummy loop: the
-// 'running' signal advances a step input each frame, so the run steps a fixed
-// number of real offscreen frames and then stops.
 namespace
 {
     using Rgba = std::array<int, 4>;
@@ -66,7 +63,7 @@ namespace
         return { p[0], p[1], p[2], p[3] };
     }
 
-    bool near(Rgba const& actual, Rgba const& expected)
+    bool matchesRgb(Rgba const& actual, Rgba const& expected)
     {
         for (size_t i = 0; i < 3; ++i)
         {
@@ -106,12 +103,12 @@ namespace
         drawing += fillRect(memory, w, 0.0f, w, h,
                 avg::Color(0.5f, 0.5f, 0.5f, 1));
 
-        std::promise<ase::CaptureResult> promise;
-        auto result = promise.get_future();
+        auto promise = std::make_shared<std::promise<ase::CaptureResult>>();
+        auto result = promise->get_future();
 
-        window.captureNextFrame([&promise](ase::CaptureResult capture)
+        window.captureNextFrame([promise](ase::CaptureResult capture)
             {
-                promise.set_value(std::move(capture));
+                promise->set_value(std::move(capture));
             });
 
         avg::Painter painter(memory, context);
@@ -119,7 +116,6 @@ namespace
         painter.clearWindow(window);
         painter.paintToWindow(window, drawing);
         painter.presentWindow(window);
-        painter.flush();
 
         if (result.wait_for(std::chrono::seconds(10))
                 != std::future_status::ready)
@@ -149,10 +145,10 @@ namespace
         // 0.5 linear encodes to 188 in sRGB.
         bool const ok = sizeOk
             && capture.value().presentIndex == 1u
-            && near(topLeft, { 255, 0, 0, 255 })
-            && near(topRight, { 0, 255, 0, 255 })
-            && near(bottomLeft, { 0, 0, 255, 255 })
-            && near(bottomRight, { 188, 188, 188, 255 });
+            && matchesRgb(topLeft, { 255, 0, 0, 255 })
+            && matchesRgb(topRight, { 0, 255, 0, 255 })
+            && matchesRgb(bottomLeft, { 0, 0, 255, 255 })
+            && matchesRgb(bottomRight, { 188, 188, 188, 255 });
 
         auto print = [](char const* name, Rgba const& c)
         {
@@ -183,6 +179,9 @@ int main()
     Window w = window(bq::signal::constant<std::string>("headless"));
     app.addWindow(w, widget::makeWidget());
 
+    // The frame count is driven the same way apptest drives the dummy loop:
+    // the 'running' signal advances a step input each frame, so the run steps a
+    // fixed number of real offscreen frames and then stops.
     constexpr int targetFrames = 8;
     constexpr int maxFrames = 200;
 
