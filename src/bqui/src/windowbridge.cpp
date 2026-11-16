@@ -487,4 +487,19 @@ void WindowBridge::captureNextFrame(ase::CaptureCallback callback)
     aseWindow.captureNextFrame(std::move(callback));
 }
 
+void WindowBridge::requestFrame()
+{
+    aseWindow.requestFrame();
+}
+
+float WindowBridge::scalingFactor() const
+{
+    return aseWindow.getScalingFactor();
+}
+
+std::uint64_t WindowBridge::presentCount() const
+{
+    return frames_;
+}
+
 } // namespace bqui

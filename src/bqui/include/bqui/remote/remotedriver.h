@@ -83,6 +83,31 @@ namespace bqui::remote
          * `ase::ReadbackError::Unsupported` before this call returns.
          */
         virtual void captureNextFrame(ase::CaptureCallback callback);
+
+        /**
+         * @brief Mark the window due, so the next frame renders it even when
+         * nothing in it changed.
+         *
+         * Does nothing unless overridden.
+         */
+        virtual void requestFrame();
+
+        /**
+         * @brief Pixels per window-space logical unit in a captured frame.
+         *
+         * 1 unless overridden.
+         */
+        virtual float scalingFactor() const;
+
+        /**
+         * @brief How many frames this window has presented.
+         *
+         * A screenshot reads its region and scaling factor right after the
+         * frame that moves this count past the one seen when it was armed.
+         * While it stays 0, as it does unless overridden, they are read when
+         * the capture arrives instead.
+         */
+        virtual std::uint64_t presentCount() const;
     };
 
     /**

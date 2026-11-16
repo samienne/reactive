@@ -272,7 +272,12 @@ async def run_mcp(conn: AppConnection, methods: list[dict],
         blob = result.get("blob") if isinstance(result, dict) else None
         if method in returns_blob and isinstance(blob, dict):
             data = await fetch_blob(conn, blob, read_length)
-            return [blob_content(types, blob, data)]
+            content = [blob_content(types, blob, data)]
+            metadata = {k: v for k, v in result.items() if k != "blob"}
+            if metadata:
+                content.append(types.TextContent(
+                    type="text", text=json.dumps(metadata, indent=2)))
+            return content
         return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
     async with mcp.server.stdio.stdio_server() as (r, w):
@@ -299,6 +304,16 @@ async def selftest(conn: AppConnection, methods: list[dict],
         if json.loads(data) != inline:
             raise RuntimeError("renderTree blob differs from the inline reply")
         print("renderTree blob ok,", len(data), "bytes, same as the inline reply")
+        names = {m["name"] for m in methods}
+        if ("window.screenshot" in names
+                and wl["windows"][0].get("canCapture")):
+            shot = await conn.request("window.screenshot", {"window": wid})
+            data = await fetch_blob(conn, shot["blob"], read_length)
+            if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+                raise RuntimeError(
+                    "window.screenshot did not answer with a PNG")
+            print(f"screenshot ok, {shot['width']}x{shot['height']},",
+                  len(data), "bytes")
     print("SELFTEST OK")
     return 0
 
