@@ -25,6 +25,7 @@
 #include <csignal>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -217,9 +218,19 @@ struct ScreenshotRequest
     float scale = 1.0f;
 };
 
-bool isFiniteNumber(json const& value)
+std::optional<float> finiteFloat(json const& value)
 {
-    return value.is_number() && std::isfinite(value.get<double>());
+    if (!value.is_number())
+        return std::nullopt;
+
+    double const number = value.get<double>();
+    if (!std::isfinite(number)
+            || std::abs(number) > (std::numeric_limits<float>::max)())
+    {
+        return std::nullopt;
+    }
+
+    return static_cast<float>(number);
 }
 
 LogicalRect parseRegion(json const& region)
@@ -231,10 +242,11 @@ LogicalRect parseRegion(json const& region)
     auto field = [&](char const* key)
     {
         auto it = region.find(key);
-        if (it == region.end() || !isFiniteNumber(*it))
+        auto value = it == region.end() ? std::nullopt : finiteFloat(*it);
+        if (!value)
             throw RpcError{ kInvalidParams,
                 std::string("'region.") + key + "' must be a finite number" };
-        return static_cast<float>(it->get<double>());
+        return *value;
     };
 
     LogicalRect rect{ field("x"), field("y"), field("width"),
@@ -271,10 +283,10 @@ ScreenshotRequest parseScreenshot(json const& params)
     auto scale = params.find("scale");
     if (scale != params.end())
     {
-        if (!isFiniteNumber(*scale) || scale->get<double>() <= 0.0
-                || scale->get<double>() > 1.0)
+        auto value = finiteFloat(*scale);
+        if (!value || !(*value > 0.0f) || *value > 1.0f)
             throw RpcError{ kInvalidParams, "'scale' must be in (0, 1]" };
-        request.scale = static_cast<float>(scale->get<double>());
+        request.scale = *value;
     }
 
     return request;

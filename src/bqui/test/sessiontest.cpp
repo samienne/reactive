@@ -2153,6 +2153,9 @@ TEST(session, screenshotRejectsBadParamsAndUnknownWindows)
             json{ { "widget", 12345 } },
             json{ { "scale", 0 } },
             json{ { "scale", 1.5 } },
+            json{ { "scale", 1e-50 } },
+            json{ { "region", { { "x", 1e39 }, { "y", 0 }, { "width", 1 },
+                { "height", 1 } } } },
             })
     {
         auto reply = s.call("window.screenshot",
