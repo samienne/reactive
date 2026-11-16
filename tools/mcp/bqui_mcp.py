@@ -85,6 +85,7 @@ class AppConnection:
         self._server = None
         self._connected: asyncio.Future | None = None
         self._closing = False
+        self._lost = False
 
     async def start(self) -> None:
         self._connected = asyncio.get_event_loop().create_future()
@@ -128,6 +129,7 @@ class AppConnection:
             # request, not a fault; only an unexpected drop is worth logging.
             if not self._closing:
                 log("app disconnected")
+            self._lost = True
             for fut in self._pending.values():
                 if not fut.done():
                     fut.set_exception(ConnectionError("app disconnected"))
@@ -145,6 +147,8 @@ class AppConnection:
                 log(f"notification {msg['method']}: {p}")
 
     async def request(self, method: str, params: dict | None = None) -> Any:
+        if self._lost:
+            raise ConnectionError("app disconnected")
         rid = self._next_id
         self._next_id += 1
         frame = {"jsonrpc": "2.0", "id": rid, "method": method}
@@ -202,6 +206,7 @@ def blob_read_length(described: dict) -> int | None:
 async def fetch_blob(conn: AppConnection, blob: dict,
                      length: int | None) -> bytes:
     """Pull a blob's bytes in chunks, then release it."""
+    size = blob["size"]
     data = bytearray()
     try:
         while True:
@@ -209,11 +214,21 @@ async def fetch_blob(conn: AppConnection, blob: dict,
             if length:
                 params["length"] = length
             chunk = await conn.request("blob.read", params)
-            data += base64.b64decode(chunk["data"])
+            piece = base64.b64decode(chunk["data"])
+            if not piece and not chunk["end"]:
+                raise RuntimeError(f"blob {blob['id']}: a read made no progress")
+            data += piece
+            if len(data) > size or (chunk["end"] and len(data) != size):
+                raise RuntimeError(f"blob {blob['id']}: read {len(data)} bytes "
+                                   f"of a {size}-byte blob")
             if chunk["end"]:
                 return bytes(data)
     finally:
-        await conn.request("blob.release", {"id": blob["id"]})
+        # Best effort: the pull's own outcome is what the caller gets.
+        try:
+            await conn.request("blob.release", {"id": blob["id"]})
+        except Exception as e:
+            log(f"blob {blob['id']}: release failed: {e}")
 
 
 def blob_content(types: Any, blob: dict, data: bytes) -> Any:
