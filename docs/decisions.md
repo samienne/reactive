@@ -253,7 +253,8 @@ effect's shape into the main target. Regions are derived backwards from
 the shape's device bounds through each pass's padding, so each pass writes
 exactly what its readers sample and the snapshot copies only the union of
 what the scope's effects read. Scratch textures are pooled per window and
-allocated by liveness over the frame's timeline of snapshots and passes;
+allocated by liveness over the frame's pass graph, in which equal passes
+reading the same values of one scope are merged into one;
 a pass takes its output before its inputs are released, so no pass ever
 reads the texture it writes. The pool releases a texture no frame has
 acquired for 120 frames.

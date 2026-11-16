@@ -124,29 +124,24 @@ void EffectEmitter::emitSnapshot(ScratchSlot const& slot,
 }
 
 void EffectEmitter::emitEffect(Effect const& effect,
-        EffectRegions const& regions, EffectAllocation const& allocation,
+        EffectAllocation const& allocation,
         std::vector<Vector2f> const& shapeTriangles)
 {
     std::vector<Pass> const& passes = effect.getPasses();
-    if (regions.passRegions.size() != passes.size()
-            || allocation.passes.size() != passes.size())
-    {
-        throw std::invalid_argument("regions or allocation do not match the"
-                " effect's " + std::to_string(passes.size()) + " passes");
-    }
-
-    if (regions.passRegions.back().isEmpty())
-        return;
-
     ase::Format const mainFormat = mainTarget_.getTexture().getFormat();
 
-    pushBarrier();
-
-    for (size_t i = 0; i < passes.size(); ++i)
+    for (PassAllocation const& passAllocation : allocation.passes)
     {
+        if (passAllocation.pass >= passes.size())
+        {
+            throw std::invalid_argument("the allocation names pass "
+                    + std::to_string(passAllocation.pass) + " of an effect"
+                    " with " + std::to_string(passes.size()) + " passes");
+        }
+
+        size_t const i = passAllocation.pass;
         Pass const& pass = passes[i];
-        PixelRect const& region = regions.passRegions[i];
-        PassAllocation const& passAllocation = allocation.passes[i];
+        PixelRect const& region = passAllocation.region;
 
         if (region.isEmpty())
             continue;
@@ -158,6 +153,8 @@ void EffectEmitter::emitEffect(Effect const& effect,
                     + std::to_string(passAllocation.inputs.size())
                     + " inputs for its " + std::to_string(pass.inputs.size()));
         }
+
+        pushBarrier();
 
         std::vector<Input> inputs;
         inputs.reserve(pass.inputs.size());

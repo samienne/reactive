@@ -20,12 +20,12 @@ using avg::EffectRegions;
 using avg::FrostedGlassOptions;
 using avg::Geometry;
 using avg::Pass;
+using avg::PassGraph;
 using avg::PassInput;
 using avg::PassShader;
 using avg::PixelRect;
 using avg::ScratchKey;
 using avg::ScratchPlan;
-using avg::ScratchTimeline;
 using avg::Vector2i;
 
 namespace
@@ -368,27 +368,68 @@ TEST(BuiltinEffects, frostedGlassRegionsGrowByEachPadding)
     EXPECT_EQ(rect(50, 30, 300, 140), regions.backdropRegion);
 }
 
-TEST(BuiltinEffects, twoGlassesInOneScopeShareTwoBlurTextures)
+TEST(BuiltinEffects, twoGlassesAtOneDivisorShareTheCopyPass)
 {
     Effect first = avg::frostedGlass(glassWithRadius(24.0f));
     Effect second = avg::frostedGlass(glassWithRadius(16.0f));
 
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(first, snapshot);
-    timeline.addEffect(second, snapshot);
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(first, snapshot, rect(20, 20, 100, 100));
+    graph.addEffect(second, snapshot, rect(200, 20, 100, 100));
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
+    EXPECT_EQ(7u, graph.getNodes().size());
     EXPECT_EQ(1u, plan.getPoolSize(key(Divisor::One, ase::FORMAT_SRGBA)));
-    EXPECT_EQ(2u, plan.getPoolSize(key(Divisor::Two, ase::FORMAT_RGBA16F)));
+    EXPECT_EQ(3u, plan.getPoolSize(key(Divisor::Two, ase::FORMAT_RGBA16F)));
     EXPECT_EQ(0u, plan.getPoolSize(key(Divisor::Four, ase::FORMAT_RGBA16F)));
 
-    // The snapshot is read only by the two copy passes, so it is released
-    // once the second effect's first pass has run.
+    // The snapshot is read only by the shared copy pass, so it is released
+    // once that has run; the copy lives until the second effect's blur.
     ASSERT_EQ(1u, plan.snapshots.size());
     ASSERT_EQ(2u, plan.effects.size());
-    EXPECT_EQ(plan.effects[1].passes[0].step, plan.snapshots[0].lastUse);
+    ASSERT_EQ(3u, plan.effects[1].passes.size());
+    EXPECT_EQ(1u, plan.effects[1].passes[0].pass);
+    EXPECT_EQ(plan.effects[0].passes[0].step, plan.snapshots[0].lastUse);
+    EXPECT_EQ(plan.effects[1].passes[0].step,
+            plan.effects[0].passes[0].output->lastUse);
+    EXPECT_EQ(plan.effects[0].passes[0].output->slot,
+            plan.effects[1].passes[0].inputs[0]);
+}
+
+TEST(BuiltinEffects, twoEqualGlassesShareEverythingButTheShapePass)
+{
+    FrostedGlassOptions options = glassWithRadius(24.0f);
+    Effect first = avg::frostedGlass(options);
+    options.tintStrength = 0.5f;
+    Effect tinted = avg::frostedGlass(options);
+
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(first, snapshot, rect(20, 20, 100, 100));
+    graph.addEffect(tinted, snapshot, rect(200, 20, 100, 100));
+
+    ScratchPlan plan = avg::planScratch(graph);
+
+    EXPECT_EQ(5u, graph.getNodes().size());
+    ASSERT_EQ(1u, plan.effects[1].passes.size());
+    EXPECT_EQ(3u, plan.effects[1].passes[0].pass);
+    EXPECT_EQ(plan.effects[0].passes[3].inputs[0],
+            plan.effects[1].passes[0].inputs[0]);
+}
+
+TEST(BuiltinEffects, glassesAtDifferentDivisorsShareNothing)
+{
+    Effect first = avg::frostedGlass(glassWithRadius(24.0f));
+    Effect second = avg::frostedGlass(glassWithRadius(48.0f));
+
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(first, snapshot, rect(20, 20, 100, 100));
+    graph.addEffect(second, snapshot, rect(200, 20, 100, 100));
+
+    EXPECT_EQ(8u, graph.getNodes().size());
 }
 
 TEST(BuiltinEffects, frostedGlassRejectsBadOptions)
@@ -460,11 +501,11 @@ TEST(BuiltinEffects, tintAloneNeedsOnlyTheSnapshot)
 {
     Effect dim = avg::tint(Color(0.0f, 0.0f, 0.0f), 0.5f);
 
-    ScratchTimeline timeline;
-    size_t snapshot = timeline.addSnapshot();
-    timeline.addEffect(dim, snapshot);
+    PassGraph graph(Vector2i(400, 300));
+    size_t snapshot = graph.addSnapshot();
+    graph.addEffect(dim, snapshot, rect(20, 20, 100, 100));
 
-    ScratchPlan plan = avg::planScratch(timeline);
+    ScratchPlan plan = avg::planScratch(graph);
 
     ASSERT_EQ(1u, plan.pools.size());
     EXPECT_EQ(key(Divisor::One, ase::FORMAT_SRGBA), plan.pools[0].key);

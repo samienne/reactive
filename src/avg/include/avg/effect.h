@@ -101,7 +101,8 @@ namespace avg
      *
      * create() returns an identity no other call returns; a
      * default-constructed one stands for no shader in particular. Passes
-     * compare their shaders by identity, never by source.
+     * compare their shaders by identity, and by source as well when the
+     * identity is the default one.
      */
     class AVG_EXPORT ShaderId
     {
@@ -152,7 +153,7 @@ namespace avg
         std::optional<ase::UniformValues> parameters;
 
         /**
-         * @brief Equal when the shader identities are and the inputs,
+         * @brief Equal when the shaders are (see ShaderId) and the inputs,
          * output, geometry, padding and parameter bytes match.
          */
         bool operator==(Pass const& rhs) const;
@@ -186,18 +187,17 @@ namespace avg
      * An effect is an opaque value: the factories in builtineffects.h are
      * the only way to make one, and none needs a GPU context. The passes
      * are in execution order and each reads only the backdrop or passes
-     * before it. Copies share the passes. Two effects are equal when their
-     * passes are, pass by pass.
+     * before it. Copies share the passes, and a move copies, so a
+     * moved-from effect is still the effect it was. Two effects are equal
+     * when their passes are, pass by pass.
      */
     class AVG_EXPORT Effect
     {
     public:
         Effect(Effect const&) = default;
-        Effect(Effect&&) noexcept = default;
         ~Effect();
 
         Effect& operator=(Effect const&) = default;
-        Effect& operator=(Effect&&) noexcept = default;
 
         std::vector<Pass> const& getPasses() const;
 

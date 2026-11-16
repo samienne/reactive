@@ -48,12 +48,12 @@ namespace avg
      *     EffectEmitter emitter(context, commands, uniforms, scratch,
      *             pipelines, mainTarget);
      *     emitter.emitSnapshot(plan.snapshots[0].slot,
-     *             regions.backdropRegion);
-     *     emitter.emitEffect(glass, regions, plan.effects[0], triangles);
+     *             graph.getBackdropRegion(0));
+     *     emitter.emitEffect(glass, plan.effects[0], triangles);
      *
      * The main target is the full-screen target the frame draws into; its
-     * size is the screen size the regions and the scratch plan were made
-     * for, and the caller has begun the frame on the pool, the cache and
+     * size is the screen size the pass graph and the scratch plan were
+     * made for, and the caller has begun the frame on the pool, the cache and
      * the uniform ring. The recorded draws keep their order, among
      * themselves and against the draws recorded around them.
      */
@@ -77,20 +77,18 @@ namespace avg
         void emitSnapshot(ScratchSlot const& slot, PixelRect const& region);
 
         /**
-         * @brief Draws every pass of effect: each Region pass a quad over
-         * its region into its allocated slot, the Shape pass the given
-         * triangles into the main target.
+         * @brief Draws the passes of effect that allocation lists: each
+         * Region pass a quad over its region into its allocated slot, the
+         * Shape pass the given triangles into the main target.
          *
-         * regions and allocation are deriveRegions' and planScratch's
-         * results for this effect at this frame's screen size; the
-         * allocation's input slots name the snapshot the effect reads.
-         * shapeTriangles are the effect's shape as a triangle list in
-         * screen pixels. A pass with an empty region draws nothing, and an
-         * effect whose Shape region is empty records nothing. Throws
-         * std::invalid_argument when regions or allocation do not match
-         * the effect's passes.
+         * allocation is planScratch's result for this effect at this
+         * frame's screen size; its input slots name the snapshot the effect
+         * reads. shapeTriangles are the effect's shape as a triangle list
+         * in screen pixels. A pass with an empty region draws nothing.
+         * Throws std::invalid_argument when the allocation names a pass the
+         * effect does not have or the wrong number of inputs for one.
          */
-        void emitEffect(Effect const& effect, EffectRegions const& regions,
+        void emitEffect(Effect const& effect,
                 EffectAllocation const& allocation,
                 std::vector<Vector2f> const& shapeTriangles);
 

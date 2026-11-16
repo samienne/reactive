@@ -395,7 +395,7 @@ TEST(EffectRendering, anEffectInAScopeSnapshotsWhatWasPaintedBeforeTheScope)
     EXPECT_GT(content[0]->getZ(), content[1]->getZ());
 }
 
-TEST(EffectRendering, twoEffectsInOneScopeShareOneSnapshot)
+TEST(EffectRendering, twoEqualEffectsInOneScopeShareTheirChain)
 {
     Fixture f;
     auto glassEffect = glass();
@@ -404,26 +404,60 @@ TEST(EffectRendering, twoEffectsInOneScopeShareOneSnapshot)
             effect(other, glassEffect) }) });
 
     auto const& frame = f.frame(d);
-    EXPECT_EQ("C|S|P|P|P|F|P|P|P|F|", f.picture(frame));
+    EXPECT_EQ("C|S|P|P|P|F|F|", f.picture(frame));
+
+    avg::EffectRegions const first = regionsOf(*glassEffect, glassBounds);
+    avg::EffectRegions const second = regionsOf(*glassEffect, other);
 
     auto snapshots = f.draws(frame, "S");
     ASSERT_EQ(1u, snapshots.size());
-    expectScissor(regionsOf(*glassEffect, glassBounds).backdropRegion
-            .unionWith(regionsOf(*glassEffect, other).backdropRegion),
+    expectScissor(first.backdropRegion.unionWith(second.backdropRegion),
             *snapshots[0]);
 
-    // Both copy passes read the one snapshot texture
+    // Each shared pass covers the bounding box of both effects' regions
     auto passes = f.draws(frame, "P");
-    ASSERT_EQ(6u, passes.size());
-    ASSERT_EQ(1u, passes[0]->getTextures().size());
-    ASSERT_EQ(1u, passes[3]->getTextures().size());
-    EXPECT_EQ(passes[0]->getTextures()[0], passes[3]->getTextures()[0]);
-    EXPECT_NE(passes[0]->getTextures()[0], passes[1]->getTextures()[0]);
+    ASSERT_EQ(3u, passes.size());
+    for (size_t i = 0; i < passes.size(); ++i)
+    {
+        expectScissor(first.passRegions[i].unionWith(second.passRegions[i]),
+                *passes[i]);
+    }
 
+    // Both final passes read the one blurred texture
     auto finals = f.draws(frame, "F");
     ASSERT_EQ(2u, finals.size());
     expectScissor(glassBounds, *finals[0]);
     expectScissor(other, *finals[1]);
+    EXPECT_EQ(finals[0]->getTextures(), finals[1]->getTextures());
+}
+
+TEST(EffectRendering, aChainSharedAroundAnInnerScopeStaysLive)
+{
+    Fixture f;
+    auto glassEffect = glass();
+    PixelRect const inner{ 20, 20, 60, 60 };
+    PixelRect const last{ 20, 200, 60, 60 };
+    auto d = drawing({ scope({ effect(glassBounds, glassEffect),
+            scope({ effect(inner, glassEffect) }),
+            effect(last, glassEffect) }) });
+
+    auto const& frame = f.frame(d);
+    EXPECT_EQ("C|S|P|P|P|F|S|P|P|P|F|F|", f.picture(frame));
+
+    // The last final pass reads what the outer scope's blur wrote, and
+    // nothing in between draws over it
+    auto passes = f.draws(frame, "P");
+    auto finals = f.draws(frame, "F");
+    ASSERT_EQ(6u, passes.size());
+    ASSERT_EQ(3u, finals.size());
+    EXPECT_EQ(finals[0]->getTextures(), finals[2]->getTextures());
+    EXPECT_NE(finals[0]->getTextures(), finals[1]->getTextures());
+
+    for (size_t i = 3; i < passes.size(); ++i)
+    {
+        EXPECT_NE(passes[2]->getFramebuffer(),
+                passes[i]->getFramebuffer());
+    }
 }
 
 TEST(EffectRendering, nestedScopesSnapshotAtTheInnermostScope)
@@ -565,11 +599,13 @@ TEST(EffectRendering, effectsInAnOuterAndAnInnerScopeKeepTheirSnapshots)
 {
     Fixture f;
     auto glassEffect = glass();
+    // A wider blur, so the last effect shares nothing with the first
+    auto lastEffect = glass(48.0f);
     PixelRect const inner{ 20, 20, 60, 60 };
     PixelRect const last{ 20, 200, 60, 60 };
     auto d = drawing({ scope({ effect(glassBounds, glassEffect),
             scope({ effect(inner, glassEffect) }),
-            effect(last, glassEffect) }) });
+            effect(last, lastEffect) }) });
 
     auto const& frame = f.frame(d);
     EXPECT_EQ("C|S|P|P|P|F|S|P|P|P|F|P|P|P|F|", f.picture(frame));
@@ -578,7 +614,7 @@ TEST(EffectRendering, effectsInAnOuterAndAnInnerScopeKeepTheirSnapshots)
     ASSERT_EQ(2u, snapshots.size());
     EXPECT_NE(snapshots[0]->getFramebuffer(), snapshots[1]->getFramebuffer());
     expectScissor(regionsOf(*glassEffect, glassBounds).backdropRegion
-            .unionWith(regionsOf(*glassEffect, last).backdropRegion),
+            .unionWith(regionsOf(*lastEffect, last).backdropRegion),
             *snapshots[0]);
     expectScissor(regionsOf(*glassEffect, inner).backdropRegion,
             *snapshots[1]);
