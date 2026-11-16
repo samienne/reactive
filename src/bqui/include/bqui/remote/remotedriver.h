@@ -105,6 +105,10 @@ namespace bqui::remote
      * A method that answers with a blob fails once the session's unreleased
      * blobs would pass `maxOutstanding` bytes. A `blob.read` returns at most
      * `maxRead` bytes, and `defaultRead` when it names no length.
+     *
+     * The driver throws `std::invalid_argument` for a zero read size, a
+     * `defaultRead` above `maxRead`, or a `maxRead` whose encoded reply would
+     * not fit the transport's outgoing queue.
      */
     struct BlobLimits
     {

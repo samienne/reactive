@@ -2,8 +2,10 @@
 
 #include "base64.h"
 #include "dispatcher.h"
+#include "streamtransport.h"
 
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -16,6 +18,27 @@ namespace
 {
 
 constexpr char const* kEncoding = "base64";
+
+// Room in a queued reply for the JSON-RPC envelope around the encoded bytes.
+constexpr size_t kReadReplyOverhead = 1024;
+
+BlobLimits validated(BlobLimits limits)
+{
+    if (limits.maxRead == 0 || limits.defaultRead == 0)
+        throw std::invalid_argument("BlobLimits: reads must be nonzero");
+    if (limits.defaultRead > limits.maxRead)
+    {
+        throw std::invalid_argument(
+                "BlobLimits: defaultRead is larger than maxRead");
+    }
+    if (limits.maxRead > (kMaxQueuedBytes - kReadReplyOverhead) / 4 * 3)
+    {
+        throw std::invalid_argument(
+                "BlobLimits: a maxRead reply would not fit the reply queue");
+    }
+
+    return limits;
+}
 
 uint64_t requireIndex(json const& params, char const* key)
 {
@@ -32,7 +55,7 @@ uint64_t requireIndex(json const& params, char const* key)
 } // namespace
 
 BlobStore::BlobStore(BlobLimits limits) :
-    limits_(limits)
+    limits_(validated(limits))
 {
 }
 
@@ -65,7 +88,11 @@ json BlobStore::read(json const& params) const
 
     uint64_t length = limits_.defaultRead;
     if (params.contains("length"))
+    {
         length = requireIndex(params, "length");
+        if (length == 0)
+            throw RpcError{ kInvalidParams, "'length' must be positive" };
+    }
 
     auto const& bytes = find(params)->second;
     if (offset > bytes.size())

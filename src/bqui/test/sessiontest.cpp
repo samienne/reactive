@@ -2,6 +2,7 @@
 #include "remote/blobstore.h"
 #include "remote/dispatcher.h"
 #include "remote/introspectionjson.h"
+#include "remote/streamtransport.h"
 #include "remote/tcptransport.h"
 #include "scriptedtransport.h"
 
@@ -48,6 +49,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -1397,11 +1399,33 @@ TEST(session, blobReadRejectsABadOffsetOrLength)
         s.send("blob.read", { { "id", 1 } }),
         s.read(1, 0, -1),
         s.read(1, 0, 2.5),
+        s.read(1, 0, 0),
     };
     ASSERT_TRUE(s.run());
 
     for (int id : bad)
         EXPECT_EQ(kInvalidParams, s.errorCode(id)) << "request " << id;
+}
+
+TEST(session, theDriverRejectsUnusableBlobLimits)
+{
+    BlobLimits zeroRead;
+    zeroRead.maxRead = 0;
+    BlobLimits zeroDefault;
+    zeroDefault.defaultRead = 0;
+    BlobLimits defaultPastMax;
+    defaultPastMax.maxRead = 10;
+    defaultPastMax.defaultRead = 11;
+    BlobLimits replyPastQueue;
+    replyPastQueue.maxRead = kMaxQueuedBytes;
+
+    for (auto const& limits :
+            { zeroRead, zeroDefault, defaultPastMax, replyPastQueue })
+    {
+        testkit::ScriptedTransport transport;
+        transport.incomingEnds = true;
+        EXPECT_THROW(runDriver(transport, {}, limits), std::invalid_argument);
+    }
 }
 
 TEST(session, unknownAndReleasedBlobsAreUnknown)
