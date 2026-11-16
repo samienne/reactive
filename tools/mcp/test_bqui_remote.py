@@ -9,10 +9,12 @@ import base64
 import json
 import struct
 import sys
+import threading
 import unittest
 from typing import Any, Callable
 
-from bqui_remote import Connection, ConnectionLost, RemoteError, read_blob
+from bqui_remote import (Connection, ConnectionLost, RemoteError,
+                         SyncConnection, read_blob)
 
 Handler = Callable[[dict], dict]
 
@@ -194,6 +196,34 @@ class LaunchTest(unittest.IsolatedAsyncioTestCase):
                                   timeout=30)
         finally:
             await conn.close()
+
+
+class SyncConnectionTest(unittest.TestCase):
+    def test_request_and_blob(self) -> None:
+        conn = SyncConnection()
+        endpoint = conn.listen()
+        store = BlobStore(b"abcdefg", chunk=3)
+
+        def handler(msg: dict) -> dict:
+            if msg["method"].startswith("blob."):
+                return store(msg)
+            return result(msg, {"echo": msg.get("params")})
+
+        async def app() -> None:
+            await (await FakeApp.connect(endpoint)).serve(handler)
+
+        thread = threading.Thread(target=asyncio.run, args=(app(),))
+        thread.start()
+        try:
+            conn.wait_connected(5)
+            self.assertEqual(conn.request("echo", {"x": 1}, timeout=5),
+                             {"echo": {"x": 1}})
+            self.assertEqual(conn.read_blob(store.descriptor), b"abcdefg")
+            self.assertEqual(store.released, ["b1"])
+        finally:
+            conn.close()
+            thread.join(5)
+        self.assertFalse(thread.is_alive())
 
 
 if __name__ == "__main__":

@@ -20,12 +20,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import concurrent.futures
 import glob
 import json
 import logging
 import os
 import shlex
 import struct
+import threading
 from typing import Any, Callable, Sequence
 
 LENGTH_PREFIX = 4
@@ -260,3 +262,52 @@ async def read_blob(conn: Connection, blob: dict,
         except Exception as e:
             log.warning("blob %s: release failed: %s", blob["id"], e)
 
+
+class SyncConnection:
+    """A blocking Connection for synchronous callers such as Robot Framework.
+
+    Runs the Connection on a private event loop thread, which is also where
+    `on_notification` is called.
+    """
+
+    def __init__(self, on_notification: NotificationHandler | None = None) -> None:
+        self.connection = Connection(on_notification)
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._loop.run_forever,
+                                        name="bqui_remote", daemon=True)
+        self._thread.start()
+
+    def _call(self, coro: Any, timeout: float | None = None) -> Any:
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        try:
+            return future.result(timeout)
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            raise
+
+    def listen(self, host: str = "127.0.0.1") -> str:
+        return self._call(self.connection.listen(host))
+
+    def launch(self, command: Sequence[str] | None = None,
+               env: dict[str, str] | None = None, timeout: float = 30.0) -> None:
+        self._call(self.connection.launch(command, env, timeout))
+
+    def wait_connected(self, timeout: float = 30.0) -> None:
+        self._call(self.connection.wait_connected(timeout))
+
+    def request(self, method: str, params: dict | None = None,
+                timeout: float | None = None) -> Any:
+        """Connection.request, giving up after `timeout` seconds if set."""
+        return self._call(self.connection.request(method, params), timeout)
+
+    def read_blob(self, blob: dict, length: int | None = None) -> bytes:
+        return self._call(read_blob(self.connection, blob, length))
+
+    def close(self) -> None:
+        """Closes the connection and stops the loop thread."""
+        try:
+            self._call(self.connection.close())
+        finally:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            self._thread.join()
+            self._loop.close()
