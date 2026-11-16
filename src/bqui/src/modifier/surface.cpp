@@ -122,8 +122,8 @@ AnyWidgetModifier tint(
                 std::move(strength)
                 ).map([](avg::Color const& value, float amount)
                 {
-                    return avg::tint(value,
-                            std::clamp(amount, 0.0f, 1.0f));
+                    return avg::tint(value, amount >= 0.0f
+                            ? std::min(amount, 1.0f) : 0.0f);
                 }));
 }
 

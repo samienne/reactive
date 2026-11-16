@@ -72,6 +72,17 @@ Pen lerp(Pen const& a, Pen const& b, float t)
             );
 }
 
+bool isInstantLerp(Brush const& a, Brush const& b)
+{
+    return !isSameKind(a, b);
+}
+
+bool isInstantLerp(Pen const& a, Pen const& b)
+{
+    return a.getWidth() == b.getWidth()
+        && isInstantLerp(a.getBrush(), b.getBrush());
+}
+
 class CurveLerp : public CurveBase
 {
 public:

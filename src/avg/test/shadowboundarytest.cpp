@@ -34,6 +34,7 @@
 
 #include <chrono>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -214,6 +215,20 @@ TEST(ShadowBoundary, oneCasterGetsOneBlurredFillUnderIt)
     EXPECT_EQ(shade, stamp.fill->brush->getColor());
     expectRect(filledBounds(stamp.fill->shape), 14.0f, 16.0f, 100.0f, 50.0f);
     EXPECT_TRUE(d.getOutlines().isEmpty());
+}
+
+TEST(ShadowBoundary, aNaNRadiusCastsAnUnblurredShadow)
+{
+    avg::DrawContext context(pmr::new_delete_resource());
+    avg::Outlines outlines(pmr::new_delete_resource());
+    outlines += box(context, avg::Vector2f(100.0f, 50.0f));
+
+    avg::Drawing d = avg::shadowOf(pmr::new_delete_resource(),
+            std::move(outlines), avg::Vector2f(4.0f, -4.0f),
+            std::numeric_limits<float>::quiet_NaN(), shade);
+
+    ASSERT_EQ(1u, d.getElements().size());
+    EXPECT_TRUE(isFill(d.getElements()[0]));
 }
 
 TEST(ShadowBoundary, overlappingCastersShareOneFillAndOneBlur)

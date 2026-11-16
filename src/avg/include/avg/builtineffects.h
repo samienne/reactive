@@ -45,8 +45,8 @@ namespace avg
 
     /**
      * @brief The options moved into the range frostedGlass accepts: a
-     * negative radius, saturation or highlightWidth becomes 0 and each
-     * strength is clamped to [0, 1].
+     * negative or NaN radius, saturation or highlightWidth becomes 0 and
+     * each strength is clamped to [0, 1], with NaN becoming 0.
      */
     AVG_EXPORT FrostedGlassOptions clampToValid(FrostedGlassOptions options);
 
@@ -64,8 +64,8 @@ namespace avg
      *     options.radius = 32.0f;
      *     Effect glass = frostedGlass(options);
      *
-     * Throws std::invalid_argument for a negative radius, saturation or
-     * highlightWidth, or a strength outside [0, 1].
+     * Throws std::invalid_argument for a negative or NaN radius,
+     * saturation or highlightWidth, or a strength outside [0, 1].
      */
     AVG_EXPORT Effect frostedGlass(
             FrostedGlassOptions const& options = FrostedGlassOptions());

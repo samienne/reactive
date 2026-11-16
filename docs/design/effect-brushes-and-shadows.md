@@ -1,18 +1,20 @@
 # Design: effect brushes, effect elements and outline shadows
 
-> **Status: design (ahead of the code).** Nothing here is implemented. It
-> records decisions taken with the owner on 2026-11-14, including those
-> from the owner's review of the first draft, and grounds them in the code
-> at the tip of the backdrop-effect stack (PRs #172-#177), which lands as
-> it is; this work starts after it. A brush becomes a colour or an effect
-> description; a `Drawing` gains an effect element whose inputs are
+> **Status: implemented except stage 8.** Stages 1-7 of the staged plan
+> are in, at `0666a8d5` (2026-11-14); the cost options of stage 8 are not.
+> The design records decisions taken with the owner on 2026-11-14,
+> including those from the owner's review of the first draft, and grounds
+> them in the code at the tip of the backdrop-effect stack (PRs
+> #172-#177), which this work started from. A brush is a colour or an
+> effect description; a `Drawing` has an effect element whose inputs are
 > sub-drawings or the enclosing scope's backdrop; the renderer lowers both
-> into one shared pass graph; shadows are produced by a shadow boundary from
-> outline shapes the drawing carries next to its elements. Builds on
-> `backdrop-effects.md` and `shader-interface.md`. Current-state claims are
-> verified against `03314fc6` (2026-11-14) unless marked otherwise; the
-> section "Work implied by the code" lists what the decisions cost in the
-> existing code.
+> into one shared pass graph; shadows are produced by a shadow boundary
+> from outline shapes the drawing carries inside it. Builds on
+> `backdrop-effects.md` and `shader-interface.md`. "Where the code was"
+> and "Work implied by the code" describe `03314fc6` (2026-11-14), the
+> starting point, and every line number in this document points there;
+> decision 7 and "Open questions" are verified against `0666a8d5`,
+> decision 11 against `d8398ce4`.
 
 ## Why
 
@@ -75,11 +77,11 @@ and every pass reruns every frame. The owner measured the stack tip at
   are recorded as later routes, not designed here.
 - Changing PRs #172-#177. They land as they are.
 
-## Where the code is today
+## Where the code was
 
-Verified by reading the files named; `src/avg/AGENTS.md` (*Shapes and
-drawings*, *Render tree*, *Effects*, *Text*) describes the same state in
-more detail.
+The code at `03314fc6`, before this work, verified then by reading the
+files named. Stages 1-7 replaced most of it; `src/avg/AGENTS.md`
+describes the code as it is now.
 
 - **Effect model.** `Effect` (`src/avg/include/avg/effect.h`) is a public,
   validated list of `Pass` values in execution order. A pass names its
@@ -326,35 +328,40 @@ interleaves shadows: it is the backdrop composition only.
 
 ### 7. The shadow boundary
 
-A shadow boundary modifier takes the light parameters: direction or
-offset, softness and colour. It takes the outlines of its content's
-drawing, which reach it already transformed and clipped,
-offsets them, unions them geometrically (`Shape::add`), and emits the
-union into the drawing as one fill wrapped in blur effect elements
-(decision 3), under the boundary's content.
+A shadow boundary modifier takes the light: an offset, a blur radius and
+a colour whose alpha is the shadow's opacity; there is no spread. It takes
+the outlines of its content's drawing, which reach it already transformed
+and clipped, offsets them, unions them geometrically (`Shape::add`), and
+emits the union into the drawing as one fill wrapped in blur effect
+elements (decision 3), under all of the boundary's content.
 
 - Because the shadow is one unioned shape, overlapping shadows do not
   darken twice, and there is no separate stroke to blend against the fill.
 - Casters inside one boundary do not shadow each other. That needs a
   nested boundary.
 - Casters are treated as opaque.
-- The per-surface shadow of the surface modifier goes away
-  (`src/bqui/include/bqui/modifier/surface.h:77-82`). The demo
-  (`src/testapp1/main.cpp:106`) gets a shadow boundary in its place.
+- Neither the shadow nor its casters are limited to the boundary's area,
+  since content may overflow it; only the renderer culls a shadow, against
+  the target.
+- Casting is opt-out. An opaquely filled surface or background casts like
+  any opaque fill; only the toolkit's window background opts out.
+- The per-surface shadow of the surface modifier is gone, and the demo
+  (`src/testapp1/main.cpp`) casts its cards' shadows through one boundary.
 
-A backdrop boundary is usually wanted at the same point. They are
-separate modifiers, plus one combined modifier for the common case, and
-the nesting order decides what glass sees:
+A backdrop boundary is usually wanted at the same point. The nesting
+order decides what glass sees:
 
-- **Shadow boundary outside the backdrop boundary.** The shadow stamp is
+- **Shadow boundary outside the backdrop boundary.** The shadow is
   painted before the scope is entered, so it is part of the backdrop, and
   glass shows the blurred shadows of its neighbours. The combined modifier
   nests this way.
-- **Backdrop boundary outside the shadow boundary.** The stamp is painted
+- **Backdrop boundary outside the shadow boundary.** The shadow is painted
   inside the scope, after its snapshot, so glass does not see the shadows;
   they only lie over the backdrop.
 
-With the separate modifiers the nesting is the user's choice.
+There is no standalone backdrop-boundary modifier: a stack already gives
+each later child its own scope, so a shadow boundary inside a stack's
+child gives the second order.
 
 ### 8. Glass surfaces set their outline to none
 
@@ -411,7 +418,9 @@ The conversion to pixels happens where the scaling factor is first known:
   knows the factor when it emits its blur.
 - **An effect brush's sizes are converted by the renderer when it lowers
   the brush.** The brush is built before the factor is known; lowering is
-  the first place that has both the brush and the factor.
+  the first place that has both the brush and the factor. It converts at
+  the factor times the scale of the brush's transform to the root, so the
+  sizes scale with the drawing, as an effect element's do.
 
 This resolves the open call in `backdrop-effects.md` ("Effect parameters
 in logical units"): an effect's divisor, paddings and parameter bytes are
@@ -464,27 +473,19 @@ Each stage lands on its own and leaves `master` working.
    pending-shadow list, `SurfaceShadow`, the surface modifier's shadow
    argument and the shadow half of `Drawing::over` are removed in the same
    PR, since the two mechanisms cannot both own shadow placement.
-   *Implemented* (`avg::ShadowBoundaryNode`, `bqui::modifier::shadowBoundary`
-   and `shadowAndBackdropBoundary`), with these readings of the decisions:
-   the light is an offset, a blur radius and a colour whose alpha is the
-   opacity, with no spread; the light's sizes are logical and reach pixels
-   through the content blur's recipe at lowering, so the boundary itself
-   converts nothing; the shadow goes under everything inside the boundary,
-   a background inside it included, and is not clipped to the boundary's
-   bounds, nor are casters culled by them (content may overflow), so only
-   the renderer culls a shadow, against the target; an opaquely filled
-   surface or background casts its shape like any opaque fill, and only
-   the window's own background opts out; there is no standalone
-   backdrop-boundary modifier, since a stack already scopes its later
-   children.
+   Implemented as `avg::ShadowBoundaryNode`, `bqui::modifier::shadowBoundary`
+   and `shadowAndBackdropBoundary`, as decision 7 now reads. The light's
+   sizes reach pixels through the content blur's recipe at lowering, so
+   the boundary itself converts nothing.
 8. **Cost options** from decision 5, one PR each, each justified by the
    counters: region-sized scratch first. GPU timer queries (decision 10)
    are added at this point if the counters cannot settle a choice.
 
 ## Work implied by the code
 
-None of these is open; each is work a decision implies in code that
-exists. Line numbers are at `03314fc6`.
+Each item is work a decision implied in the code at `03314fc6`, where
+the line numbers point; stages 1-7 did it, except the separate pen fix at
+the end, which is still open.
 
 - **Brush consumers assume a colour.** `Painter::getPipeline` picks the
   pipeline from the brush's alpha (`src/avg/src/painter.cpp:288-302`);
@@ -567,6 +568,33 @@ is `std::abs(alpha - 1.0f) < 0.0001f`.
 
 - **Per-caster parameters** such as elevation.
 - **A stable user-facing way to author effects.**
+
+Found during implementation:
+
+- **Stroke width in culling.** Stroke geometry reaches the full pen width
+  on each side of the path (`strokeElementToRegion` in
+  `src/avg/src/shape.cpp` passes the pen width as Clipper's offset
+  delta), while culling assumes half of it
+  (`Shape::getControlBb`, and `getElementRect` in
+  `src/avg/src/rendering.cpp`). The owner decides which is intended.
+- **Shadows pop.** Only opaque colour fills and pens set an outline, so a
+  caster whose fill fades through alpha 1 gains or loses its shadow at
+  once. A light whose radius crosses 0 switches between an unblurred fill
+  and the blur chain (`shadowOf`, `src/avg/src/builtineffects.cpp`).
+- **The light ignores the boundary's transform.** The offset and radius
+  are applied in the space the outlines reach the boundary in, the root's
+  logical units, so a scaled boundary scales its casters but not their
+  offset or blur.
+- **A backdrop effect inside a sub-drawing** reads the snapshot of the
+  scope that encloses the element, not a scope inside the sub-drawing,
+  which opens none.
+- **Sharing trades passes for pixels.** Two panels side by side went from
+  8 to 5 passes and from 338,660 to 375,080 pixels shaded
+  (`src/avg/test/rendercounterstest.cpp`). Sub-drawings also render into
+  full-size targets, which makes region-sized scratch the first stage 8
+  candidate.
+- **The shadow union runs through Clipper every frame**, with no cache
+  (see "Risks").
 
 ## Later
 

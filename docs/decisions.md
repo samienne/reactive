@@ -6,10 +6,109 @@ entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
 seven Vulkan readiness entries against `4d8e996e` (2026-11-12), implemented
 in `28b2afb6` (2026-11-12) except the compiler component, which waits for
 Vulkan work; the five backdrop-effect entries against `4d8e996e`
-(2026-11-12).*
+(2026-11-12), their sentences on final passes, sharing and surfaces against
+`0666a8d5` (2026-11-14); the six effect-brush, pass-sharing, sub-drawing,
+outline and shadow entries against `0666a8d5` (2026-11-14), the effect
+sizes entry against `d8398ce4` (2026-11-14).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## Shadows are one union and one blur per shadow boundary; casting is opt-out
+
+A shadow boundary takes the outlines that reach it, moves them by the
+light's offset, unions them with `Shape::add` and paints the union as one
+fill blurred by `contentBlur` under all of its content. The light is an
+offset, a radius and a colour, in logical units, with no spread. Every
+outline casts: opaque colour fills and pens set one in `bqui`, and only the
+toolkit's window background opts out. No surface or widget paints a shadow
+of its own. `docs/design/effect-brushes-and-shadows.md` is the full design.
+
+**Why:** one unioned shape cannot darken where two shadows overlap or
+blend twice along its own edge, which the per-surface shadow (a fill plus
+a spread stroke, each blended) did. Opt-out keeps a plain card casting
+without a modifier. Rejected: pending shadows placed by `Drawing::over`
+(no blur, no knowledge of each other).
+
+## Outlines are carried inside the `Drawing` and lifted out of sub-drawings
+
+A `Drawing` carries the outline shapes of the widgets that produced it
+next to its elements; the renderer never reads them. Every drawing
+operation (transform, scale, clip, `filterByRect`, concatenation, `over`)
+applies to both, so outlines arrive at a shadow boundary transformed and
+clipped. Whatever wraps a drawing into an element holding a sub-drawing
+lifts the inner drawing's outlines onto the drawing that holds the
+element, through `Drawing::liftSubDrawing`, so only the outermost drawing
+holds them; the root drops what no boundary took.
+
+**Why:** the drawing operations already place and clip what a widget
+paints, so the outline gets the same placement for free and no render
+tree node needs to know about it. Rejected: carrying outlines next to the
+drawing through the render tree, with an outline node around every shape
+widget (every node kind would have to forward them).
+
+## Sub-drawings use scratch targets and one pooled depth buffer per size
+
+An effect element's sub-drawing input is rendered into a scratch target
+by the ordinary mesh path, cleared to transparent with its depth cleared
+on entry. One pooled depth buffer per target size serves every
+sub-drawing of that size, which is safe because a sub-drawing is
+self-contained: the sub-drawings inside it are rendered before it begins.
+Every effect final pass blends premultiplied (One, OneMinusSrcAlpha), the
+painter's blend, so a final pass composites a sub-drawing correctly into
+the main target or into another sub-drawing.
+
+**Why:** group opacity, content blur and a shadow's blur need a widget's
+own content as a texture, and only the widget knows which content that
+is, so no overlap analysis is involved: each item is drawn once, into the
+target of the element that holds it. This is unlike the rejected "region
+passes that re-render the overlapped items" of "Effects are pass graphs
+over a scope snapshot". Depth is never read after the sub-drawing, so
+nothing has to outlive its draw.
+
+## Equal pass chains always share; final passes never merge
+
+Within a frame, two passes with an output that read the same snapshot
+and the same inputs and compare equal (shader identity, parameter bytes
+and output) are one node of the pass graph, whose region is the bounding
+box of what all its readers need. A pass without an output, the final
+pass that paints a shape, is never merged. There is no logic that splits a
+chain or decides against sharing.
+
+**Why:** two panels with the same blur over the same backdrop then cost
+one chain, and the rule stays simple by owner decision. The price is
+pixels: far-apart panels blur the box that spans them. The per-frame
+counters (pixels shaded against passes) measure that trade, and a pass
+over a set of rectangles is the recorded refinement if it matters. A
+shared Region pass sees the grown region, so a Region pass must not depend
+on its own region (`conventions.md`).
+
+## Effect sizes are logical units, converted at lowering
+
+An effect's sizes (a blur radius, a highlight width, a pass's reach) are
+given in logical units and converted to device pixels when the renderer
+lowers it (`toPixels`), at the scaling factor times the scale of its
+transform to the root. An effect brush and an effect element convert
+alike, so an effect's sizes scale with the drawing it is in.
+
+**Why:** an effect is built before the scaling factor is known, and a
+size in device pixels would blur half as wide, relative to the content, on
+a 2x display. Lowering is the first place that has both the effect and the
+factor.
+
+## A brush is a colour or an effect
+
+`avg::Brush` holds a colour or an opaque `Effect`, so glass fills,
+strokes and text wherever a brush is accepted. Two effects of the same kind
+interpolate their parameters; any other pair (two kinds, or a colour and
+an effect) switches sharply to the new brush at the start of the
+transition.
+
+**Why:** an effect placed by one node kind (the surface's closed effect
+variant) could not fill a stroke or a text run, and a new effect meant a
+new variant in two libraries. A sharp switch keeps the result of `lerp` a
+single `Brush`; a crossfade would need a brush holding two brushes and a
+weight.
 
 ## `avg` selects its shader language through one seam
 
@@ -187,13 +286,13 @@ and a frame without effects is one segment with no barrier.
 `docs/design/backdrop-effects.md` is the full design.
 
 **Why:** the effect's final pass neither tests nor writes depth (it blends
-its shape over the main target), so a z value would not order it against
-opaque content, and a run boundary costs nothing when no effect is drawn.
-Rejected: giving the final pass a depth value and drawing it opaque through
-the mesh path (it ties the pass to the mesh pipeline's depth rules); a CPU
-wait or GL texture barrier between a pass and its reader (no pass samples
-the texture it writes, so the FBO switch is the only synchronisation
-needed).
+its shape over the target it draws into), so a z value would not order it
+against opaque content, and a run boundary costs nothing when no effect is
+drawn. Rejected: giving the final pass a depth value and drawing it opaque
+through the mesh path (it ties the pass to the mesh pipeline's depth
+rules); a CPU wait or GL texture barrier between a pass and its reader (no
+pass samples the texture it writes, so the FBO switch is the only
+synchronisation needed).
 
 ## Stacking is declared by containers; surfaces never open a scope
 
@@ -201,19 +300,19 @@ A `ContainerNode` carries a stacking flag. A flat container (vbox, hbox,
 grid) concatenates its children's drawings; a stacked one paints its first
 child flat and each later child through `Drawing::over`, which puts the
 child's content in a `BackdropScope`. A `SurfaceNode` adds its effect,
-fill and child to the drawing and never a scope. In `bqui` every modifier that paints behind or over its
-widget builds a stacked container, so the rule in `conventions.md` is
-"whoever paints one child over another is a stack", applied
-unconditionally.
+fill and child to the drawing and never a scope. In `bqui` every modifier
+that paints behind or over its widget builds a stacked container, so the
+rule in `conventions.md` is "whoever paints one child over another is a
+stack", applied unconditionally.
 
 **Why:** a scope's meaning is "effects in here see what was painted before
 the scope", and only the code that places one child over another knows
 that relation; a surface placing a scope around itself would give every
 card in a vbox a private snapshot and no backdrop. Scopes are free when no
 effect is inside, so the rule needs no "only when glass is present"
-exception, which a container author could not evaluate anyway. Rejected: a separate stack
-node class (the flag is the only difference); inferring stacking from
-geometric overlap (see the next entry).
+exception, which a container author could not evaluate anyway. Rejected:
+a separate stack node class (the flag is the only difference); inferring
+stacking from geometric overlap (see the next entry).
 
 ## Backdrop visibility is a scope in a flat drawing, not a z
 
@@ -245,15 +344,16 @@ An `Effect` is a list of passes in execution order - a DAG by
 construction - each reading the enclosing scope's snapshot or an earlier
 pass's output and writing a scratch texture at an integer divisor of the
 screen (1, 2, 4 or 8) in a declared format, until a final pass draws the
-effect's shape into the main target. Regions are derived backwards from
+effect's shape into the target it is drawn in (the main target or a
+sub-drawing's). Regions are derived backwards from
 the shape's device bounds through each pass's padding, so each pass writes
 exactly what its readers sample and the snapshot copies only the union of
 what the scope's effects read. Scratch textures are pooled per window and
 allocated by liveness over the frame's pass graph, in which equal passes
-reading the same values of one scope are merged into one;
-a pass takes its output before its inputs are released, so no pass ever
-reads the texture it writes. The pool releases a texture no frame has
-acquired for 120 frames.
+with an output reading the same values of one scope are merged into one
+(final passes never merge); a pass takes its output before its inputs are
+released, so no pass ever reads the texture it writes. The pool releases a
+texture no frame has acquired for 120 frames.
 
 **Why:** the cost scales with the effects on screen, not with the elements
 under them, and nothing is analysed per item. A chain ping-pongs between

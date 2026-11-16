@@ -132,11 +132,11 @@ TEST(ShadowBoundary, yieldsAShadowBoundaryNodeWithTheLight)
             instance.getRenderTree().getRoot().get());
     ASSERT_TRUE(node);
 
-    EXPECT_EQ(avg::Vector2f(3.0f, -2.0f), node->getLight().offset.getValue(now));
+    EXPECT_EQ(avg::Vector2f(3.0f, -2.0f),
+            node->getLight().offset.getValue(now));
     EXPECT_FLOAT_EQ(6.0f, node->getLight().radius.getValue(now));
     EXPECT_EQ(shade, node->getLight().colour.getValue(now));
     EXPECT_EQ(avg::ShadowBoundaryNode::Content::flat, node->getContent());
-    EXPECT_TRUE(node->getChild());
 }
 
 TEST(ShadowBoundary, anOpaqueShapeCastsUnderItself)

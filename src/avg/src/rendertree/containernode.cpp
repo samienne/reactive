@@ -186,7 +186,8 @@ UpdateResult ContainerNode::update(
             }
         }
 
-        if (i != oldContainer.children_.end() && j != newContainer.children_.end()
+        if (i != oldContainer.children_.end()
+                && j != newContainer.children_.end()
                 && !canUpdate(*i->node, *j->node))
         {
             auto [oldChild, nextOldUpdate] = i->node->update(

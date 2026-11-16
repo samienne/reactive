@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -390,7 +391,7 @@ TEST(BuiltinEffects, twoGlassesAtOneDivisorShareTheCopyPass)
     ASSERT_EQ(1u, plan.snapshots.size());
     ASSERT_EQ(2u, plan.effects.size());
     ASSERT_EQ(3u, plan.effects[1].passes.size());
-    EXPECT_EQ(1u, plan.effects[1].passes[0].pass);
+    EXPECT_EQ(1u, plan.effects[1].passes[0].index);
     EXPECT_EQ(plan.effects[0].passes[0].step, plan.snapshots[0].lastUse);
     EXPECT_EQ(plan.effects[1].passes[0].step,
             plan.effects[0].passes[0].output->lastUse);
@@ -414,7 +415,7 @@ TEST(BuiltinEffects, twoEqualGlassesShareEverythingButTheShapePass)
 
     EXPECT_EQ(5u, graph.getNodes().size());
     ASSERT_EQ(1u, plan.effects[1].passes.size());
-    EXPECT_EQ(3u, plan.effects[1].passes[0].pass);
+    EXPECT_EQ(3u, plan.effects[1].passes[0].index);
     EXPECT_EQ(plan.effects[0].passes[3].inputs[0],
             plan.effects[1].passes[0].inputs[0]);
 }
@@ -474,6 +475,42 @@ TEST(BuiltinEffects, clampToValidMovesOptionsIntoTheAcceptedRange)
 
     FrostedGlassOptions const valid;
     EXPECT_EQ(valid, avg::clampToValid(valid));
+}
+
+TEST(BuiltinEffects, clampToValidMovesNaNIntoTheAcceptedRange)
+{
+    float const nan = std::numeric_limits<float>::quiet_NaN();
+
+    FrostedGlassOptions options;
+    options.radius = nan;
+    options.saturation = nan;
+    options.highlightWidth = nan;
+    options.tintStrength = nan;
+    options.highlightStrength = nan;
+
+    FrostedGlassOptions const clamped = avg::clampToValid(options);
+
+    EXPECT_EQ(0.0f, clamped.radius);
+    EXPECT_EQ(0.0f, clamped.saturation);
+    EXPECT_EQ(0.0f, clamped.highlightWidth);
+    EXPECT_EQ(0.0f, clamped.tintStrength);
+    EXPECT_EQ(0.0f, clamped.highlightStrength);
+    EXPECT_NO_THROW(avg::frostedGlass(clamped));
+}
+
+TEST(BuiltinEffects, frostedGlassAndTintRejectNaN)
+{
+    float const nan = std::numeric_limits<float>::quiet_NaN();
+
+    FrostedGlassOptions blurred;
+    blurred.radius = nan;
+    EXPECT_THROW(avg::frostedGlass(blurred), std::invalid_argument);
+
+    FrostedGlassOptions tinted;
+    tinted.tintStrength = nan;
+    EXPECT_THROW(avg::frostedGlass(tinted), std::invalid_argument);
+
+    EXPECT_THROW(avg::tint(Color(), nan), std::invalid_argument);
 }
 
 TEST(BuiltinEffects, tintIsOneShapePassReadingTheBackdrop)

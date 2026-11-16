@@ -793,7 +793,7 @@ TEST(ScratchPlan, aSharedValueLivesUntilItsLastReader)
     auto const& second = plan.effects[1].passes;
     ASSERT_EQ(4u, first.size());
     ASSERT_EQ(1u, second.size());
-    EXPECT_EQ(3u, second[0].pass);
+    EXPECT_EQ(3u, second[0].index);
     EXPECT_EQ(5u, second[0].step);
 
     EXPECT_EQ(first[2].output->slot, second[0].inputs[0]);
@@ -845,6 +845,7 @@ TEST(ElementPass, reachesItsPaddingUnlessGivenLessPerAxis)
 
 TEST(PassGraph, anElementPassGrowsTheSourcesItReads)
 {
+    using Kind = PassGraph::Kind;
     using Source = PassGraph::Source;
 
     // A blur at divisor two reading a sub-drawing, composited by a final
@@ -858,10 +859,10 @@ TEST(PassGraph, anElementPassGrowsTheSourcesItReads)
     size_t const snapshot = graph.addSnapshot();
     size_t const content = graph.addSubDrawing();
     size_t const blurred = graph.addElement(blur, snapshot,
-            { Source{ Source::Kind::SubDrawing, content } }, PixelRect());
+            { Source{ Kind::SubDrawing, content } }, PixelRect());
     graph.addElement(composite, snapshot,
-            { Source{ Source::Kind::Element, blurred },
-            Source{ Source::Kind::Backdrop, 0 } }, shape);
+            { Source{ Kind::Element, blurred },
+            Source{ Kind::Snapshot, 0 } }, shape);
 
     auto const& nodes = graph.getNodes();
     ASSERT_EQ(3u, nodes.size());
@@ -876,6 +877,7 @@ TEST(PassGraph, anElementPassGrowsTheSourcesItReads)
 
 TEST(PassGraph, subDrawingsNeverMergeButEqualElementPassesDo)
 {
+    using Kind = PassGraph::Kind;
     using Source = PassGraph::Source;
 
     Pass copy = regionPass({ PassInput::backdrop() }, Divisor::Two,
@@ -889,12 +891,12 @@ TEST(PassGraph, subDrawingsNeverMergeButEqualElementPassesDo)
     EXPECT_EQ(2u, graph.getSubDrawingCount());
 
     size_t const a = graph.addElement(copy, snapshot,
-            { Source{ Source::Kind::Backdrop, 0 } }, PixelRect());
+            { Source{ Kind::Snapshot, 0 } }, PixelRect());
     size_t const b = graph.addElement(copy, snapshot,
-            { Source{ Source::Kind::Backdrop, 0 } }, PixelRect());
-    graph.addElement(draw, snapshot, { Source{ Source::Kind::Element, a } },
+            { Source{ Kind::Snapshot, 0 } }, PixelRect());
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, a } },
             shape);
-    graph.addElement(draw, snapshot, { Source{ Source::Kind::Element, b } },
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, b } },
             rect(0, 0, 10, 10));
 
     EXPECT_NE(first, second);
@@ -903,12 +905,13 @@ TEST(PassGraph, subDrawingsNeverMergeButEqualElementPassesDo)
     EXPECT_EQ(rect(0, 0, 150, 60), graph.getNodes()[2].region);
 
     EXPECT_THROW(graph.addElement(draw, snapshot,
-                { Source{ Source::Kind::SubDrawing, 2 } }, shape),
+                { Source{ Kind::SubDrawing, 2 } }, shape),
             std::invalid_argument);
 }
 
 TEST(PassGraph, equalElementPassesOverDifferentSubDrawingsDoNotMerge)
 {
+    using Kind = PassGraph::Kind;
     using Source = PassGraph::Source;
 
     Pass copy = regionPass({ PassInput::pass(0) }, Divisor::Two,
@@ -921,16 +924,16 @@ TEST(PassGraph, equalElementPassesOverDifferentSubDrawingsDoNotMerge)
     size_t const second = graph.addSubDrawing();
 
     size_t const a = graph.addElement(copy, snapshot,
-            { Source{ Source::Kind::SubDrawing, first } }, PixelRect());
+            { Source{ Kind::SubDrawing, first } }, PixelRect());
     size_t const b = graph.addElement(copy, snapshot,
-            { Source{ Source::Kind::SubDrawing, second } }, PixelRect());
+            { Source{ Kind::SubDrawing, second } }, PixelRect());
     size_t const c = graph.addElement(copy, snapshot,
-            { Source{ Source::Kind::SubDrawing, first } }, PixelRect());
-    graph.addElement(draw, snapshot, { Source{ Source::Kind::Element, a } },
+            { Source{ Kind::SubDrawing, first } }, PixelRect());
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, a } },
             shape);
-    graph.addElement(draw, snapshot, { Source{ Source::Kind::Element, b } },
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, b } },
             shape);
-    graph.addElement(draw, snapshot, { Source{ Source::Kind::Element, c } },
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, c } },
             shape);
 
     // Two sub-drawings, a copy of each, the second copy of the first
@@ -940,6 +943,7 @@ TEST(PassGraph, equalElementPassesOverDifferentSubDrawingsDoNotMerge)
 
 TEST(ScratchPlan, aSubDrawingLivesUntilItsReaderAndAcrossItsContent)
 {
+    using Kind = PassGraph::Kind;
     using Source = PassGraph::Source;
 
     Effect blur = avg::makeEffect(blurPasses());
@@ -952,7 +956,7 @@ TEST(ScratchPlan, aSubDrawingLivesUntilItsReaderAndAcrossItsContent)
     size_t const content = graph.addSubDrawing();
     graph.addEffect(blur, snapshot, shape);
     graph.addElement(draw, snapshot,
-            { Source{ Source::Kind::SubDrawing, content } }, shape);
+            { Source{ Kind::SubDrawing, content } }, shape);
 
     ScratchPlan plan = avg::planScratch(graph);
     ASSERT_EQ(1u, plan.subDrawings.size());

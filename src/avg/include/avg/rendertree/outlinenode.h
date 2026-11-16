@@ -22,11 +22,12 @@ namespace avg
      * child's drawing.
      *
      * The outline is the shape function's value for area's size, placed by
-     * area's transform in the node's space. With Mode::replace the child's outlines are dropped and a
-     * std::nullopt outline leaves none; with Mode::add the outline joins
-     * them. The node's own obb only carries placement and moves with the
-     * options the parent passes; the animation options apply to area and
-     * to the outline function's parameters.
+     * area's transform in the node's space. With Mode::replace the child's
+     * outlines are dropped and a std::nullopt outline leaves none; with
+     * Mode::add the outline joins them. The node's own obb only carries
+     * placement and moves with the options the parent passes; the
+     * animation options apply to area and to the outline function's
+     * parameters.
      */
     class AVG_EXPORT OutlineNode : public RenderTreeNode
     {

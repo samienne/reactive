@@ -50,7 +50,8 @@ namespace avg
 
         TextEntry transformR(avg::Transform const& t) const;
 
-        friend TextEntry operator*(Transform const& t, TextEntry const& text);
+        AVG_EXPORT friend TextEntry operator*(Transform const& t,
+                TextEntry const& text);
 
         friend std::ostream& operator<<(std::ostream& stream,
                 TextEntry const& t)

@@ -1,6 +1,9 @@
 #include <avg/animated.h>
 
+#include <avg/brush.h>
+#include <avg/builtineffects.h>
 #include <avg/curve/curves.h>
+#include <avg/pen.h>
 
 #include <chrono>
 #include <gtest/gtest.h>
@@ -249,4 +252,51 @@ TEST(Animated, repeatReverseInifiniteUpdate)
     EXPECT_FLOAT_EQ(3.0f, c.getValue(std::chrono::milliseconds(1100)));
     EXPECT_FLOAT_EQ(3.0f, c.getValue(std::chrono::milliseconds(1200)));
 
+}
+
+TEST(Animated, aChangeOfBrushKindEndsAtOnce)
+{
+    AnimationOptions options {
+        std::chrono::milliseconds(100),
+        curve::linear
+    };
+    std::chrono::milliseconds const now(10);
+
+    Brush const colour(Color(1.0f, 0.0f, 0.0f));
+    Brush const effect(tint(Color(0.0f, 0.0f, 1.0f), 0.5f));
+
+    Animated<Brush> brush = Animated<Brush>(colour).updated(effect,
+            options, now);
+    EXPECT_TRUE(brush.hasAnimationEnded(now));
+    EXPECT_EQ(effect, brush.getValue(now));
+
+    Animated<std::optional<Brush>> fill = Animated<std::optional<Brush>>(
+            std::optional<Brush>(effect)).updated(
+            std::optional<Brush>(colour), options, now);
+    EXPECT_TRUE(fill.hasAnimationEnded(now));
+    EXPECT_EQ(colour, fill.getValue(now));
+
+    Animated<Pen> pen = Animated<Pen>(Pen(colour, 2.0f)).updated(
+            Pen(effect, 2.0f), options, now);
+    EXPECT_TRUE(pen.hasAnimationEnded(now));
+}
+
+TEST(Animated, aBrushChangeThatInterpolatesStillAnimates)
+{
+    AnimationOptions options {
+        std::chrono::milliseconds(100),
+        curve::linear
+    };
+    std::chrono::milliseconds const now(10);
+
+    Brush const colour(Color(1.0f, 0.0f, 0.0f));
+    Brush const effect(tint(Color(0.0f, 0.0f, 1.0f), 0.5f));
+
+    Animated<Brush> effects = Animated<Brush>(effect).updated(
+            Brush(tint(Color(0.0f, 0.0f, 1.0f), 1.0f)), options, now);
+    EXPECT_FALSE(effects.hasAnimationEnded(now));
+
+    Animated<Pen> pen = Animated<Pen>(Pen(colour, 2.0f)).updated(
+            Pen(effect, 4.0f), options, now);
+    EXPECT_FALSE(pen.hasAnimationEnded(now));
 }

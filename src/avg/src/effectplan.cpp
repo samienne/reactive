@@ -284,27 +284,13 @@ size_t PassGraph::addEffect(Effect const& effect, size_t snapshot,
                     : std::optional<size_t>(item.nodes[input.getPass()]));
         }
 
-        auto same = std::find_if(nodes_.begin(), nodes_.end(),
-                [&](Node const& other)
-                {
-                    return pass.output
-                        && !other.subDrawing
-                        && other.snapshot == node.snapshot
-                        && other.inputs == node.inputs
-                        && *other.pass == pass;
-                });
-
-        if (same == nodes_.end())
-        {
-            item.nodes.push_back(nodes_.size());
+        size_t const same = findMergeable(node);
+        if (same == nodes_.size())
             nodes_.push_back(std::move(node));
-        }
         else
-        {
-            same->region = same->region.unionWith(node.region);
-            item.nodes.push_back(
-                    static_cast<size_t>(same - nodes_.begin()));
-        }
+            nodes_[same].region = nodes_[same].region.unionWith(node.region);
+
+        item.nodes.push_back(same);
     }
 
     items_.push_back(std::move(item));
@@ -342,7 +328,7 @@ size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
     {
         switch (source.kind)
         {
-            case Source::Kind::Backdrop:
+            case Kind::Snapshot:
                 if (snapshot >= backdropRegions_.size())
                 {
                     throw std::invalid_argument("element reads snapshot "
@@ -351,7 +337,7 @@ size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
                 }
                 node.inputs.push_back(std::nullopt);
                 break;
-            case Source::Kind::SubDrawing:
+            case Kind::SubDrawing:
                 if (source.index >= subDrawingNodes_.size())
                 {
                     throw std::invalid_argument("element reads sub-drawing "
@@ -360,7 +346,7 @@ size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
                 }
                 node.inputs.push_back(subDrawingNodes_[source.index]);
                 break;
-            case Source::Kind::Element:
+            case Kind::Element:
                 if (source.index >= elementNodes_.size()
                         || !elementNodes_[source.index])
                 {
@@ -370,6 +356,8 @@ size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
                 }
                 node.inputs.push_back(*elementNodes_[source.index]);
                 break;
+            case Kind::Effect:
+                throw std::invalid_argument("element reads an effect");
         }
     }
 
@@ -378,19 +366,9 @@ size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
 
     size_t const effectIndex = effectCount_++;
 
-    auto same = std::find_if(nodes_.begin(), nodes_.end(),
-            [&](Node const& other)
-            {
-                return pass.output
-                    && !other.subDrawing
-                    && other.snapshot == node.snapshot
-                    && other.inputs == node.inputs
-                    && *other.pass == pass;
-            });
-
-    size_t n = static_cast<size_t>(same - nodes_.begin());
+    size_t const n = findMergeable(node);
     PixelRect const added = node.region;
-    if (same == nodes_.end())
+    if (n == nodes_.size())
     {
         node.region = PixelRect();
         nodes_.push_back(std::move(node));
@@ -409,9 +387,24 @@ size_t PassGraph::addElement(Pass const& pass, size_t snapshot,
     return effectIndex;
 }
 
-void PassGraph::grow(size_t n, PixelRect region, Divisor divisor)
+size_t PassGraph::findMergeable(Node const& node) const
 {
-    Node& node = nodes_[n];
+    auto same = std::find_if(nodes_.begin(), nodes_.end(),
+            [&](Node const& other)
+            {
+                return node.pass->output
+                    && !other.subDrawing
+                    && other.snapshot == node.snapshot
+                    && other.inputs == node.inputs
+                    && *other.pass == *node.pass;
+            });
+
+    return static_cast<size_t>(same - nodes_.begin());
+}
+
+void PassGraph::grow(size_t nodeIndex, PixelRect region, Divisor divisor)
+{
+    Node& node = nodes_[nodeIndex];
     Divisor const own = node.pass ? divisorOf(*node.pass) : Divisor::One;
     PixelRect const added = region.rescaled(divisor, own)
         .clamped(targetSize(screenSize_, own));
@@ -578,7 +571,6 @@ ScratchPlan planScratch(PassGraph const& graph)
 
     std::vector<Value> values;
     std::vector<size_t> snapshotValues(graph.getSnapshotCount());
-    // Per node: the value index of its output, or SIZE_MAX.
     std::vector<size_t> nodeValues(nodes.size(), SIZE_MAX);
     std::vector<size_t> nodeSteps(nodes.size());
 
@@ -709,7 +701,7 @@ ScratchPlan planScratch(PassGraph const& graph)
             PassGraph::Node const& node = nodes[n];
 
             PassAllocation pass;
-            pass.pass = i;
+            pass.index = i;
             pass.step = nodeSteps[n];
             pass.region = node.region;
 

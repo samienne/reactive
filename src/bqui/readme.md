@@ -56,15 +56,16 @@ shape::circle().fill(avg::Color(0.85f, 0.2f, 0.2f));
 shape::rectangle().rotate(0.2f).stroke(pen);   // rectangle, circle, ellipse
 ```
 
-A styled shape also gives its drawing an *outline*, the shape it will cast
-a shadow with: what it paints opaquely, so a translucent fill casts nothing.
-Outlines cast shadows only inside a *shadow boundary*:
-`widget | modifier::shadowBoundary()` paints the shadow of everything in the
-widget that has an outline, as one soft shape under it, so overlapping
-cards do not darken twice. `shadowAndBackdropBoundary()` also puts the
-widget in a backdrop scope over the shadow, so glass inside shows the
-shadows of its neighbours. Glass casts nothing; an opaque background casts
-like any opaque fill.
+A styled shape also gives its drawing an *outline*, the shape it casts a shadow
+with: what it paints opaquely, so a translucent fill casts nothing. Outlines
+cast shadows only inside a *shadow boundary*: `widget |
+modifier::shadowBoundary()` paints the shadow of everything in the widget that
+has an outline, as one soft shape under it, so overlapping cards do not darken
+twice. `shadowAndBackdropBoundary()` also puts the widget in a backdrop scope
+over the shadow, so glass inside shows the shadows of its neighbours. Glass
+casts nothing; an opaque background casts like any opaque fill; only the
+window's own background opts out.
+
 `modifier::outline(shape)`, `addOutline(shape)` and `noOutline()` replace,
 add to or remove a widget's outline; `outline` and `addOutline` also take a
 signal of `avg::ShapeFunction`s (optional for `outline`, where none

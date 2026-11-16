@@ -1,5 +1,7 @@
 #include "brush.h"
 
+#include "effectfactory.h"
+
 #include <cassert>
 #include <utility>
 
@@ -32,8 +34,11 @@ Effect const* Brush::getEffect() const noexcept
     return std::get_if<Effect>(&content_);
 }
 
-Brush Brush::operator*(float) const noexcept
+Brush Brush::operator*(float scale) const
 {
+    if (Effect const* effect = getEffect())
+        return Brush(toPixels(*effect, scale));
+
     return *this;
 }
 
@@ -68,7 +73,7 @@ std::ostream& operator<<(std::ostream& stream, Brush const& b)
     if (!b.getEffect())
         return stream << "Brush{" << b.getColor() << "}";
 
-    return stream << "Brush{effect}";
+    return stream << "Brush{" << *b.getEffect() << "}";
 }
 
 bool isSameKind(Brush const& a, Brush const& b)

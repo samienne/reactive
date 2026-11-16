@@ -132,14 +132,14 @@ void EffectEmitter::emitEffect(Effect const& effect,
 
     for (PassAllocation const& passAllocation : allocation.passes)
     {
-        if (passAllocation.pass >= passes.size())
+        if (passAllocation.index >= passes.size())
         {
             throw std::invalid_argument("the allocation names pass "
-                    + std::to_string(passAllocation.pass) + " of an effect"
+                    + std::to_string(passAllocation.index) + " of an effect"
                     " with " + std::to_string(passes.size()) + " passes");
         }
 
-        emitPass(passes[passAllocation.pass], passAllocation, shapeTriangles,
+        emitPass(passes[passAllocation.index], passAllocation, shapeTriangles,
                 target);
     }
 }
@@ -151,10 +151,10 @@ void EffectEmitter::emitElement(Pass const& pass,
 {
     for (PassAllocation const& passAllocation : allocation.passes)
     {
-        if (passAllocation.pass != 0)
+        if (passAllocation.index != 0)
         {
             throw std::invalid_argument("the allocation names pass "
-                    + std::to_string(passAllocation.pass)
+                    + std::to_string(passAllocation.index)
                     + " of an element");
         }
 
@@ -178,7 +178,7 @@ void EffectEmitter::emitPass(Pass const& pass,
         std::vector<Vector2f> const& shapeTriangles,
         std::optional<ScratchSlot> const& target)
 {
-    size_t const i = passAllocation.pass;
+    size_t const i = passAllocation.index;
     PixelRect const& region = passAllocation.region;
 
     if (region.isEmpty())

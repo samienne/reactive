@@ -202,9 +202,4 @@ ShadowBoundaryNode::Content ShadowBoundaryNode::getContent() const
     return content_;
 }
 
-std::shared_ptr<RenderTreeNode> const& ShadowBoundaryNode::getChild() const
-{
-    return childNode_;
-}
-
 } // namespace avg

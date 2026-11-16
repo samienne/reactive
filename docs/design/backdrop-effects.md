@@ -8,6 +8,13 @@
 > entered and paints its shape back into the frame in paint order.
 > Verified against `4d8e996e` (2026-11-12). The pass uniform blocks and
 > multi-sampler passes build on `shader-interface.md`.
+>
+> **Superseded in part by `effect-brushes-and-shadows.md`**, implemented
+> through its stage 7 at `0666a8d5`. Shadows are no longer pending
+> elements of a surface but one blurred union cast by a shadow boundary;
+> effect sizes are logical units; an effect reaches a shape as a brush;
+> the per-effect timeline is one pass graph per frame. The sections marked
+> *Superseded* describe the code at `4d8e996e`.
 
 ## Why
 
@@ -48,7 +55,8 @@ is their consequences:
 - DPI-independent placement: an effect's shape and regions follow the
   scaling factor. Its pixel parameters (a blur radius, a highlight width)
   are device pixels; converting them from logical units is an open
-  question.
+  question. *Superseded: sizes are logical units, converted when the
+  renderer lowers the effect.*
 - Testable headless: the dummy backend sees every command, so command
   structure, regions, scratch allocation and uniform bytes are asserted in
   CI; only the pixels need a GL driver.
@@ -111,6 +119,9 @@ keeps them as single elements so nesting survives composition, and
 clipping and transforming a drawing apply to the scopes inside it. A scope
 caches its contents' bounds so bounds queries do not recurse.
 
+*Superseded: pending shadows are removed; a shadow boundary casts the
+outlines a drawing carries.*
+
 **Pending shadows.** A surface's shadow belongs under the content of the
 container that holds the surface, not merely under the surface itself: a
 card's shadow should fall on the vbox around it, behind the neighbouring
@@ -121,6 +132,9 @@ the main list. The render tree root flushes the drawing it returns; anything
 that renders a drawing directly must flush first, and the renderer asserts
 that nothing is pending. Shadows are ordinary blended elements; this list
 is the whole mechanism - no levels, no layer ids.
+
+*Superseded in part: `over` no longer places shadows; it is the backdrop
+composition only.*
 
 **Painting over a child.** One helper, `Drawing::over`, is the single
 composition for putting one drawing on top of another: the lower drawing's
@@ -135,6 +149,9 @@ costs nothing and the author of a container cannot know what its children
 will hold. Same-level overlap without a stack (negative margins, say)
 samples the enclosing snapshot; that is documented, not analysed.
 
+*Superseded: an effect reaches a shape as an effect brush, and the effect
+element is one pass over sub-drawing or backdrop inputs.*
+
 **The effect element.** An `EffectElement` is a shape, a shared pointer to
 an immutable effect and a transform. The shape stays in the element's own
 space and the drawing's transforms compose into the element's transform, so
@@ -148,6 +165,9 @@ renderer intersects its bounds with the clip rectangle before deriving
 regions.
 
 ## The render tree: surfaces and stacking containers
+
+*Superseded in part: a surface has no shadow and paints its effect as an
+effect-brush shape, not an effect element.*
 
 A `SurfaceNode` is a filled shape under a child subtree with an optional
 shadow and an optional backdrop effect, all animated as values (the shape
@@ -278,6 +298,9 @@ keeps the shader source independent of parameter values.
 
 ## The renderer: pre-pass, timeline, segments
 
+*Superseded in part: the timeline and per-effect regions are replaced by
+one pass graph per frame that shares equal chains.*
+
 The scope pre-pass is the existing mesh pass. The renderer flattens a
 drawing once, in paint order, into items: meshes, text quads, a scope entry
 or an effect draw. It opens the implicit root scope first; the scope
@@ -352,7 +375,8 @@ mixing a colour in by strength times the colour's alpha, writing alpha 1.
   bind through; and, per the recorded decision, pipelines that declare the
   formats of the targets they draw into.
 - **`avg`** owns the model and the renderer: the scope and effect elements,
-  pending shadows and `over`; the pass graph, its validation, region
+  pending shadows (*superseded: outlines and the shadow boundary*) and
+  `over`; the pass graph, its validation, region
   derivation and liveness planning as pure functions; the scratch pool,
   pipeline cache and emitter; the window target and present quad in the
   painter; the scope pre-pass and segment flushing in the renderer; the
@@ -415,7 +439,8 @@ Ordering:
 - **Scopes added by surfaces** rather than by containers. Rejected: every
   card in a vbox would get a private snapshot and see no backdrop.
 - **Shadows after the scope** in `over`. Considered and not chosen: a glass
-  sibling should sample the shadow rings in its backdrop.
+  sibling should sample the shadow rings in its backdrop. *Superseded:
+  the shadow boundary decides this by nesting.*
 
 ## Open questions
 

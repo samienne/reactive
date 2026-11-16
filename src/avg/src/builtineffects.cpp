@@ -244,9 +244,14 @@ namespace
                 std::move(parameters), build);
     }
 
+    float clampNonNegative(float value)
+    {
+        return value >= 0.0f ? value : 0.0f;
+    }
+
     float clampStrength(float strength)
     {
-        return std::clamp(strength, 0.0f, 1.0f);
+        return std::min(clampNonNegative(strength), 1.0f);
     }
 
     ase::Vector4f toVector(Color const& colour, float w)
@@ -257,7 +262,7 @@ namespace
 
     void requireNonNegative(float value, char const* name)
     {
-        if (value < 0.0f)
+        if (!(value >= 0.0f))
         {
             throw std::invalid_argument(std::string(name)
                     + " must not be negative");
@@ -266,7 +271,7 @@ namespace
 
     void requireStrength(float value, char const* name)
     {
-        if (value < 0.0f || value > 1.0f)
+        if (!(value >= 0.0f && value <= 1.0f))
         {
             throw std::invalid_argument(std::string(name)
                     + " must be within [0, 1]");
@@ -366,9 +371,10 @@ namespace
         return makeEffect(std::move(passes),
                 makeRecipe(parameters, &buildTint));
     }
+
     ElementPass buildContentBlur(ContentBlurParameters const& parameters)
     {
-        float const radius = std::max(parameters.radius, 0.0f);
+        float const radius = clampNonNegative(parameters.radius);
         Divisor const divisor = frostedGlassDivisor(radius);
         float const passRadius = radius / static_cast<float>(toInt(divisor));
         int const tapRadius = static_cast<int>(std::ceil(passRadius));
@@ -454,9 +460,9 @@ FrostedGlassOptions lerp(FrostedGlassOptions const& a,
 
 FrostedGlassOptions clampToValid(FrostedGlassOptions options)
 {
-    options.radius = std::max(options.radius, 0.0f);
-    options.saturation = std::max(options.saturation, 0.0f);
-    options.highlightWidth = std::max(options.highlightWidth, 0.0f);
+    options.radius = clampNonNegative(options.radius);
+    options.saturation = clampNonNegative(options.saturation);
+    options.highlightWidth = clampNonNegative(options.highlightWidth);
     options.tintStrength = clampStrength(options.tintStrength);
     options.highlightStrength = clampStrength(options.highlightStrength);
 
@@ -527,7 +533,7 @@ Drawing shadowOf(pmr::memory_resource* memory, Outlines outlines,
         Vector2f offset, float radius, Color const& colour)
 {
     Drawing result(memory);
-    radius = std::max(radius, 0.0f);
+    radius = clampNonNegative(radius);
 
     if (outlines.isEmpty() || colour.getAlpha() <= 0.0f)
         return result;

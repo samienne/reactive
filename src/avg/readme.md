@@ -20,21 +20,20 @@ rasterised — by styling it:
   shape,
 - a **`Pen`** strokes its outline.
 
-Text is drawn through a `Font` (`Drawing` also carries text entries). Layout
-— extents, hit-testing — reads the font's unhinted, fractional metrics, so
-text measures the same at every size and scale. Drawing it is separate:
-ordinary filled, unrotated text is rasterised glyph by glyph into a
-**glyph atlas** (one anti-aliased coverage texture per painter, so per window,
-filled on demand and recycled least-recently-used) and drawn as textured
-quads snapped to device pixels. Anything the atlas does not serve — stroked or
-rotated text, text painted with an effect, very large sizes, a frame that
-overflows the atlas — falls back
-to the glyph outlines, filled like any other shape.
+Text is drawn through a `Font` (`Drawing` also carries text entries). Layout —
+extents, hit-testing — reads the font's unhinted, fractional metrics, so text
+measures the same at every size and scale. Drawing it is separate: ordinary
+filled, unrotated text is rasterised glyph by glyph into a **glyph atlas** (one
+anti-aliased coverage texture per painter, so per window, filled on demand and
+recycled least-recently-used) and drawn as textured quads snapped to device
+pixels. Anything the atlas does not serve — stroked or rotated text, text
+painted with an effect, very large sizes, a frame that overflows the atlas —
+falls back to the glyph outlines, filled like any other shape.
 
 ## Ordering
 
-A drawing paints its elements in order; there are no layers or z values. Two
-additions shape what a frame can do beyond flat painting:
+A drawing paints its elements in order; there are no layers or z values.
+Three additions shape what a frame can do beyond flat painting:
 
 - **Outlines and shadows.** A drawing also carries the outline shapes its
   content casts shadows with. They are never painted; they are transformed
@@ -52,15 +51,17 @@ additions shape what a frame can do beyond flat painting:
   child over another composes the two with `Drawing::over`, which scopes the
   upper child; a scope without effects only groups its content and costs
   nothing, so stacks use it unconditionally.
-- **Effect elements.** A backdrop effect (`frostedGlass`, `tint`) is one
-  element of the drawing, drawn through a shape: the effect's final pass
-  paints the shape and the passes before it sample the scope's backdrop
-  around it. When a frame is rendered, each scope that holds an effect has
-  the region those effects read copied out of the frame as it stands at the
-  scope's entry, the effect's passes run over that copy, and its final pass
-  is painted into the frame in the element's place in the paint order. A
-  shape filled or stroked with an effect brush, or text painted with one,
-  is drawn the same way.
+- **Effects.** A backdrop effect (`frostedGlass`, `tint`) reaches a
+  drawing as a brush: a shape filled or stroked with an effect brush, or
+  text painted with one, paints the effect through that geometry. When a
+  frame is rendered, each scope that holds an effect has the region its
+  effects read copied out of the frame as it stands at the scope's entry,
+  the effects' passes run over that copy, and each final pass is painted
+  into the frame in the element's place in the paint order. Effects that do
+  the same work over the same backdrop share it. An *effect element* runs
+  one pass over the backdrop or over parts of the drawing rendered
+  offscreen; the shadow's blur is made of them. Effect sizes are in logical
+  units, like the geometry.
 
 In the render tree, a `SurfaceNode` (a filled shape under a child, with an
 optional effect such as frosted glass behind the fill) never opens a scope;
@@ -83,7 +84,9 @@ texture with a depth buffer, remade when the window is resized), then copies
 that image onto the window with one textured quad. Every frame takes this one
 path whether or not it uses effects, and the offscreen image is what later
 backdrop effects such as frosted glass sample from. The design behind the
-scopes, the effects and this target is `docs/design/backdrop-effects.md`.
+scopes, the effects and this target is `docs/design/backdrop-effects.md`;
+effect brushes, effect elements and shadows are in
+`docs/design/effect-brushes-and-shadows.md`.
 
 ## The render tree
 

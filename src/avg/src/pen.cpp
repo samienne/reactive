@@ -15,13 +15,14 @@ Pen::~Pen()
 {
 }
 
-Pen Pen::operator*(float scale) const noexcept
+Pen Pen::operator*(float scale) const
 {
-    return Pen(brush_, width_ * scale);
+    return Pen(brush_ * scale, width_ * scale, join_, end_);
 }
 
-Pen& Pen::operator*=(float scale) noexcept
+Pen& Pen::operator*=(float scale)
 {
+    brush_ = brush_ * scale;
     width_ *= scale;
 
     return *this;

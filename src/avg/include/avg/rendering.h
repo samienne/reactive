@@ -18,9 +18,8 @@ namespace avg
     /**
      * @brief Records the draws that paint drawing over target into queue.
      *
-     * drawing is in logical units, scalingFactor of target's pixels each,
-     * and must be flushed: its pending shadows are not drawn. Returns
-     * what this call recorded.
+     * drawing is in logical units, scalingFactor of target's pixels each.
+     * Returns what this call recorded.
      */
     AVG_EXPORT RenderCounters render(
             pmr::memory_resource* memory,

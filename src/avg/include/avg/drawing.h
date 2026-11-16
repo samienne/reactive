@@ -21,9 +21,10 @@ namespace avg
     /**
      * @brief The flat, ordered list of elements a frame rasterises.
      *
-     * Elements paint in list order. A drawing also carries outlines, the shapes its content casts shadows
-     * with. They are not elements and the renderer never reads them, but
-     * every operation that maps or combines drawings applies to them too.
+     * Elements paint in list order. A drawing also carries outlines, the
+     * shapes its content casts shadows with. They are not elements and the
+     * renderer never reads them, but every operation that maps or combines
+     * drawings applies to them too.
      * Only the outermost drawing holds outlines (see liftSubDrawing()).
      */
     class AVG_EXPORT Drawing final
@@ -86,15 +87,11 @@ namespace avg
          * paints it; without one the pass covers its sub-drawing inputs'
          * content grown by its reach, at the scale the element is drawn
          * at, and its premultiplied result is composited over what is
-         * below. A
-         * sub-drawing input that holds only an element without a shape is
-         * not drawn into a target of its own: that element's pass writes
-         * straight into a target at its output's scale and format, which
-         * is how passes nest into a multi-pass effect. The inputs and the
-         * shape are in the element's space, which transform maps into the
-         * drawing's space. controlBb, in the element's space, is the
-         * shape's bounds, or else the sub-drawing inputs' bounds grown by
-         * the pass's reach in logical units. Make one with Drawing::effect.
+         * below. The inputs and the shape are in the element's space,
+         * which transform maps into the drawing's space. controlBb, in the
+         * element's space, is the shape's bounds, or else the sub-drawing
+         * inputs' bounds grown by the pass's reach in logical units. Make
+         * one with Drawing::effect.
          */
         struct EffectElement
         {

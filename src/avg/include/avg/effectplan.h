@@ -141,13 +141,13 @@ namespace avg
      * @brief One pass an effect runs: where it draws and the scratch
      * textures it reads and writes.
      *
-     * pass indexes the effect's passes and region is in the pixels of its
-     * own target. inputs line up with the pass's inputs; output is absent
-     * for the final pass.
+     * index is the pass's index among the effect's passes and region is in
+     * the pixels of its own target. inputs line up with the pass's inputs;
+     * output is absent for the final pass.
      */
     struct AVG_EXPORT PassAllocation
     {
-        size_t pass = 0;
+        size_t index = 0;
         size_t step = 0;
         PixelRect region;
         std::vector<ScratchSlot> inputs;
@@ -217,10 +217,12 @@ namespace avg
     {
     public:
         /**
-         * @brief A pass of the graph, or a sub-drawing. An input is a node
-         * index, or empty for the snapshot. effect and pass name the effect
-         * or element that runs it and its index there; for a sub-drawing,
-         * pass is null and index is the sub-drawing's own.
+         * @brief A pass of the graph, or a sub-drawing.
+         *
+         * An input is a node index, or empty for the snapshot. effect and
+         * index name the effect or element that runs the pass and the
+         * pass's index there; for a sub-drawing, pass is null and index is
+         * the sub-drawing's own.
          */
         struct Node
         {
@@ -257,18 +259,12 @@ namespace avg
 
         /**
          * @brief What an element pass reads: the snapshot, a sub-drawing
-         * or an earlier element pass, by the index its add returned.
+         * or an earlier element pass, by the index its add returned. An
+         * element cannot read an effect.
          */
         struct Source
         {
-            enum class Kind
-            {
-                Backdrop,
-                SubDrawing,
-                Element
-            };
-
-            Kind kind = Kind::Backdrop;
+            Kind kind = Kind::Snapshot;
             size_t index = 0;
         };
 
@@ -328,7 +324,8 @@ namespace avg
         std::vector<Item> const& getItems() const;
 
     private:
-        void grow(size_t node, PixelRect region, Divisor divisor);
+        size_t findMergeable(Node const& node) const;
+        void grow(size_t nodeIndex, PixelRect region, Divisor divisor);
         void growBackdrop(size_t snapshot, PixelRect region, Divisor divisor);
 
         Vector2i screenSize_;

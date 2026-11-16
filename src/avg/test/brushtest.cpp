@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 
+#include <sstream>
+
 using namespace avg;
 
 TEST(Brush, compare)
@@ -130,4 +132,40 @@ TEST(Brush, aPenCarriesAnEffectBrush)
 
     ASSERT_NE(nullptr, pen.getBrush().getEffect());
     EXPECT_EQ(glassWithRadius(24.0f), *pen.getBrush().getEffect());
+}
+
+TEST(Brush, printsAnEffectAsItself)
+{
+    Effect const effect = tint(Color(0.0f, 0.0f, 1.0f), 0.5f);
+
+    std::ostringstream printedEffect;
+    printedEffect << effect;
+    EXPECT_EQ("Effect{1 passes}", printedEffect.str());
+
+    std::ostringstream printedBrush;
+    printedBrush << Brush(effect);
+    EXPECT_EQ("Brush{Effect{1 passes}}", printedBrush.str());
+}
+
+TEST(Brush, scalingScalesAnEffectsSizes)
+{
+    FrostedGlassOptions options;
+    options.radius = 12.0f;
+    FrostedGlassOptions doubled = options;
+    doubled.radius = 24.0f;
+    doubled.highlightWidth *= 2.0f;
+
+    Brush const glass(frostedGlass(options));
+    EXPECT_EQ(Brush(frostedGlass(doubled)), glass * 2.0f);
+    EXPECT_EQ(Brush(frostedGlass(doubled)), scale(2.0f) * glass);
+
+    Brush const colour(Color(1.0f, 0.0f, 0.0f));
+    EXPECT_EQ(colour, colour * 2.0f);
+
+    Pen const pen = Pen(glass, 1.0f, JOIN_MITER, END_CLOSEDPOLYGON) * 2.0f;
+    EXPECT_EQ(Brush(frostedGlass(doubled)), pen.getBrush());
+    EXPECT_EQ(JOIN_MITER, pen.getJoinType());
+    EXPECT_EQ(END_CLOSEDPOLYGON, pen.getEndType());
+    EXPECT_EQ(JOIN_MITER,
+            (scale(2.0f) * Pen(glass, 1.0f, JOIN_MITER)).getJoinType());
 }

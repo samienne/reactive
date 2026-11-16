@@ -40,7 +40,8 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier shadowBoundary(ShadowLight light);
 
     /**
-     * @brief shadowBoundary() with a soft shadow falling slightly down.
+     * @brief shadowBoundary(light) with a soft shadow falling slightly
+     * down.
      */
     BQUI_EXPORT AnyWidgetModifier shadowBoundary();
 
@@ -57,7 +58,7 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier shadowAndBackdropBoundary(ShadowLight light);
 
     /**
-     * @brief shadowAndBackdropBoundary() with the light of
+     * @brief shadowAndBackdropBoundary(light) with the light of
      * shadowBoundary().
      */
     BQUI_EXPORT AnyWidgetModifier shadowAndBackdropBoundary();

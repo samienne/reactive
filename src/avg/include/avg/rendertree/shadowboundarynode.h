@@ -41,10 +41,9 @@ namespace avg
      * under one boundary do not shadow each other. With Content::scoped the
      * child's drawing is put in a BackdropScope after the shadow, so the
      * child's backdrop effects see the shadow. The shadow is not clipped
-     * or culled here; the renderer culls it like any element. Like
-     * OutlineNode, the node's own obb only carries placement and moves with
-     * the options the parent passes; the animation options apply to the
-     * light.
+     * or culled here; the renderer culls it like any element. The node's
+     * own obb only carries placement and moves with the options the parent
+     * passes; the animation options apply to the light.
      */
     class AVG_EXPORT ShadowBoundaryNode : public RenderTreeNode
     {
@@ -89,7 +88,6 @@ namespace avg
 
         ShadowLight const& getLight() const;
         Content getContent() const;
-        std::shared_ptr<RenderTreeNode> const& getChild() const;
 
     private:
         ShadowBoundaryNode(

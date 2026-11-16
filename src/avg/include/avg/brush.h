@@ -45,7 +45,11 @@ namespace avg
          */
         Effect const* getEffect() const noexcept;
 
-        Brush operator*(float scale) const noexcept;
+        /**
+         * @brief The brush with its effect's sizes scaled by scale, as
+         * scaling a drawing scales them; a colour brush is unchanged.
+         */
+        Brush operator*(float scale) const;
 
         bool operator==(Brush const& rhs) const noexcept;
         bool operator!=(Brush const& rhs) const noexcept;
@@ -57,9 +61,9 @@ namespace avg
         bool operator<(Brush const& rhs) const noexcept;
         bool operator>(Brush const& rhs) const noexcept;
 
-        friend Brush operator*(Transform const&, Brush const& b) noexcept
+        friend Brush operator*(Transform const& t, Brush const& b)
         {
-            return b;
+            return b * t.getScale();
         }
 
         template <class THash>
@@ -80,7 +84,8 @@ namespace avg
 
     /**
      * @brief True when lerp() interpolates between a and b: both are
-     * colours, or both are effects of the same kind (isSameKind).
+     * colours, or both are effects of the same kind
+     * (isSameKind(Effect const&, Effect const&)).
      */
     AVG_EXPORT bool isSameKind(Brush const& a, Brush const& b);
 } // namespace avg

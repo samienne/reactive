@@ -232,10 +232,10 @@ std::vector<Vector2f> fillToDevice(pmr::memory_resource* memory,
 
 // Turns an effect painting a region into an effect draw reading the
 // backdrop of scopeIndex. bounds are the region's, clipped, in the space
-// toRoot maps to the root; triangulate gives the region in device pixels
-// and is only called once the bounds reach the target. Nothing is drawn,
-// and no snapshot is asked for, when the bounds miss the target or the
-// region has no area.
+// toRoot maps to the root; triangulate gives the region in device pixels.
+// The effect's sizes are lowered at the device pixels to a unit of that
+// space. Nothing is drawn when the bounds miss the target or the region has
+// no area.
 template <typename TTriangulate>
 std::optional<EffectDraw> lowerEffect(EffectContext& effects,
         size_t scopeIndex, Effect const& effect, Rect const& bounds,
@@ -255,7 +255,7 @@ std::optional<EffectDraw> lowerEffect(EffectContext& effects,
     effects.scopes[scopeIndex].used = true;
 
     return EffectDraw{
-        toPixels(effect, effects.scalingFactor),
+        toPixels(effect, effects.scalingFactor * toRoot.getScale()),
         scopeIndex,
         deviceBounds,
         std::move(triangles)
@@ -1166,13 +1166,14 @@ public:
 private:
     void addInputs(ElementNode& node)
     {
+        using Kind = PassGraph::Kind;
         using Source = PassGraph::Source;
 
         node.sources.clear();
         for (ElementInput& input : node.inputs)
         {
             if (input.backdrop)
-                node.sources.push_back(Source{ Source::Kind::Backdrop, 0 });
+                node.sources.push_back(Source{ Kind::Snapshot, 0 });
             else if (input.nested)
             {
                 ElementNode& nested = *input.nested;
@@ -1180,13 +1181,13 @@ private:
                 nested.index = graph_.addElement(nested.pass,
                         scopes_[nested.scope].snapshot, nested.sources,
                         PixelRect());
-                node.sources.push_back(Source{ Source::Kind::Element,
+                node.sources.push_back(Source{ Kind::Element,
                         nested.index });
             }
             else
             {
                 addSubDrawing(input);
-                node.sources.push_back(Source{ Source::Kind::SubDrawing,
+                node.sources.push_back(Source{ Kind::SubDrawing,
                         input.index });
             }
         }

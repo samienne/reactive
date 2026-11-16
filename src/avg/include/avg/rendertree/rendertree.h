@@ -38,9 +38,8 @@ namespace avg
         /**
          * @brief Draws the tree into @p obb at @p time, ready to render.
          *
-         * The drawing is flushed: the tree's pending shadows are ahead of
-         * its content. Its outlines are dropped, since the root casts no
-         * shadow. Also returns whether an animation is still running.
+         * The drawing's outlines are dropped. Also returns whether an
+         * animation is still running.
          */
         std::pair<Drawing, bool> draw(DrawContext const& drawContext,
                 avg::Obb const& obb,

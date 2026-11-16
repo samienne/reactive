@@ -71,8 +71,8 @@ namespace avg
          * pool's depth buffer for the texture's size.
          *
          * Every texture of one size shares one depth buffer in
-         * TargetImage::depthFormat, made on first use and released as a
-         * texture is, so whoever draws with depth clears it first.
+         * TargetImage::depthFormat, so whoever draws with depth clears it
+         * first.
          */
         ScratchTarget acquireWithDepth(ScratchSlot const& slot);
 

@@ -1,7 +1,7 @@
 # Architecture
 
-*Last verified against `d2e8954` (2026-07-13); the rendering paragraph against
-`4d8e996e` (2026-11-12).*
+*Last verified against `d2e8954` (2026-07-13); the rendering paragraphs
+against `0666a8d5` (2026-11-14).*
 
 The cross-cutting overview: how the libraries fit together and the ideas that
 span them. Per-library depth lives in each library's own docs (indexed below);
@@ -46,6 +46,14 @@ snapshot, and paints the result through its shape in its own place in the
 paint order. Nothing is analysed per element, and a scope with no effect in
 it costs nothing. The design is
 [`design/backdrop-effects.md`](design/backdrop-effects.md).
+
+An effect is a brush, so glass can fill any shape, stroke or text run, and
+the same passes can run over a widget's own content rendered offscreen
+(group opacity, content blur). Shadows work the same way: a drawing
+carries the outline shapes of the widgets that drew it, and a *shadow
+boundary* unions the outlines that reach it into one blurred shadow under
+its content. The design is
+[`design/effect-brushes-and-shadows.md`](design/effect-brushes-and-shadows.md).
 
 Because signals are stateless graph descriptions (their state lives in an
 evaluation context), and the render tree and drawings are immutable, there is no

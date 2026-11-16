@@ -140,9 +140,10 @@ namespace avg
      * the pass samples its inputs (a blur reads its radius beyond every
      * edge); the planner grows the inputs' regions by it. A Region pass
      * needs an output; the final Shape pass has none, since it draws into
-     * the main target. parameters are the contents of one uniform block
-     * the shader's interface declares, uploaded as they are for every
-     * draw of the pass; a pass whose shader takes none leaves it empty.
+     * the target the effect is drawn in, the main target or a sub-drawing's.
+     * parameters are the contents of one uniform block the shader's
+     * interface declares, uploaded as they are for every draw of the pass;
+     * a pass whose shader takes none leaves it empty.
      */
     struct AVG_EXPORT Pass
     {
@@ -181,7 +182,7 @@ namespace avg
 
     /**
      * @brief A directed acyclic graph of passes that ends by drawing a
-     * shape into the main target.
+     * shape into the target the effect is drawn in.
      *
      *     avg::Effect glass = avg::frostedGlass(options);
      *
@@ -220,16 +221,17 @@ namespace avg
         std::shared_ptr<Content const> content_;
     };
 
+    AVG_EXPORT std::ostream& operator<<(std::ostream& stream,
+            Effect const& effect);
+
     /**
      * @brief The one pass an effect element runs over its inputs.
      *
      * An opaque value from a factory, like Effect. getPass() holds the
      * shader, the padding, the parameters and the output: the scale and
      * format of the element's result when another element reads it. Its
-     * inputs are empty and its geometry is Region; the element gives the
-     * pass its inputs and, when nothing reads it, draws it into the
-     * enclosing target. Copies share the pass; two are equal when their
-     * passes are.
+     * inputs are empty and its geometry is Region. Copies share the pass;
+     * two are equal when their passes are.
      */
     class AVG_EXPORT ElementPass
     {

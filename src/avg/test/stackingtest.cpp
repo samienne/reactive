@@ -343,7 +343,8 @@ TEST(StackingContainer, aNestedStackStaysInsideItsSiblingScope)
 
     auto const& innerScope = scopeAt(d.getElements(), 1);
     EXPECT_EQ("S[S]", structureOf(innerScope.subDrawing->elements));
-    EXPECT_EQ("S", structureOf(scopeAt(d.getElements(), 2).subDrawing->elements));
+    EXPECT_EQ("S",
+            structureOf(scopeAt(d.getElements(), 2).subDrawing->elements));
 }
 
 TEST(StackingContainer, aStackOfOneChildIsFlat)

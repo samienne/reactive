@@ -273,6 +273,10 @@ namespace avg
                 return newValue;
             }
 
+            T current = getValue(time);
+            if (isInstantLerp(current, newValue.getInitialValue()))
+                return newValue;
+
             std::vector<KeyFrame> keyFrames;
             keyFrames.reserve(1llu + newValue.getKeyFrames().size());
 
@@ -288,7 +292,7 @@ namespace avg
                 keyFrames.push_back(keyFrame);
 
             return Animated(
-                    getValue(time),
+                    std::move(current),
                     time,
                     std::move(keyFrames)
                     );

@@ -79,7 +79,7 @@ namespace avg
         /**
          * @brief Draws the passes of effect that allocation lists: each
          * Region pass a quad over its region into its allocated slot, the
-         * Shape pass the given triangles into the main target.
+         * Shape pass the given triangles into target.
          *
          * allocation is planScratch's result for this effect at this
          * frame's screen size; its input slots name the snapshot the effect
@@ -112,8 +112,7 @@ namespace avg
          * texture: clears its colour to transparent and the pooled depth
          * buffer of its size, and returns the framebuffer that holds both.
          *
-         * The caller draws the sub-drawing's content into it; the next pass
-         * reading slot starts after a barrier.
+         * The caller draws the sub-drawing's content into it.
          */
         ase::Framebuffer beginSubDrawing(ScratchSlot const& slot);
 
