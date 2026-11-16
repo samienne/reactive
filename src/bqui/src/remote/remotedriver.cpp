@@ -58,8 +58,6 @@ float RemoteWindow::scalingFactor() const
 {
     return 1.0f;
 }
->>>
-
 
 namespace
 {
@@ -1047,8 +1045,6 @@ private:
                 { "width", plan.outputSize.x() },
                 { "height", plan.outputSize.y() },
                 { "region", toJson(plan.captured) },
->>>
-
                 { "presentIndex", presentIndex },
                 });
         finishIfIdle();
