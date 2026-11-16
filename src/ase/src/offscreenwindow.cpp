@@ -10,6 +10,7 @@ OffscreenWindow::OffscreenWindow(PlatformBase& platform,
         RenderContext& context, Vector2i size) :
     WindowBase(context, size, 1.0f),
     platform_(platform),
+    canReadback_(context.canReadback()),
     texture_(context.makeTexture(size, FORMAT_SRGBA)),
     depthbuffer_(context.makeRenderbuffer(size, FORMAT_DEPTH16)),
     framebuffer_(context.makeFramebuffer())
@@ -42,6 +43,11 @@ Framebuffer& OffscreenWindow::getDefaultFramebuffer()
     return framebuffer_;
 }
 
+bool OffscreenWindow::canCapture() const
+{
+    return canReadback_;
+}
+
 void OffscreenWindow::requestFrame()
 {
     genericWindow_.requestFrame();
@@ -56,7 +62,9 @@ std::optional<std::chrono::microseconds> OffscreenWindow::frame(
 
 PresentStatus OffscreenWindow::present()
 {
+    capturePresent(framebuffer_, texture_.getSize());
     return PresentStatus::Ok;
 }
+
 
 } // namespace ase

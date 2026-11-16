@@ -19,8 +19,10 @@ namespace ase
      *
      * Renders a full frame with the real backend but is never shown, so a
      * platform can draw with no visible window. `setVisible` is a no-op and
-     * there is no present; otherwise it is a plain `WindowBase`, driven by the
-     * platform run loop like any other window once the platform registers it.
+     * presenting swaps nothing; it serves `captureNextFrame` when the render
+     * context can read back. Otherwise it is a plain `WindowBase`, driven by
+     * the platform run loop like any other window once the platform registers
+     * it.
      */
     class ASE_EXPORT OffscreenWindow : public WindowBase
     {
@@ -36,9 +38,13 @@ namespace ase
 
         Framebuffer& getDefaultFramebuffer() override;
 
+        bool canCapture() const override;
+
         void requestFrame() override;
 
-        /** @brief No-op: an offscreen surface has no drawable to swap. */
+        /**
+         * @brief Serve the armed captures; there is no drawable to swap.
+         */
         PresentStatus present() override;
 
     private:
@@ -48,6 +54,7 @@ namespace ase
                 Frame const& frame) override;
 
         PlatformBase& platform_;
+        bool canReadback_;
         Texture texture_;
         Renderbuffer depthbuffer_;
         Framebuffer framebuffer_;

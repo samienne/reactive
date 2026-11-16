@@ -99,6 +99,50 @@ namespace
 
         return false;
     }
+
+    ReadbackResult readPixels(Vector2i offset, Vector2i size,
+            Vector2i framebufferSize)
+    {
+        if (offset[0] < 0 || offset[1] < 0 || size[0] < 0 || size[1] < 0
+                || size[0] > framebufferSize[0] - offset[0]
+                || size[1] > framebufferSize[1] - offset[1])
+        {
+            return ReadbackError::Failed;
+        }
+
+        auto const rowBytes = static_cast<size_t>(size[0]) * 4u;
+        auto const rows = static_cast<size_t>(size[1]);
+
+        ReadbackImage image;
+        image.size = size;
+        image.pixels.resize(rowBytes * rows);
+
+        if (image.pixels.empty())
+            return image;
+
+        while (glGetError() != GL_NO_ERROR)
+        {
+        }
+
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        glReadPixels(offset[0], framebufferSize[1] - offset[1] - size[1],
+                size[0], size[1], GL_RGBA, GL_UNSIGNED_BYTE,
+                image.pixels.data());
+
+        if (glGetError() != GL_NO_ERROR)
+            return ReadbackError::Failed;
+
+        auto* top = image.pixels.data();
+        auto* bottom = top + rowBytes * (rows - 1);
+        while (top < bottom)
+        {
+            std::swap_ranges(top, top + rowBytes, bottom);
+            top += rowBytes;
+            bottom -= rowBytes;
+        }
+
+        return image;
+    }
 } // anonymous namespace
 
 
@@ -324,6 +368,24 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 // uniform-set cache; the next draw re-asserts its ranges.
                 boundUniformSet_ = nullptr;
             }
+
+            continue;
+        }
+        else if (auto* readback = std::get_if<ReadbackCommand>(&renderCommand))
+        {
+            ZoneScopedN("Readback command");
+
+            GlBaseFramebuffer const& framebuffer = readback->source.getImpl<
+                GlBaseFramebuffer>();
+
+            if (boundFramebuffer_ != &framebuffer)
+            {
+                boundFramebuffer_ = &framebuffer;
+                framebuffer.makeCurrent(d, dispatcher_, *this, gl);
+            }
+
+            readback->callback(readPixels(readback->offset, readback->size,
+                        framebuffer.getSize()));
 
             continue;
         }

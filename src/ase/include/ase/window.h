@@ -9,6 +9,7 @@
 #include "asevisibility.h"
 #include "framebuffer.h"
 #include "presentstatus.h"
+#include "readback.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -78,6 +79,39 @@ namespace ase
          * Returns immediately; GL always reports `Ok`.
          */
         PresentStatus present();
+
+        /**
+         * @brief Whether `captureNextFrame` can return pixels for this window.
+         *
+         * A headless window can on a backend that reads back, such as GL; no
+         * window can on the dummy backend. When false, a capture fails with
+         * `ReadbackError::Unsupported`.
+         */
+        bool canCapture() const;
+
+        /**
+         * @brief Capture the next frame this window presents.
+         *
+         * Pass a callback; it receives the frame's pixels once the frame has
+         * drawn, laid out as `ReadbackImage` describes, together with which
+         * frame they are. The request waits for a frame to be rendered and
+         * does not schedule one; every capture requested before a present is
+         * served by that present. The callback runs exactly once, on any
+         * thread:
+         *
+         * - with the frame on success;
+         * - with `ReadbackError::Unsupported`, before this call returns, when
+         *   `canCapture()` is false;
+         * - with `ReadbackError::Cancelled` when the window is destroyed
+         *   first;
+         * - with `ReadbackError::Failed` when the backend cannot read.
+         *
+         * Safe to call from any thread, including from a capture callback to
+         * capture a later frame. A capture requested while a present is in
+         * progress is served by that present or the next one. An exception
+         * the callback throws is dropped.
+         */
+        void captureNextFrame(CaptureCallback callback);
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
