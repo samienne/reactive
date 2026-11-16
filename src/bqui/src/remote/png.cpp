@@ -86,8 +86,10 @@ size_t filterCost(std::uint8_t const* filtered, size_t length)
 {
     size_t cost = 0;
     for (size_t i = 0; i < length; ++i)
+    {
         cost += static_cast<size_t>(std::abs(static_cast<std::int8_t>(
                         filtered[i])));
+    }
     return cost;
 }
 
@@ -146,8 +148,10 @@ std::string encodePng(std::uint32_t width, std::uint32_t height,
 {
     if (width == 0 || height == 0 || width > kMaxDimension
             || height > kMaxDimension)
+    {
         throw std::invalid_argument("png: width and height must be in "
                 "[1, 2^31 - 1]");
+    }
 
     std::string const compressed = deflate(filterRows(width, height, rgb));
 
@@ -169,8 +173,10 @@ std::string encodePng(std::uint32_t width, std::uint32_t height,
     putChunk(out, "sRGB", &perceptual, 1);
 
     for (size_t offset = 0; offset < compressed.size(); offset += kMaxIdatChunk)
+    {
         putChunk(out, "IDAT", compressed.data() + offset,
                 (std::min)(kMaxIdatChunk, compressed.size() - offset));
+    }
 
     putChunk(out, "IEND", nullptr, 0);
     return out;

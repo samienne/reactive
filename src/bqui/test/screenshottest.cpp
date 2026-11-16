@@ -26,10 +26,14 @@ namespace
         ase::ReadbackImage image;
         image.size = ase::Vector2i(width, height);
         for (int y = 0; y < height; ++y)
+        {
             for (int x = 0; x < width; ++x)
+            {
                 image.pixels.insert(image.pixels.end(), {
                         static_cast<std::uint8_t>(x),
                         static_cast<std::uint8_t>(y), 7, 99 });
+            }
+        }
         return image;
     }
 } // namespace

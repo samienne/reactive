@@ -173,14 +173,22 @@ namespace
             size_t x = pixel % width;
             size_t y = pixel / width;
             if (y % 4 == 0)
+            {
                 rgb[i] = static_cast<std::uint8_t>(x * 7 + i % 3);
+            }
             else if (y % 4 == 1)
+            {
                 rgb[i] = static_cast<std::uint8_t>(y * 5);
+            }
             else if (y % 4 == 2)
+            {
                 rgb[i] = static_cast<std::uint8_t>(x * y + seed);
+            }
             else
+            {
                 rgb[i] = static_cast<std::uint8_t>(
                         (i * 2654435761u + seed) >> 13);
+            }
         }
         return rgb;
     }
@@ -231,8 +239,10 @@ TEST(png, splitsLargeDataAcrossSeveralIdatChunks)
 
     size_t idats = 0;
     for (auto const& chunk : chunks(png))
+    {
         if (chunk.type == "IDAT")
             ++idats;
+    }
     EXPECT_GT(idats, 1u);
     EXPECT_EQ(rgb, decode(png, width, height));
 }

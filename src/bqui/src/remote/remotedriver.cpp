@@ -240,11 +240,13 @@ public:
             pauseToken_->setWakeCallback([this]
                 {
                     if (pendingStep_ || zeroFrameGate_)
+                    {
                         post([this]
                             {
                                 resumeStep();
                                 resumeZeroFrame();
                             });
+                    }
                 });
         }
 
@@ -735,23 +737,31 @@ private:
         auto windows = app_.liveWindows();
         RemoteWindow* window = findWindow(windows, request.window);
         if (!window)
+        {
             throw RpcError{ kInvalidParams,
                 "no live window with id " + std::to_string(request.window) };
+        }
 
         if (request.widget
                 && !widgetBounds(window->introspect(), *request.widget))
+        {
             throw RpcError{ kInvalidParams,
                 "no widget with id " + std::to_string(*request.widget)
                     + " in window " + std::to_string(request.window) };
+        }
 
         if (!window->canCapture())
+        {
             throw captureError(ase::ReadbackError::Unsupported,
                     request.window);
+        }
 
         if (screenshots_.size() >= kMaxScreenshotsInFlight)
+        {
             throw RpcError{ kCaptureBusy, "too many screenshots in flight",
                 { { "inFlight", screenshots_.size() },
                   { "limit", kMaxScreenshotsInFlight } } };
+        }
 
         size_t& armed = armedCaptures_[request.window];
         if (armed >= kMaxScreenshotsInFlight)

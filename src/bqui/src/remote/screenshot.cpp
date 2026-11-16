@@ -44,8 +44,10 @@ std::vector<std::vector<Tap>> areaTaps(int in, int out)
             double const covered = (std::min)(end, j + 1.0)
                 - (std::max)(start, static_cast<double>(j));
             if (covered > 0.0)
+            {
                 taps[static_cast<size_t>(i)].push_back(
                         { j, static_cast<float>(covered / ratio) });
+            }
         }
     }
 
@@ -96,24 +98,30 @@ std::optional<float> finiteFloat(json const& value)
 LogicalRect parseRegion(json const& region)
 {
     if (!region.is_object())
+    {
         throw RpcError{ kInvalidParams,
             "'region' must be an object with x, y, width and height" };
+    }
 
     auto field = [&](char const* key)
     {
         auto it = region.find(key);
         auto value = it == region.end() ? std::nullopt : finiteFloat(*it);
         if (!value)
+        {
             throw RpcError{ kInvalidParams,
                 std::string("'region.") + key + "' must be a finite number" };
+        }
         return *value;
     };
 
     LogicalRect rect{ field("x"), field("y"), field("width"),
         field("height") };
     if (!(rect.width > 0.0f) || !(rect.height > 0.0f))
+    {
         throw RpcError{ kInvalidParams,
             "'region' must have a positive width and height" };
+    }
 
     return rect;
 }
@@ -189,8 +197,10 @@ std::vector<std::uint8_t> renderScreenshot(ase::ReadbackImage const& image,
             || plan.origin.x() + plan.size.x() > image.size.x()
             || plan.origin.y() + plan.size.y() > image.size.y()
             || plan.outputSize.x() <= 0 || plan.outputSize.y() <= 0)
+    {
         throw std::invalid_argument("screenshot: the plan does not fit the "
                 "image");
+    }
 
     size_t const inWidth = static_cast<size_t>(plan.size.x());
     size_t const inHeight = static_cast<size_t>(plan.size.y());
@@ -208,8 +218,13 @@ std::vector<std::uint8_t> renderScreenshot(ase::ReadbackImage const& image,
     if (outWidth == inWidth && outHeight == inHeight)
     {
         for (size_t y = 0; y < inHeight; ++y)
+        {
             for (size_t x = 0; x < inWidth; ++x)
-                std::copy_n(source(x, y), 3, out.data() + (y * outWidth + x) * 3);
+            {
+                std::copy_n(source(x, y), 3,
+                        out.data() + (y * outWidth + x) * 3);
+            }
+        }
         return out;
     }
 
@@ -219,7 +234,9 @@ std::vector<std::uint8_t> renderScreenshot(ase::ReadbackImage const& image,
 
     std::vector<float> narrowed(inHeight * outWidth * 3, 0.0f);
     for (size_t y = 0; y < inHeight; ++y)
+    {
         for (size_t x = 0; x < outWidth; ++x)
+        {
             for (auto const& tap : columns[x])
             {
                 auto const* pixel = source(static_cast<size_t>(tap.index), y);
@@ -227,8 +244,11 @@ std::vector<std::uint8_t> renderScreenshot(ase::ReadbackImage const& image,
                 for (size_t c = 0; c < 3; ++c)
                     dest[c] += tap.weight * decode[pixel[c]];
             }
+        }
+    }
 
     for (size_t y = 0; y < outHeight; ++y)
+    {
         for (size_t x = 0; x < outWidth; ++x)
         {
             float sum[3] = {};
@@ -243,6 +263,7 @@ std::vector<std::uint8_t> renderScreenshot(ase::ReadbackImage const& image,
             for (size_t c = 0; c < 3; ++c)
                 out[(y * outWidth + x) * 3 + c] = linearToSrgb(sum[c]);
         }
+    }
 
     return out;
 }
@@ -255,8 +276,10 @@ ScreenshotRequest parseScreenshot(json const& params, uint64_t window)
     auto region = params.find("region");
     auto widget = params.find("widget");
     if (region != params.end() && widget != params.end())
+    {
         throw RpcError{ kInvalidParams,
             "give 'region' or 'widget', not both" };
+    }
 
     if (region != params.end())
         request.region = parseRegion(*region);
@@ -264,8 +287,10 @@ ScreenshotRequest parseScreenshot(json const& params, uint64_t window)
     if (widget != params.end())
     {
         if (!widget->is_number_unsigned())
+        {
             throw RpcError{ kInvalidParams,
                 "'widget' must be an introspection id" };
+        }
         request.widget = widget->get<uint64_t>();
     }
 
@@ -292,9 +317,13 @@ std::optional<LogicalRect> widgetBounds(widget::Introspection const& node,
     }
 
     for (auto const& child : node.children)
-        if (child)
-            if (auto bounds = widgetBounds(*child, id))
-                return bounds;
+    {
+        if (!child)
+            continue;
+
+        if (auto bounds = widgetBounds(*child, id))
+            return bounds;
+    }
 
     return std::nullopt;
 }

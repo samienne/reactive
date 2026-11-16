@@ -1911,10 +1911,14 @@ namespace
         capture.presentIndex = presentIndex;
         capture.image.size = ase::Vector2i(width, height);
         for (int y = 0; y < height; ++y)
+        {
             for (int x = 0; x < width; ++x)
+            {
                 capture.image.pixels.insert(capture.image.pixels.end(), {
                         static_cast<std::uint8_t>(x * 40),
                         static_cast<std::uint8_t>(y * 60), 200, 128 });
+            }
+        }
         return capture;
     }
 
@@ -1925,12 +1929,14 @@ namespace
     {
         std::vector<std::uint8_t> rgb;
         for (int y = top; y < top + height; ++y)
+        {
             for (int x = left; x < left + width; ++x)
             {
                 auto const* pixel = capture.image.pixels.data()
                     + (y * capture.image.size.x() + x) * 4;
                 rgb.insert(rgb.end(), pixel, pixel + 3);
             }
+        }
 
         return encodePng(static_cast<uint32_t>(width),
                 static_cast<uint32_t>(height), rgb.data());
