@@ -85,7 +85,7 @@ void WindowBase::capturePresent(Framebuffer const& source, Vector2i size)
         return;
 
     CommandBuffer commandBuffer;
-    commandBuffer.pushReadback(source, size,
+    commandBuffer.pushReadback(source, Vector2i(0, 0), size,
             [requests = std::move(requests), presentIndex = presentCount_,
             frameTime = lastFrameTime()](ReadbackResult result)
             {

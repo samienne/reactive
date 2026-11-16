@@ -9,9 +9,11 @@
 #include <avg/pathbuilder.h>
 #include <avg/shape.h>
 
+#include <ase/commandbuffer.h>
 #include <ase/platform.h>
 #include <ase/readback.h>
 #include <ase/rendercontext.h>
+#include <ase/renderqueue.h>
 #include <ase/window.h>
 
 #include <bq/signal/constant.h>
@@ -72,6 +74,59 @@ namespace
         }
 
         return true;
+    }
+
+    // Reads a region straddling all four quadrants that captureQuadrants
+    // drew, so each corner of the region lands in a different colour.
+    bool readRegion(ase::RenderContext& context, ase::Window& window)
+    {
+        auto promise = std::make_shared<std::promise<ase::ReadbackResult>>();
+        auto result = promise->get_future();
+
+        ase::Vector2i const offset(16, 8);
+        ase::Vector2i const size(32, 16);
+
+        ase::CommandBuffer commandBuffer;
+        commandBuffer.pushReadback(window.getDefaultFramebuffer(), offset,
+                size, [promise](ase::ReadbackResult readback)
+                {
+                    promise->set_value(std::move(readback));
+                });
+        context.getMainRenderQueue().submit(std::move(commandBuffer));
+
+        if (result.wait_for(std::chrono::seconds(10))
+                != std::future_status::ready)
+        {
+            std::cout << "region: no result -> FAIL" << std::endl;
+            return false;
+        }
+
+        auto readback = result.get();
+        if (!readback.valid())
+        {
+            std::cout << "region: error "
+                << static_cast<int>(readback.err()) << " -> FAIL" << std::endl;
+            return false;
+        }
+
+        auto const& image = readback.value();
+
+        Rgba const topLeft = pixelAt(image, 0, 0);
+        Rgba const topRight = pixelAt(image, 31, 0);
+        Rgba const bottomLeft = pixelAt(image, 0, 15);
+        Rgba const bottomRight = pixelAt(image, 31, 15);
+
+        bool const ok = image.size == size
+            && image.pixels.size() == static_cast<size_t>(32 * 16 * 4)
+            && matchesRgb(topLeft, { 255, 0, 0, 255 })
+            && matchesRgb(topRight, { 0, 255, 0, 255 })
+            && matchesRgb(bottomLeft, { 0, 0, 255, 255 })
+            && matchesRgb(bottomRight, { 188, 188, 188, 255 });
+
+        std::cout << "region: size=" << image.size[0] << "x" << image.size[1]
+            << " -> " << (ok ? "PASS" : "FAIL") << std::endl;
+
+        return ok;
     }
 
     // Paints four solid quadrants into a real-backend offscreen window and
@@ -164,7 +219,7 @@ namespace
         print("bottomRight", bottomRight);
         std::cout << " -> " << (ok ? "PASS" : "FAIL") << std::endl;
 
-        return ok;
+        return ok && readRegion(context, window);
     }
 } // anonymous namespace
 

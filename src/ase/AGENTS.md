@@ -134,8 +134,11 @@ are in the top-level `docs/`.
   non-draw command it bounds the GL draw sort, so it sees every draw pushed
   before it. GL runs `glReadPixels` synchronously on the dispatcher thread
   (`GlRenderState::dispatchedRenderQueue`), which stalls the render thread until
-  the preceding draws finish but never the loop thread, flips the rows to top
-  first, and calls the callback there. The dummy queue completes it at once with
+  the preceding draws finish but never the loop thread, maps the top-left
+  region to GL's bottom-left origin, flips the rows to top first, and calls the
+  callback there. Nothing else in ase takes a region (uploads and the viewport
+  start at the origin), so the region follows the returned image's top-left
+  convention. The dummy queue completes it at once with
   `Unsupported`; `RenderContextImpl::canReadback` reports which a context does.
   The window side lives in `WindowBase`: `captureNextFrame` appends to a list of
   armed callbacks under a mutex that is never held while a callback runs (a

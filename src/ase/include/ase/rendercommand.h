@@ -46,6 +46,7 @@ namespace ase
     struct ReadbackCommand
     {
         Framebuffer source;
+        Vector2i offset;
         Vector2i size;
         ReadbackCallback callback;
     };

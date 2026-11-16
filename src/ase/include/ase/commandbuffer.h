@@ -51,13 +51,15 @@ namespace ase
          * @brief Read back the colour of `source` once the commands pushed
          * before it have drawn.
          *
-         * Reads the `size` pixels from the framebuffer's origin. `callback`
-         * receives the pixels in the layout `ReadbackImage` describes;
+         * Reads the `size` pixels whose top-left corner is `offset`, both in
+         * pixels from the framebuffer's top-left corner, rows running down as
+         * in `ReadbackImage`: `pushReadback(fb, { 0, 0 }, { 64, 32 }, cb)`
+         * reads the top-left 64x32 pixels. `callback` receives the pixels;
          * `ReadbackError::Unsupported` on a render context whose
-         * `canReadback()` is false; or `ReadbackError::Failed` when `size`
-         * does not fit the framebuffer. It runs once, on any thread.
+         * `canReadback()` is false; or `ReadbackError::Failed` when the
+         * region does not fit the framebuffer. It runs once, on any thread.
          */
-        void pushReadback(Framebuffer source, Vector2i size,
+        void pushReadback(Framebuffer source, Vector2i offset, Vector2i size,
                 ReadbackCallback callback);
 
         size_t size() const;

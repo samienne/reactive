@@ -48,6 +48,7 @@ namespace
                         std::get_if<ase::ReadbackCommand>(&command))
                 {
                     ++readbacks;
+                    offset = readback->offset;
 
                     ase::ReadbackImage image;
                     image.size = readback->size;
@@ -62,6 +63,7 @@ namespace
         }
 
         int readbacks = 0;
+        ase::Vector2i offset = ase::Vector2i(-1, -1);
     };
 
     class FakeReadbackContext : public ase::DummyRenderContext
@@ -157,7 +159,8 @@ TEST(windowCapture, dummyQueueFailsReadbackUnsupported)
     std::vector<ase::ReadbackResult> results;
 
     ase::CommandBuffer commandBuffer;
-    commandBuffer.pushReadback(window.getDefaultFramebuffer(), kSize,
+    commandBuffer.pushReadback(window.getDefaultFramebuffer(),
+            ase::Vector2i(0, 0), kSize,
             [&](ase::ReadbackResult result)
             {
                 results.push_back(std::move(result));
@@ -188,6 +191,7 @@ TEST(windowCapture, onePresentServesEveryArmedCapture)
     window.present();
 
     EXPECT_EQ(1, contextImpl->queue->readbacks);
+    EXPECT_EQ(ase::Vector2i(0, 0), contextImpl->queue->offset);
     for (auto* captures : { &first, &second })
     {
         ASSERT_EQ(1u, captures->results.size());

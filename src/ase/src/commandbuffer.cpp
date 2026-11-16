@@ -86,12 +86,13 @@ void CommandBuffer::pushUpload(Texture target, Buffer data, Vector2i size, Forma
             });
 }
 
-void CommandBuffer::pushReadback(Framebuffer source, Vector2i size,
-        ReadbackCallback callback)
+void CommandBuffer::pushReadback(Framebuffer source, Vector2i offset,
+        Vector2i size, ReadbackCallback callback)
 {
     commands_.push_back(ReadbackCommand
             {
                 std::move(source),
+                offset,
                 size,
                 std::move(callback)
             });

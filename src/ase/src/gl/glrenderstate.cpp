@@ -100,11 +100,12 @@ namespace
         return false;
     }
 
-    ReadbackResult readPixels(Vector2i size, Vector2i framebufferSize)
+    ReadbackResult readPixels(Vector2i offset, Vector2i size,
+            Vector2i framebufferSize)
     {
-        if (size[0] < 0 || size[1] < 0
-                || size[0] > framebufferSize[0]
-                || size[1] > framebufferSize[1])
+        if (offset[0] < 0 || offset[1] < 0 || size[0] < 0 || size[1] < 0
+                || size[0] > framebufferSize[0] - offset[0]
+                || size[1] > framebufferSize[1] - offset[1])
         {
             return ReadbackError::Failed;
         }
@@ -124,7 +125,8 @@ namespace
         }
 
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
-        glReadPixels(0, 0, size[0], size[1], GL_RGBA, GL_UNSIGNED_BYTE,
+        glReadPixels(offset[0], framebufferSize[1] - offset[1] - size[1],
+                size[0], size[1], GL_RGBA, GL_UNSIGNED_BYTE,
                 image.pixels.data());
 
         if (glGetError() != GL_NO_ERROR)
@@ -382,7 +384,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 framebuffer.makeCurrent(d, dispatcher_, *this, gl);
             }
 
-            readback->callback(readPixels(readback->size,
+            readback->callback(readPixels(readback->offset, readback->size,
                         framebuffer.getSize()));
 
             continue;
