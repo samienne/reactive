@@ -32,8 +32,8 @@ of one scene; one application-sized texture in several shapes.
   and nothing requests a frame, the last images are reused and the
   application is not called - except for a direct view (below).
 - **Two primitives.** A brush over a texture; and a shared handle created
-  with a frame callback, run at most once per window frame that lists any
-  of the handle's views, however many there are. A fixed-size image is
+  with a frame callback, run at most once per frame of a window where it
+  is mounted, however many views it has there. A fixed-size image is
   the application's own texture and a brush; there is no render-image
   object. Frame sync with no view waits (*Future stages*).
 - **The public surface is the handle and `renderView(handle, ...)`**, the
@@ -309,7 +309,8 @@ so any number of views of one handle in one window are one entry.
 programs, pipelines, textures and slots; `submit(ase::CommandBuffer)`, any
 number of times, straight to the main render queue; and `views()`, this
 window's live views of the handle found in this frame's drawing, in
-drawing order, never empty. Submits are FIFO and the painter submits
+drawing order, empty for a request with none listed and for the final
+call, flagged by `unmounted()`. Submits are FIFO and the painter submits
 only after the callback returns, so everything submitted here completes
 before any UI draw samples it; barriers are needed only inside the
 application's own buffers. Shared pre-passes are earlier submits that
@@ -338,17 +339,29 @@ not found. A scale animation, a scale-in included, resizes the image every
 frame: the known limit of exact sizing, as for a layout-size animation. A
 view drawn more than once takes the largest extent.
 
-**When it runs.** At most once per window frame, when at least one of the
-handle's views is listed in that frame and either a frame was requested
-through the handle - a first mount in a window counts, so resources are
-made before its first paint - or a view is listed for another reason:
-*created*, *revealed*, *resized*, *retargeted* or *repaint*. With no view
-listed (all clipped out or unmounted) it is not called, and a request
-stays pending until a view is listed (*Handle lifetime*). The first three
-come only from new drawings, so a size or scale animation runs it every
-frame; a hover elsewhere repaints without running it unless a view of the
-handle is direct. A handle in two windows runs once in each window's
-frame, with that window's frame and views.
+**When it runs.** At most once per frame of a window where the handle is
+mounted (at least one `renderView` of it in the window's active tree),
+when a frame was requested through the handle - a first mount in a
+window counts, so resources are made before its first paint - or a view
+is listed for another reason: *created*, *revealed*, *resized*,
+*retargeted* or *repaint*. A request is honoured even with no view
+listed: the callback gets an empty list, so an engine whose resource
+management needs further frames to flush requests until done. Nothing
+runs unless requested or listed. The first three reasons come only from
+new drawings, so a size or scale animation runs it every frame; a hover
+elsewhere repaints without running it unless a view of the handle is
+direct. A handle in two windows runs once in each window's frame, with
+that window's frame and views; leaving one, it gets a final call
+(*Handle lifetime*).
+
+**The engine's tick.** The callback is also the engine's tick: an engine
+updates and renders in it and calls `requestFrame` each time to run
+continuously; there is no separate application-level or per-window
+update tick. It runs after the window's transaction, so signal values it
+sets reach the UI a frame later (*Future stages*). *Why not an
+application tick:* cadence belongs to windows (`docs/decisions.md`);
+vsync is a per-window source that goes quiet without a surface, and
+windows are meant to own their signal contexts (`docs/design/frameclock.md`).
 
 **The key** is a template parameter, `RenderHandle<Key>` (an empty type by
 default), so `key()` is typed; registry, cells and views are type-erased in
@@ -439,18 +452,20 @@ questions* 1).
    first time is *created*, one found again after frames unlisted
    *revealed*, a changed extent *resized*. Views allowed to be direct are
    then qualified, every frame, from the cached list and window size.
-4. **Run the due callbacks**, once per due handle with a listed view,
-   from a copy of the deduplicated list (strong references) so a callback
-   cannot invalidate the iteration. A `present()` sets the view's slot at
-   once. In a frame with a direct view, the painter first submits the UI
-   target's clear on its own, so it precedes the callbacks' submits.
+4. **Run the due callbacks**, once per due mounted handle, listed views
+   or not, from a copy of the deduplicated list (strong references) so a
+   callback cannot invalidate the iteration; then the final call of each
+   handle in the last list but not the new one, from the last list's
+   reference. A `present()` sets the view's slot at once. In a frame with
+   a direct view, the painter first submits the UI target's clear on its
+   own, so it precedes the callbacks' submits.
 5. **Settle**: clear the slots of views not found, releasing their
    textures and lazy targets (*Open questions* 3), and of direct views.
 6. **Paint, present and flush**, as today, or, when a direct view's target
    was taken, as *Direct views* orders it. Lowering reads each slot now, so
    an image presented in step 4 is composited in this frame. The bridge
    returns the earlier of the UI's delay and the earliest due handle, and
-   **zero when `needsUpdate_` is set or a listed handle's cell is pending
+   **zero when `needsUpdate_` is set or a mounted handle's cell is pending
    after the callbacks**: a signal set or request made in a callback asks
    for a frame during the frame callback, and `GenericWindow::frame`
    overwrites that with the returned delay, `nullopt` in an idle frame.
@@ -493,23 +508,25 @@ The drawing never samples undefined memory.
   callback never sees it and the engine can drop the view's resources at once,
   but not reuse the frozen texture. The slot and texture go when a drawing
   without the node replaces `drawing_`.
-- **Assumption, verified in stage 2.** The view and its mount dying in the
-  transaction rest on bq releasing a removed subtree's build-function
-  state (view, handle copy) during that update, not later or through a
-  `share()`d copy. A test checks that a leaving view is unlisted, and a
-  handle whose last mount left no longer runs, from the frame of removal;
-  if not, the bridge marks views dead itself.
+- **Assumption, verified in stage 2.** The view dying in the transaction
+  rests on bq releasing a removed subtree's build-function state (view,
+  handle copy) during that update, not later or through a `share()`d copy;
+  the final call follows the root instance's handle list instead. A test
+  checks that, from the frame of removal, a leaving view is unlisted and
+  a handle whose last mount left gets its final call and none after; if
+  the view outlives it, the bridge marks views dead itself.
 
 ## Handle lifetime
 
 - **Ownership.** The handle owns the callback and the widget tree holds the
   handle, through each view, so captured engine state lives as long as any mount
-  or the application's own copy, and is destroyed where the last of them drops.
+  or the application's own copy, and is destroyed where the last of them drops;
+  a bridge holds its own reference until the handle's final call there.
   Mounts drop on the loop thread; a copy kept by a worker thread for requests
   may drop last there (*Open questions* 13).
 - **Registration.** Per window, the bridge keeps a *cell* for each mounted
   handle, made pending when the handle first appears in the window's list
-  and dropped when it leaves, and registers it with the handle's registry
+  and dropped at its final call, and registers it with the handle's registry
   (a mutex and weak references). A cell holds an atomic pending flag, an
   atomic due time and a *waker*, a small object the `WindowBridge` owns
   that holds the window and the platform behind a mutex and is cleared
@@ -524,12 +541,20 @@ The drawing never samples undefined memory.
   a request made during the call leaves it pending, served next frame
   through step 6's zero delay.
 - **A request with no mount** marks no cell: a first mount is due anyway.
-  A request while no view of the handle is listed in a window leaves that
-  cell pending, consistent with the flag being cleared only when the
-  callback runs; it forces no frames and is served in the first frame
-  that lists a view.
-  Removing a handle's last mount in a window drops that window's cell. The
-  registry never keeps a handle, view, window or run loop alive.
+  A cell is a mount, not a listing, so a request while no view of the
+  handle is listed in a window is served there next frame with an empty
+  list. The registry never keeps a handle, view, window or run loop alive.
+- **The final call.** In the frame whose transaction removes a handle's
+  last mount in a window, after the other callbacks (step 4), the bridge
+  calls it once more with an empty list and the frame's `unmounted()`
+  flag set: a per-frame flag, not a view reason, as no view is listed. A
+  handle remounted in the same transaction gets none. The cell is then
+  dropped, so requests are ignored there until a new mount, due as a
+  first; the engine is on its own, on its manual tick.
+- **Not covered.** A minimised window or lost surface makes no frames, so
+  nothing, the final call included, runs until it resumes. Closing a
+  window makes no final call, and application shutdown does not wait for
+  the engine (*Future stages*).
 
 ## The renderView widget
 
@@ -667,7 +692,7 @@ scrolled out, it stays listed; fully out, the bin's clip erases it: unlisted,
 its texture released; scrolled back, it is listed *revealed* and presented
 before that frame's paint. A UI animation over it repaints without calling the
 engine. Undocked into another window, it is a new view there, *created*, and
-`scene` runs in that window's frames.
+`scene` runs in that window's frames and gets a final call in the first.
 
 **Fullscreen background with glass.** `content | background(renderView(
 scene, mainCamera, options))` with `allowDirect` set. The view covers the
@@ -700,10 +725,12 @@ choice. Rendering it in step with the frame is a future stage.
 tests on the real frame loop, paused and unpaused (only unpaused catches a waker
 that schedules no tick), assert: the callback's submits precede the painter's;
 call counts (per request, on first mount, once per frame however many views,
-once per window for a handle in two windows, none while no view is listed and a
-request kept until one is, every frame of a size or scale animation, none while
-only the UI animates); a signal set or request made in the callback served next
-frame; reasons and extents under stepped size and scale animations and a
+once per window for a handle in two windows, an empty list for a request while
+no view is listed and no call without one, every frame of a size or scale
+animation, none while only the UI animates); a signal set or request made in the
+callback served next frame, listed or not; the final call (empty, flagged, in
+the frame the last mount leaves and never after; none while another mount
+stays); reasons and extents under stepped size and scale animations and a
 rotation; listing under a scroll (listed partly clipped, unlisted and released
 when out, *revealed* and presented in the same frame when back); the
 presentation rules (empty before the first present, an old image stretched, a
@@ -761,8 +788,9 @@ Each stage is one PR, after the effect branch is on master.
    slots, bridge steps 3 to 5 and the zero-delay return; the frame object
    with `submit`, the extent with transform scale, the view entries with
    `present(texture)` and the format check, the lazy target, the
-   shown-image rules, leaving views (verifying the assumption above),
-   options and the shaped form; `App::renderContext`. Headless tests.
+   shown-image rules, leaving views and the final call (verifying the
+   assumption above), options and the shaped form; `App::renderContext`.
+   Headless tests.
 3. **Direct views.** The search records walk position, enclosing clip and
    effect-input nesting; the painter submits a clear on its own, clears
    depth alone and paints with a prefix and an element skipped; bqui adds
@@ -799,6 +827,15 @@ The ase 3D gaps proceed on their own and do not block stages 1-4.
   handle can trigger its callback, with no widget-tree anchor.
 - **An application-level before- or after-frame hook** is a possible later
   feature, not part of this design.
+- **An update phase on the handle**, run before the window's signal update,
+  so values an engine writes into signals reach the UI that frame.
+- **Asynchronous teardown**: the toolkit waits for an engine to finish
+  releasing before a window or the app goes away.
+- **Widget lifetime callbacks**, a modifier taking a direct callback, not a
+  render handle (they are per placement and unrelated to rendering):
+  mounted and unmounted first; shown and hidden later, needing a marker in
+  the drawing (visibility is known only for image slots found there). An
+  app can use them to attach and detach a manual engine loop.
 - **Density settings** (a resolution scale or a pixel-size cap): not in
   the first version, which stays simple.
 - **Partial direct views:** a view that does not cover the window drawn
