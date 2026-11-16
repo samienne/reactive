@@ -34,6 +34,7 @@ import logging
 import struct
 import sys
 import zlib
+from itertools import accumulate
 from typing import Any
 
 from bqui_remote import Connection, blob_read_length, read_blob
@@ -162,27 +163,36 @@ def png_pixels(data: bytes) -> tuple[int, int, list[bytes]]:
     stride = width * channels
     if len(raw) != height * (stride + 1):
         raise RuntimeError("PNG image data has the wrong size")
+    low = int.from_bytes(b"\x7f" * stride, "big")
+    high = int.from_bytes(b"\x80" * stride, "big")
     rows, prior = [], bytearray(stride)
     for y in range(height):
         start = y * (stride + 1)
         kind, line = raw[start], bytearray(raw[start + 1:start + 1 + stride])
-        for i in range(stride):
-            a = line[i - channels] if i >= channels else 0
-            b = prior[i]
-            c = prior[i - channels] if i >= channels else 0
-            if kind == 1:
-                line[i] = (line[i] + a) & 0xFF
-            elif kind == 2:
-                line[i] = (line[i] + b) & 0xFF
-            elif kind == 3:
-                line[i] = (line[i] + (a + b) // 2) & 0xFF
-            elif kind == 4:
-                p = a + b - c
-                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
-                pred = a if pa <= pb and pa <= pc else b if pb <= pc else c
-                line[i] = (line[i] + pred) & 0xFF
-            elif kind != 0:
-                raise RuntimeError(f"PNG row {y}: unknown filter {kind}")
+        if kind == 1:
+            for ch in range(channels):
+                line[ch::channels] = bytes(v & 0xFF for v in
+                                           accumulate(line[ch::channels]))
+        elif kind == 2:
+            # Bytewise addition of whole rows: add the low 7 bits of each
+            # byte without carries crossing bytes, then fix the top bits.
+            a, b = int.from_bytes(line, "big"), int.from_bytes(prior, "big")
+            line = bytearray((((a & low) + (b & low)) ^ ((a ^ b) & high))
+                             .to_bytes(stride, "big"))
+        elif kind in (3, 4):
+            for i in range(stride):
+                a = line[i - channels] if i >= channels else 0
+                b = prior[i]
+                if kind == 3:
+                    line[i] = (line[i] + (a + b) // 2) & 0xFF
+                else:
+                    c = prior[i - channels] if i >= channels else 0
+                    p = a + b - c
+                    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                    pred = a if pa <= pb and pa <= pc else b if pb <= pc else c
+                    line[i] = (line[i] + pred) & 0xFF
+        elif kind != 0:
+            raise RuntimeError(f"PNG row {y}: unknown filter {kind}")
         rows.append(bytes(line))
         prior = line
     return width, height, rows
