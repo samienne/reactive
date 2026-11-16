@@ -14,7 +14,8 @@ notifications) and generates one MCP tool per protocol method from the app's own
 The `blob.*` methods are plumbing, not tools. When a method that
 `system.describe` marks `returnsBlob` answers with a blob descriptor, the bridge
 pulls the blob in `blob.read` chunks, releases it, and returns its content: text
-for text and JSON types, image content for `image/*`.
+for text and JSON types, image content for `image/*`. The reply's other fields,
+such as a screenshot's size and region, follow as JSON text.
 
 ## How it runs
 
@@ -43,7 +44,8 @@ BQUI_BUILD_DIR=/path/to/build python tools/mcp/bqui_mcp.py --selftest
 ```
 Launches the app, prints the generated tools, queries `window.list` /
 `window.introspect`, pulls `window.renderTree` as a blob and checks it against
-the inline reply, and exits.
+the inline reply, takes a `window.screenshot` when the window can capture, and
+exits.
 
 ## Register with Claude Code
 
