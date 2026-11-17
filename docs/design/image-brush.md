@@ -26,6 +26,10 @@ and a bqui `image` widget. It lands before the render view
 - **Lands first, on the effect-brushes stack.** It needs that stack's
   `std::variant` `Brush`, its painter and pipeline API, and its nested
   `Drawing`, so it is built once that stack is merged.
+- **A repaint is asked of the window.** Frame cadence is per window
+  (*Frame cadence is per-window* in `docs/decisions.md`), so after new
+  pixels the application asks each window showing the image for a frame;
+  there is no App-wide request.
 
 ## Where the code is
 
@@ -74,6 +78,21 @@ Verified at `30b6727b`.
   `onFrame` then paints its current drawing even when the tree did not
   change. `AppDeferred::wakeLoop` (`src/bqui/src/app.cpp`) only wakes the
   loop; `GenericWindow::requestFrame` writes a plain `std::optional`.
+- **That write races today.** `GenericWindow::requestFrame` sets
+  `nextFrame_` unguarded (`src/ase/src/genericwindow.cpp`), which the loop
+  reads in its tick (`src/ase/src/platformbase.cpp`). The bridge's wakeup
+  calls it synchronously, and `SignalContext::observe` runs a wakeup on
+  the thread that made the change
+  (`src/bq/include/bq/signal/signalcontext.h`), so a worker setting an
+  input a window reads already races the loop. The platform's wake that
+  follows is safe from any thread: an atomic flag and `RunLoop::post`.
+  Dummy and offscreen windows skip it and only record the request.
+- **The application's window.** `bqui::Window`
+  (`src/bqui/include/bqui/window.h`) shares a `WindowData` holding the
+  title, the close callbacks and a weak reference to the App
+  (`src/bqui/src/windowdata.h`). The `WindowBridge` and its ase window
+  live in the App's private list (`src/bqui/src/app.cpp`), so a `Window`
+  cannot reach a frame request today.
 - **One render context per run**, made in `App::run`
   (`src/bqui/src/app.cpp`) and shared by the windows; bqui exposes it to
   no one.
@@ -137,13 +156,25 @@ taken as it is.
 
 Since changing pixels changes no value the UI reads, no signal wakes a
 window. Today an application can only force a frame by changing some
-signal a window reads, which repaints by accident. Proposed: bqui gains
-`App::requestFrame()`, callable from any thread, that marks every window
-due and wakes the loop; each then repaints its unchanged drawing, which
-samples the new pixels. Making it thread-safe means making the window's
-frame request safe off the loop thread (posting it, or an atomic), since
-`GenericWindow::requestFrame` is a plain write. The typical sequence is
-`image.upload(pixels)`, then `app.requestFrame()`, from a worker thread.
+signal a window reads, which repaints by accident. Frame cadence is per
+window, so the request belongs to the window: bqui's `Window` gains a
+**frame request** (a working name), callable from any thread, that marks
+that window due and wakes the loop; the window then repaints its
+unchanged drawing, which samples the new pixels. An image shown in
+several windows needs a request to each. The application knows where it
+put the image; a window it does not ask keeps the old pixels until it
+next repaints for another reason. A request to a window in no app, or
+one already closed, does nothing.
+
+bqui must add a route from the `Window` handle to its bridge, through the
+`WindowData` it shares with the App, set when the bridge is made and
+cleared when it goes, under that object's mutex. The ase window's request
+behind it is the racy write above, so the same stage makes it safe off
+the loop thread: posted to the run loop, as the platform's wake already
+is, or an atomic due time. That also fixes the race from signal wakeups.
+On dummy and offscreen windows the request must also wake the platform.
+The typical sequence is `image.upload(pixels)`, then a frame request to
+each window showing the image, from a worker thread.
 
 ## Pixel contract
 
@@ -279,7 +310,7 @@ signal past `App::run` dangles. The dummy texture releases nothing.
   a new image re-lays out only when its natural size changes. Fit defaults
   to contain, alignment to centre. A rounded image is a shape fill, not an
   option of the widget.
-- **`App::renderContext()` and `App::requestFrame()`**, above.
+- **`App::renderContext()`** and the **window's frame request**, above.
 
 Only the widget and modifier surface aims for stability; `avg::Image`,
 the brush layout and the painter internals may change.
@@ -314,8 +345,9 @@ painter submits on the dummy backend, and pixels are checked by hand.
 - **bqui (dummy, CI).** `src/bqui/test/shapetest.cpp` and
   `shadowboundarytest.cpp`: the outline under opaque, translucent and
   contain fills; `widgettest.cpp`: the natural size from size and scale;
-  `apptest.cpp`: `requestFrame` from another thread repaints with an
-  unchanged tree, with `DummyRenderQueue` recording the submissions.
+  `apptest.cpp`: a window's frame request from another thread repaints
+  that window, and only it, with an unchanged tree, with
+  `DummyRenderQueue` recording the submissions.
 - **Pixels (real GL, manual).** sRGB round trip, premultiplied edges under
   filtering, row order, transparent black before an upload and alpha 1
   from the opaque pipeline need readback: `bquiheadlesstest`
@@ -344,8 +376,9 @@ Each stage is one PR, after the effect-brushes stack is merged.
    the contain intersection, the zero upload, taking the pending upload,
    the format check. Dummy command tests; one manual readback.
 3. **bqui: the widget.** `widget::image` with fit and alignment, natural
-   size from the image's scale, `App::renderContext()` and a thread-safe
-   `App::requestFrame()`. Headless tests.
+   size from the image's scale, `App::renderContext()`, and the frame
+   request on `Window`, with the ase window's request made safe off the
+   loop thread. Headless tests.
 
 ## Open questions for the owner
 
@@ -355,14 +388,10 @@ Each carries a recommendation as a working default.
    runs, so an image cannot be made earlier, for a theme built up front.
    *Recommendation:* accept it for now; lift it when the render
    architecture gives the App a context before `run`.
-2. **Repaint request.** One App-wide `requestFrame` (proposed) repaints
-   every window; a per-window request repaints less but needs the
-   application to know which windows show the image. *Recommendation:*
-   App-wide; repaints are whole-window anyway.
-3. **Natural size.** From the image's own scale (proposed), or one image
+2. **Natural size.** From the image's own scale (proposed), or one image
    pixel per device pixel, which makes layout depend on the display.
    *Recommendation:* the image's scale.
-4. **Premultiplied uploads.** Straight alpha only (proposed), or also
+3. **Premultiplied uploads.** Straight alpha only (proposed), or also
    premultiplied bytes, skipping the conversion. *Recommendation:* straight
    only until someone has premultiplied data.
 
