@@ -37,6 +37,8 @@ before the render view (`render-surface-widget.md`), which builds on it.
   (*Frame cadence is per-window* in `docs/decisions.md`), so after new
   pixels the application asks each window showing the image for a frame;
   there is no App-wide request.
+- **No user code on the GL thread.** Fence futures resolve on the btl
+  thread pool; ase makes the hop (*Making an image from pixels*).
 - **Decoding stays out of avg.** A file loader is a later stage, in its
   own optional library, on top of the asynchronous helper.
 
@@ -75,10 +77,19 @@ Verified at `30b6727b`.
   completed. GL polls a sync object in `GlRenderState::checkFences`, an
   idle function on the queue's dispatcher thread, and resolves it there;
   the dummy queue resolves it inline in `submit`, on the caller's thread.
+  Its one user is the window frame fence (`WindowBase::submitFrameFence`,
+  `src/ase/src/windowbase.cpp:56`, pushed each frame from
+  `platformbase.cpp:180`): its callback frees a backpressure slot and
+  calls the thread-safe `requestFrame`, so any thread serves; on dummy
+  the inline resolve frees the slot before the next tick. Nothing in avg,
+  bqui or the tests pushes a fence.
 - **Futures.** `btl::future::Future` (`src/btl/include/btl/future/`) has
   `then`, `onFailure` and failure by `std::exception_ptr`; continuations
   run on the setting thread (`FutureControl::set`); `btl::async` runs work
-  on the shared thread pool. bq has no adapter
+  on the shared thread pool, and `ThreadPool::getInstance().async`
+  (`src/btl/include/btl/threadpool.h`) posts a plain callable; the pool
+  is a function-local static joined at exit, with no earlier shutdown.
+  ase already depends on btl. bq has no adapter
   from a future to a signal; an input's `set` is mutex-guarded and fires
   observers on the calling thread (`src/bq/include/bq/signal/input.h`).
 - **`Brush`** (`src/avg/include/avg/brush.h`, `src/avg/src/brush.cpp`)
@@ -169,11 +180,26 @@ first, with **straight** alpha (what decoders produce):
   `then` on the fence's future: it resolves once the upload has finished,
   so nothing shows a blank texture. A bad size or a short buffer fails it.
 
-The future resolves on the thread that completes the fence: the GL
-queue's dispatcher thread, or inline in `submit` on the dummy backend. A
-continuation that sets a signal input there wakes the windows that read
-it on that thread, which relies on the window frame request being safe
-off the loop thread (next section).
+**Futures resolve on the thread pool, never on the GL thread.** ase
+makes the hop: a completed fence's promise is only handed to the btl
+pool by the GL dispatcher (and the dummy queue), so `pushFence`'s own
+future never resolves on the GL thread, for every fence user, and the
+helper inherits it. On the GL thread a slow continuation would stall
+rendering for every window, one that submits and waits on another fence
+would deadlock, its captures would die there, and queueing more work
+onto that thread by accident would be easy. The pool rather than the
+loop thread: `wait()` on the main thread keeps working, where a loop
+resolve would deadlock it; nothing needs a running loop, which images
+before `App::run` want; and it matches `btl::async`. The way to the UI
+is bq's signal from a future, safe from any thread because the window
+frame request is (next section).
+
+The cost: resolution is not ordered against frames, so tests wait on
+the future instead of assuming an inline resolve, and a `then` that
+touches UI state runs on a pool thread; the adapter is the way to the
+UI. The pool is joined at static destruction, so no fence may complete
+after `main` returns; the render context and its dispatchers end in
+`App::run`, before that.
 
 **A placeholder** needs a signal of `std::optional<Image>` that starts
 empty and is set when the future resolves; the widget shows the
@@ -379,8 +405,8 @@ painter submits on the dummy backend, and pixels are checked by hand.
   nothing. `effectrenderingtest.cpp`: an image in an effect sub-drawing
   and under glass.
 - **Helpers (dummy, CI).** One whole upload of converted pixels; the
-  asynchronous form pushes the upload then a fence, resolves with an
-  equal image once the fence completes, and fails on a short buffer.
+  asynchronous form pushes the upload then a fence, resolves (waited on,
+  on the pool) with an equal image, and fails on a short buffer.
   bq's adapter: empty until the future resolves, then the image; a
   dropped signal ignores a late result, driven by `makeManualFuture`.
 - **bqui (dummy, CI).** `src/bqui/test/shapetest.cpp` and
@@ -408,7 +434,8 @@ tests also wait for remote-screenshot.
    with uv inside the rectangle and the clamp, the contain intersection,
    the format check. Dummy tests; one manual readback, bleeding included.
 3. **avg and bq: making images.** The image helper, its asynchronous
-   form on the fence future, and bq's signal from a future.
+   form on the fence future, ase's fence hop to the pool, and bq's
+   signal from a future.
 4. **bqui: the widget.** `widget::image` with fit, alignment and optional
    images, `App::getRenderContext()`, and the frame request on `Window`,
    with the ase request made safe off the loop thread.
@@ -438,10 +465,19 @@ Each carries a recommendation as a working default.
    `makeTexture` or `submit`; GL is safe today, the dummy queue is not,
    and the loader wants to upload from a worker. *Recommendation:* ase
    states both safe from any thread and guards the dummy recording, in
-   stage 3, rather than the loader hopping to the loop thread.
+   stage 3, rather than the loader hopping to the loop thread. The
+   future's own thread is decided: the pool.
 6. **Where the future adapter lives.** bq, generic over any value
    (proposed), or bqui, next to the widget. *Recommendation:* bq; nothing
    about it is UI.
+
+7. **The frame fence on dummy.** The hop moves the window frame fence to
+   the pool too. Its callback is safe anywhere, but on dummy the inline
+   resolve is what frees the slot before the next tick; through the pool
+   a headless step can find the window saturated and skip it until the
+   fence wakes the loop. *Recommendation:* ase keeps an internal fence
+   that resolves where it completes, for the frame fence only; every
+   public fence future hops.
 
 ## Non-goals
 
