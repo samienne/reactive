@@ -808,6 +808,10 @@ stages 1 and 2 build on its brush, drawing, pipelines and painter; stage
 3, direct views, also on its offscreen UI target and uniform ring; stages
 4 and 5 need it only through stage 2.
 
+The image value and the image brush come from `image-brush.md` and land
+first; stage 1's brush parts below are reduced accordingly once the slot
+question is settled.
+
 1. **avg: slot, image brush and search.** `ImageSlot`, the brush kind with
    its mapping, equality, `isSameKind` and transform and float-scale
    composition, the mapping helper on every `ShapeElement` path, the two
