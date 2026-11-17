@@ -14,7 +14,7 @@ circle, a photo behind glass, a texture they render themselves. This note
 designs the plain feature, with no notion of frames, engines or slots: an
 **image** value in avg, a third `Brush` kind that paints a shape with it,
 helpers that make one from pixels, and a bqui `image` widget. It lands
-before the render view (`render-surface-widget.md`), which builds on it.
+before the render view (`render-view.md`), which builds on it.
 
 ## Decided
 
