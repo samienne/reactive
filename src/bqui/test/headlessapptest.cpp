@@ -20,7 +20,10 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
+#include <optional>
+#include <thread>
 
 using namespace bqui;
 using namespace bqui::widget;
@@ -104,6 +107,65 @@ TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
     EXPECT_EQ(ase::ButtonState::down, gotButton->state);
     EXPECT_EQ(ase::Vector2f(20.0f, 30.0f), gotButton->pos);
     EXPECT_EQ("hi", gotText);
+}
+
+TEST(headlessApp, requestFrameDuringAFrameIsNotLost)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
+
+    int frames = 0;
+    window.setFrameCallback([&](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+            {
+                if (++frames == 1)
+                    window.requestFrame();
+                return std::nullopt;
+            });
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+            {
+                auto token = platform.pause();
+                token.step(kFrameStep);
+                token.step(kFrameStep);
+                token.step(kFrameStep);
+                controller.stop();
+            });
+
+    platform.run([](ase::Frame const&) { return true; });
+
+    EXPECT_EQ(2, frames);
+}
+
+TEST(headlessApp, requestFrameIsSafeFromAnotherThread)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
+
+    window.setFrameCallback([](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+            {
+                return std::chrono::microseconds(0);
+            });
+
+    std::atomic<bool> done{ false };
+    std::thread requester([&]
+            {
+                while (!done)
+                    window.requestFrame();
+            });
+
+    int ticks = 0;
+    platform.run([&](ase::Frame const&) { return ++ticks < 20; });
+
+    done = true;
+    requester.join();
+
+    EXPECT_EQ(20, ticks);
 }
 
 TEST(headlessApp, secondAppRunsInTheSameProcess)
