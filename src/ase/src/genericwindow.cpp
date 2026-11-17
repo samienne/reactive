@@ -77,6 +77,7 @@ void GenericWindow::resize(Vector2i size)
 std::optional<std::chrono::microseconds>
 GenericWindow::nextFrameTime() const
 {
+    std::lock_guard<std::mutex> lock(frameMutex_);
     return nextFrame_;
 }
 
@@ -87,7 +88,9 @@ std::chrono::microseconds GenericWindow::lastFrameTime() const
 
 void GenericWindow::requestFrame()
 {
+    std::lock_guard<std::mutex> lock(frameMutex_);
     nextFrame_ = (std::chrono::microseconds::min)();
+    frameRequested_ = true;
 }
 
 void GenericWindow::setFrameCallback(
@@ -104,10 +107,21 @@ std::optional<std::chrono::microseconds> GenericWindow::frame(
 
     if (frameCallback_)
     {
+        {
+            std::lock_guard<std::mutex> lock(frameMutex_);
+            frameRequested_ = false;
+        }
+
         auto delay = frameCallback_(frame);
-        nextFrame_ = delay
-            ? std::make_optional(frame.time + *delay)
-            : std::nullopt;
+
+        // A request made while the callback ran outranks its return value.
+        std::lock_guard<std::mutex> lock(frameMutex_);
+        if (!frameRequested_)
+        {
+            nextFrame_ = delay
+                ? std::make_optional(frame.time + *delay)
+                : std::nullopt;
+        }
     }
 
     return std::nullopt;
