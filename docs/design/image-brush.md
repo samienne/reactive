@@ -4,8 +4,8 @@
 > `origin/effect-brushes` (tip `30b6727b`, 2026-11-14), which this work
 > builds on; every path below points there. Names are working names; the
 > owner chooses the final ones. The API contract will be Doxygen in the
-> headers. What this note could not settle is under *Open questions for
-> the owner*.
+> headers. Items under *Decided*, and those marked decided, are the
+> owner's; what remains to check is under *Lookups before implementation*.
 
 ## Purpose
 
@@ -42,8 +42,15 @@ before the render view (`render-view.md`), which builds on it.
   context turns a fence into a btl future, which resolves on the thread
   pool, never the GL thread (*Fences*).
 - **The render context moves to App**, so it exists from App
-  construction. It is the default context, not the only one: an image
-  belongs to the context its texture came from.
+  construction and a theme built then can hold an image. It is the
+  default context, not the only one: an image belongs to the context its
+  texture came from.
+- **The backend is an App constructor argument**; `App::platform()` as a
+  later setter goes. Creating the context on first use was rejected: it
+  makes a runtime error depend on call order.
+- **The App is constructed and run on one thread**, checked by a debug
+  assert in run, because the WGL bootstrap window belongs to the thread
+  that made it. A precaution: nothing is verified to break otherwise.
 - **Decoding stays out of avg.** A file loader is a later stage, in its
   own optional library, on top of the asynchronous helper.
 
@@ -77,7 +84,7 @@ Verified at `30b6727b`.
   thread rule for `makeTexture` or `submit`. GL's `submit` only queues a
   closure under the dispatcher's mutex (`GlRenderState::submit` in
   `glrenderstate.cpp`, `src/ase/src/dispatcher.cpp`); the dummy queue's
-  submission recording is unguarded (`src/ase/src/dummy/dummyrenderqueue.cpp`).
+  submission recording is unguarded (`src/ase/src/dummy/dummyrenderqueue.cpp:35`).
 - **Upload completion.** `CommandBuffer::pushFence` returns a
   `btl::future::Future<>` that resolves once the commands before it have
   completed; an overload takes a callback (`src/ase/src/commandbuffer.cpp:50`).
@@ -143,7 +150,12 @@ Verified at `30b6727b`.
 - its **source rectangle**, whole texels inside the texture, the whole
   texture by default. The image's **size** is the rectangle's size;
 - its **scale**: pixels per logical unit, 1 by default, 2 for an asset
-  drawn at twice the density. The natural logical size is size / scale;
+  drawn at twice the density. The **natural size** (decided) is size /
+  scale in logical units; layout never depends on the display. An image
+  made from raw pixels with no stated scale takes one unit per pixel and
+  draws upscaled, soft, on a 2x display; the fix is a larger image with
+  its scale stated. Picking a 1x or 2x variant for the display is a
+  loader feature, not this note's;
 - its **row order**: top row first (uploaded data, as the glyph atlas) or
   bottom row first (a texture rendered with clip-space +y up);
 - an **opaque** declaration, made by the application: it promises every
@@ -174,8 +186,8 @@ Pixels change through ase: an upload, a sub-upload or a draw into the
 texture, submitted to a queue of the context. That changes no value, so
 nothing in avg notices: the next frame that draws the image samples
 whatever the texture then holds. A queue executes in order, so work
-submitted to the main queue before a frame's draws is seen by them.
-Rendering on another thread, another queue or inside the frame is the
+submitted to the main queue before a frame's draws is seen by them, so
+updating an existing image is already same-frame. Rendering on another thread, another queue or inside the frame is the
 render view's business. The writes must follow the pixel contract (avg
 offers the conversion from straight alpha), and a texture nothing has
 written is undefined, so an application fills its own before showing it.
@@ -185,22 +197,42 @@ written is undefined, so an application fills its own before showing it.
 The texture needs the render context; the image does not. bqui gains
 `App::getRenderContext()`, the easy way to reach the App's default
 context, valid from App construction (the render view needs it too).
-Two avg helpers
-take a context, a size and tightly packed 8-bit sRGB RGBA rows, top row
-first, with **straight** alpha (what decoders produce):
+An avg helper
+takes a context, a size and tightly packed 8-bit sRGB RGBA rows, top row
+first, with **straight** alpha (what decoders produce). It converts the
+pixels on the calling thread, makes the texture, submits a whole upload
+with a fence after it, watches the fence through the context and returns
+a `btl::future::Future` of the image, chained by `then` on the watch: it
+resolves once the upload has finished, so nothing shows a blank texture.
+A bad size or a short buffer fails it. It wraps upload, fence and watch,
+so application code rarely touches a fence. Decided:
 
-- **make image** converts the pixels on the calling thread, makes the
-  texture, submits a whole upload to the main queue and returns the image
-  at once; draws submitted later see the pixels.
-- **make image asynchronously** does the same with a fence after the
-  upload, watches it through the context and returns a
-  `btl::future::Future` of the image, chained by `then` on the watch: it
-  resolves once the upload has finished, so nothing shows a blank
-  texture. A bad size or a short buffer fails it. It wraps upload, fence
-  and watch, so application code rarely touches a fence.
-
-Whether a small image may also be made synchronously, usable in the same
-frame, is open (question 7); the future stays the default way.
+- **Straight alpha only.** Accepting premultiplied bytes is one optional
+  parameter, addable later without changing existing calls; not in the
+  first version.
+- **No synchronous form.** Only first creation is asynchronous (updates
+  are same-frame, above). A size-bounded synchronous form may come later,
+  justified by a real case the update path cannot serve; its cost is
+  unbounded otherwise (the pixels are copied at record time and again on
+  the GL thread; a 4K RGBA image is about 33 MB).
+- **The main queue uploads, for now.** It orders the upload before later
+  draws for free, at the cost of render-thread time: a large upload while
+  the UI animates may make a frame late. The transfer queue follows with
+  the ase prework (the fence redesign for a reliable cross-context
+  "upload complete", queue roles, WGL given a real second context like
+  GLX), once ase states when transfer-queue work becomes visible to
+  main-queue draws and a readback test confirms it. Callers get a future
+  either way, so no application code changes. Motivation, a review
+  finding not confirmed at runtime: transfer-context state changed after
+  its last flush is not guaranteed visible to the main context
+  (`src/ase/src/gl/glprogram.cpp:336` vs `:344` on the shader branch).
+- **Any thread.** ase guarantees that creating a texture and submitting a
+  finished command buffer are safe from any thread. Building one command
+  buffer stays single-threaded (each thread builds its own); submissions
+  from one thread keep their order, between threads the order is arrival.
+  The dummy queue's recording gains a lock. GL is safe today as read from
+  the code (*Where the code is*), not by a stated guarantee or a test.
+  Hopping the helper to the loop thread was rejected.
 
 ### Fences
 
@@ -272,7 +304,8 @@ The costs: resolution is not ordered against frames, so tests wait on
 the future instead of assuming an inline resolve, and a `then` that
 touches UI state runs on a pool thread. On GL a fence is noticed up to
 about 16 ms late while the dispatcher is idle. On WGL the transfer queue
-is the main queue, so a large upload there stalls rendering. The pool is
+is the main queue, as are image uploads for now, so a large upload
+delays rendering. The pool is
 joined at static destruction, so no fence may complete after `main`
 returns; the render context and its dispatchers end with the App,
 before that.
@@ -280,9 +313,14 @@ before that.
 **A placeholder** needs a signal of `std::optional<Image>` that starts
 empty and is set when the future resolves; the widget shows the
 placeholder while it is empty, which `fromOptional` and the conditional
-signals already express. bq gains that small adapter (a working name:
-signal from future); its continuation holds only the input's weak handle,
-so dropping the UI before the upload ends is harmless.
+signals already express. bq gains that small adapter (decided; a working
+name: signal from future), generic over any value: a future becomes a
+signal of an optional value. Its continuation holds only the input's weak
+handle, so dropping the UI before the upload ends is harmless. bqui
+builds the widget form on it: a future of a widget plus a default widget
+gives a widget. The wider async design (explicit loading, a default font,
+loading before the window opens) is out of scope and would get its own
+note.
 
 ## Asking for a repaint
 
@@ -318,11 +356,15 @@ callback for applications with their own decoder.
 ## Pixel contract
 
 - **Format.** `FORMAT_SRGBA` only.
-- **Colour.** The stored bytes are the sRGB encoding of linear,
-  **premultiplied** colour, exactly what an avg render target holds after
-  drawing. Sampling decodes to linear and blends `One, OneMinusSrcAlpha`
+- **Colour (decided invariant).** The texture inside an image always
+  holds **premultiplied** colour, stored as the sRGB encoding of linear
+  values, exactly what an avg render target holds after drawing; the
+  painter blends on that assumption. Whoever builds an image directly
+  from a texture (a transparent render view, whose engine's final pass
+  writes it, for one) must put premultiplied content in it. Sampling decodes to linear and blends `One, OneMinusSrcAlpha`
   like every other element, without dark fringes under filtering.
-- **Conversion** from straight alpha: decode each channel to linear,
+- **Conversion** from straight alpha, which the raw-byte helper always
+  applies before upload: decode each channel to linear,
   multiply by alpha, encode again; opaque and fully transparent pixels
   come out exact, dark translucent ones lose a little precision.
 - **Rendered pixels** already follow it when drawn with avg's blending;
@@ -480,9 +522,10 @@ painter submits on the dummy backend, and pixels are checked by hand.
   atlas in one batch; opaque images first; a wrong format drawing
   nothing. `effectrenderingtest.cpp`: an image in an effect sub-drawing
   and under glass.
-- **Helpers (dummy, CI).** One whole upload of converted pixels; the
-  asynchronous form pushes the upload then a fence, resolves (waited on,
-  on the pool) with an equal image, and fails on a short buffer.
+- **Helpers (dummy, CI).** One whole upload of converted pixels then a
+  fence on the main queue; resolves (waited on, on the pool) with an
+  equal image; fails on a short buffer; works from a worker thread, with
+  dummy submissions from two threads recorded intact.
 - **Fences (dummy, CI).** Unsignalled before submit, signalled inline by
   it; a watch made before submit resolves on the pool; a dropped buffer
   and a torn-down queue fail watchers and release a blocked wait; headless
@@ -515,53 +558,28 @@ tests also wait for remote-screenshot.
    the format check. Dummy tests; one manual readback, bleeding included.
 3. **ase, avg and bq: making images.** ase's fence object with query,
    wait and the context's watch, failure on drop and teardown, the frame
-   fence counting; the image helper and its asynchronous form; bq's
-   signal from a future.
+   fence counting; the any-thread guarantee and the dummy queue's lock;
+   the asynchronous image helper on the main queue; bq's signal from a
+   future.
 4. **bqui: the widget.** `widget::image` with fit, alignment and optional
-   images, the render context on App with `App::getRenderContext()`, and
-   the frame request on `Window`, with the ase request made safe off the
-   loop thread.
+   images, and the widget form of the future adapter; the render context
+   on App with `App::getRenderContext()`, the backend as a constructor
+   argument and the same-thread assert in run; the frame request on
+   `Window`, with the ase request made safe off the loop thread.
+   The transfer queue for uploads comes later, with the ase prework.
 5. **Later: the loader**, in its own optional library with its decoder.
+
+## Lookups before implementation
+
+- Whether a bq input can be set safely from another thread: the future
+  resolves on a pool thread, while signals are evaluated on the loop
+  thread.
+- Whether such a set causes a frame when nothing else is happening.
 
 ## Open questions for the owner
 
-Each carries a recommendation as a working default.
-
-1. **Images before `App::run`.** Answered in principle: the context
-   moves to App, so a theme built after App construction can hold an
-   image. Two parts are *proposed, not confirmed*: the backend choice
-   becomes a constructor argument, since `App::platform()` can now pick
-   it after construction; and the App must be constructed and run on one
-   thread, for the WGL bootstrap window's affinity (not verified to
-   break otherwise). *Recommendation:* both.
-2. **Natural size.** From the image's own scale (proposed), or one image
-   pixel per device pixel, which makes layout depend on the display.
-   *Recommendation:* the image's scale.
-3. **Premultiplied input.** The helpers take straight alpha only
-   (proposed), or also premultiplied bytes, skipping the conversion.
-   *Recommendation:* straight only until someone has premultiplied data.
-4. **Which queue uploads.** The main queue orders an upload before later
-   draws for free but spends render-thread time; on GLX the transfer
-   queue is another context, and ase states no rule for when its uploads
-   become visible to main-queue draws; on WGL it is the main queue.
-   *Recommendation:* the main queue in stage 3; the transfer queue once
-   ase states that rule and readback confirms.
-5. **Helpers off the loop thread.** ase promises no thread for
-   `makeTexture` or `submit`; GL is safe today, the dummy queue is not,
-   and the loader wants to upload from a worker. *Recommendation:* ase
-   states both safe from any thread and guards the dummy recording, in
-   stage 3, rather than the loader hopping to the loop thread. The
-   watched future's thread is decided: the pool.
-6. **Where the future adapter lives.** bq, generic over any value
-   (proposed), or bqui, next to the widget. *Recommendation:* bq; nothing
-   about it is UI.
-7. **Same-frame images.** Whether a small image may be made
-   synchronously, drawable in the same frame. An upload queued on the
-   main queue ahead of a draw is ordered before it, but its cost is
-   unbounded: the pixels are copied at record time and again on the GL
-   thread, and a 4K RGBA image is about 33 MB. *Recommendation:* the
-   future stays the default way to get an image; offer the synchronous
-   form only with a size bound, if at all.
+None are open; see *Lookups before implementation*, and the claims
+marked unverified in place.
 
 ## Non-goals
 
