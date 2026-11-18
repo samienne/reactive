@@ -297,8 +297,8 @@ accident would be easy. The pool rather than the loop thread: `wait()`
 on the main thread keeps working, where a loop resolve would deadlock
 it; on GL nothing needs a running loop, which images made before
 `App::run` want; and it matches `btl::async`. The way to the UI is bq's
-signal from a future, safe from any thread because the window frame
-request is (next section).
+signal from a future. The window frame request is safe from any thread
+(next section); whether setting a bq input is, is a lookup below.
 
 The costs: resolution is not ordered against frames, so tests wait on
 the future instead of assuming an inline resolve, and a `then` that
