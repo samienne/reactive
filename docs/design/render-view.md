@@ -173,9 +173,9 @@ auto ui = bqui::widget::renderView(video);
   and every `Drawing` and in-flight command holds its own copy, so an
   image never vanishes under the paint.
 - **Opacity (decided)** follows the image's own opaque declaration; the
-  view has no override. Transparent content must be premultiplied
-  (`image-brush.md`'s pixel contract; whether helpers take premultiplied
-  input is its open question, not settled here).
+  view has no override. Transparent content must be premultiplied: the
+  texture inside an image always holds premultiplied colour
+  (`image-brush.md`'s pixel contract), so the engine's final pass writes it.
 - **Size is advisory (decided).** A presented image of another size is no
   error: it is mapped onto the view by the widget's fit and alignment
   (*The renderView widget*). The producer learns the wanted size from
