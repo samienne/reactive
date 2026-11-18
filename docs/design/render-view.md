@@ -50,8 +50,8 @@ an engine with its own swapchain or queue.
 - **Reconfigure** tells a producer what the view needs: size now, size at
   rest, scale factor and visibility. It fires when the size at rest
   changes, not on every animation frame.
-- **Carried over:** a shared **handle** whose frame callback is also the
-  engine's tick; per-view `reasons()`; a per-view **present**; layer 2
+- **Carried over:** a move-only owner **handle** whose frame callback is
+  also the engine's tick; per-view `reasons()`; a per-view **present**; layer 2
   time is the window's frame clock, so remote pause and step freeze the
   3D; SDR pixels per `image-brush.md`; "view", not "surface", which the
   effect branch already uses.
@@ -262,22 +262,32 @@ a target later without an interface change. The **engine owns its
 framebuffer, depth buffer and intermediate targets**, built around that
 texture.
 
-**The handle** owns the callback; its copies share the callback and a
-request registry. A handle runs **at most once per frame** of each window
+**The handle** is the owner of the callback and a request registry, and
+is move-only; widgets and view objects refer to the shared state behind
+it, not to the owner. A handle runs **at most once per frame** of each window
 where its views are mounted, listing that window's views. A callback
 cannot be replaced. The frame object hands it the window's `ase::Frame`,
 the render context, `submit` to the main queue, `requestFrame()` (so a
-callback never captures its handle, a cycle), and `views()`, in tree
-order.
+callback never needs its handle), and `views()`, in tree order.
 
-**The reference cycle (decided: a documented rule).** A view object keeps
-its handle alive, so a mounted view keeps working; the callback must
-therefore not own its view objects by value, nor a shared pointer to
-their owner, as it must not capture the handle. A weak reference was
-rejected: a view whose handle was dropped would silently stop rendering.
-The callback reaches views through `frame.views()` and tells them apart
-by their typed state; capturing by reference is fine, as is `this` of an
-engine class owning the handle and its views (the sketch).
+**Destroying the owner (decided)** clears the callback; if it is running
+on the loop thread, destruction waits for it to return. The one rule: the
+engine is never destroyed from inside its own callback. Views still
+mounted keep showing their last image and are never called again.
+Proposed, not decided: such views still mount (showing nothing if never
+presented), and nothing can make a new view for the dead owner.
+
+**The reference cycle (decided: a documented rule).** Clearing the
+callback releases everything it captured, so a view object captured by
+value lives until the owner dies, not for the life of the process. The
+hard rule: the callback must not own its owner handle, directly or
+through a shared pointer to the engine; move-only makes that hard by
+accident. The callback reaches views through `frame.views()` and tells
+them apart by their typed state. Capturing `this` of an engine class
+owning the handle and its views (the sketch) is safe because members die
+in reverse order: `top_` first, then `handle_`, whose destructor clears
+the callback while `engine_` is still alive. The sketch relies on the
+callback touching only members declared before the handle.
 
 **When it runs.** In a frame of a window where the handle has views, when
 it is due: a frame was requested through the handle, or a view's
@@ -430,7 +440,7 @@ view show its new image in the same frame.
 - **Ownership.** The application keeps its image sources and view
   objects; a widget holds the object it mounts and its node references the
   object's view state. A view object references its handle's shared
-  state, and the bridge holds the handle until its last mounted view in
+  state, and the bridge holds that state until its last mounted view in
   that window is gone. Captures and per-view engine state must be
   destructible on any thread holding the last copy; deferring destruction
   to the loop thread is rejected, as no loop runs at shutdown.
@@ -616,12 +626,8 @@ GL, or through `window.screenshot` once it lands.
 
 ## Open questions for the owner
 
-Gaps the decisions leave; each carries a proposed default, unconfirmed.
-
-1. **An engine class destroyed while its views are mounted.** A mounted
-   view keeps the handle, and so the callback capturing `this`, alive
-   after the engine class is gone. Proposed: documented, the engine class
-   outlives every mount of its views (the widgets drop them first).
+None are open; see *Lookups before implementation* and the open issue in
+*Later: an engine on its own ase queue*.
 
 ## Non-goals
 
