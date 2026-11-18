@@ -45,9 +45,8 @@ an engine with its own swapchain or queue.
   object the engine makes from its handle in layer 2. The widget takes
   that object, never a key, so a widget rebuild is not a new view: the
   texture and the engine's state survive it. There is no key-from-signal
-  form; switching cameras is the engine's own business. A view object is
-  mounted by **at most one widget at a time**; a second mount is an error
-  in the first version.
+  form; switching cameras is the engine's own business. An image source
+  or view object has **at most one mount** (*The renderView widget*).
 - **Reconfigure** tells a producer what the view needs: size now, size at
   rest, scale factor and visibility. It fires when the size at rest
   changes, not on every animation frame.
@@ -194,28 +193,39 @@ presents it through layer 1.
 
 ```cpp
 // Sketch only, not real signatures.
-bqui::RenderHandle scene(
-        [&engine](bqui::RenderFrame& frame)
+class Scene    // owns the handle and its views; the callback captures this
+{
+public:
+    Scene() : handle_([this](bqui::RenderFrame& f) { onFrame(f); }),
+              top_(handle_.makeView(bqui::ViewOptions{}, MyTargets{})) {}
+    bqui::ViewObject const& top() const { return top_; }
+
+private:
+    void onFrame(bqui::RenderFrame& frame)
+    {
+        frame.submit(engine_.shadowPass(frame));         // shared pre-pass
+        for (auto& v : frame.views())
         {
-            frame.submit(engine.shadowPass(frame));      // shared pre-pass
-            for (auto& v : frame.views())
+            auto& targets = v.state<MyTargets>();
+            if (v.reasons().unmounted)
+                targets.release();                       // no texture
+            else if (v.reasons().created || v.reasons().resized)
+                targets.rebuild(v.texture());
+            if (v.texture() && !v.hidden())
             {
-                auto& targets = v.state<MyTargets>();
-                if (v.reasons().unmounted)
-                    targets.release();                   // no texture
-                else if (v.reasons().created || v.reasons().reconfigured)
-                    targets.rebuild(v.texture());
-                if (v.texture() && !v.hidden())
-                {
-                    frame.submit(engine.render(targets, v.texture(),
-                            v.rect(), v.sizeNow(), frame));
-                    v.present();
-                }
+                frame.submit(engine_.render(targets, v.texture(),
+                        v.rect(), v.sizeNow(), frame));
+                v.present();
             }
-        });
-auto top = scene.makeView(bqui::ViewOptions{}, MyTargets{});
-auto ui = bqui::widget::renderView(top, bqui::shape::rectangle(radius));
-scene.requestFrame();                                     // any thread
+        }
+    }
+
+    Engine engine_;
+    bqui::RenderHandle handle_;
+    bqui::ViewObject top_;
+};
+Scene scene;
+auto ui = bqui::widget::renderView(scene.top(), bqui::shape::rectangle(r));
 ```
 
 **View objects (decided).** The engine creates each view object from its
@@ -237,15 +247,18 @@ creation (`MyTargets{}` above) and read back with a typed accessor
 `shared_ptr<void>` and no release callback. Its lifetime follows the view
 object, not the mount, and the view does no locking around it. The engine
 frees its GPU targets when the view reports *unmounted* and rebuilds them
-on *created* or *reconfigured*; whatever remains is destroyed with the
-view object, on whichever thread drops it last.
+on *created* or *resized*; whatever remains is destroyed with the view
+object, on whichever thread drops it last.
 
 **Ownership split (decided).** The **view owns the colour texture**: it
 creates it at the size reconfigure asks for and the format the options
-fix, recreates it on reconfigure, and hands the engine the texture plus a
-rectangle each frame. The rectangle is the whole texture in the first
-version; it lets an oversized texture and direct mode use part of a
-target later without an interface change. The **engine owns its
+fix, recreates it when the pixel size changes, and hands the engine the
+texture plus a rectangle each frame. It **releases the texture at
+unmount** (decided), dropping its reference once the unmount is noticed;
+a later remount allocates a new texture and arrives as *created*. A
+hidden view keeps its texture. The rectangle is the whole texture in the
+first version; it lets an oversized texture and direct mode use part of
+a target later without an interface change. The **engine owns its
 framebuffer, depth buffer and intermediate targets**, built around that
 texture.
 
@@ -257,14 +270,24 @@ the render context, `submit` to the main queue, `requestFrame()` (so a
 callback never captures its handle, a cycle), and `views()`, in tree
 order.
 
+**The reference cycle (decided: a documented rule).** A view object keeps
+its handle alive, so a mounted view keeps working; the callback must
+therefore not own its view objects by value, nor a shared pointer to
+their owner, as it must not capture the handle. A weak reference was
+rejected: a view whose handle was dropped would silently stop rendering.
+The callback reaches views through `frame.views()` and tells them apart
+by their typed state; capturing by reference is fine, as is `this` of an
+engine class owning the handle and its views (the sketch).
+
 **When it runs.** In a frame of a window where the handle has views, when
-it is due: a frame was requested through the handle, or a view was
-created, reconfigured or unmounted since the last call. A request is
-honoured with no view listed, so an engine can flush work. Nothing runs
-otherwise: a hover elsewhere repaints without calling the engine, and so
-does a size animation, because reconfigure follows the size at rest.
-Every listed view carries its **size now**, so an engine that runs anyway
-corrects its camera aspect while the image stretches.
+it is due: a frame was requested through the handle, or a view's
+configuration changed since the last call (created, resized, hidden,
+revealed or unmounted). A request is honoured with no view listed, so an
+engine can flush work. Nothing runs otherwise: a hover elsewhere
+repaints without calling the engine, and so does a size animation,
+because reconfigure follows the size at rest. Every listed view carries
+its **size now**, so an engine that runs anyway corrects its camera
+aspect while the image stretches.
 
 **The engine's tick.** An engine that runs continuously requests the next
 frame from inside the callback. The callback runs after the window's
@@ -276,18 +299,22 @@ made during the frame with the returned delay. *Why not an App tick:*
 cadence belongs to windows (*Frame cadence is per-window* in
 `docs/decisions.md`).
 
-**`reasons()`** (the flag set is proposed; *unmounted* is decided):
+**`reasons()` (decided):**
 
-- *created*: first listing of this mount, with its texture;
-- *reconfigured*: size at rest, scale or visibility changed; a fresh
-  texture when the pixel size changed (*resized* is folded in);
-- *revealed*: hidden before, visible now, set with *reconfigured*;
-- *unmounted*: listed once after the widget was removed; no texture;
+- *created*: first listing of this mount, with its texture; the engine
+  builds its targets;
+- *resized*: the view has a new texture; the engine rebuilds its targets;
+- *revealed*: hidden before, visible now; the engine redraws, and
+  rebuilds only if it freed its targets while hidden;
+- *unmounted*: listed once; no texture;
 - *requested*: a request through the handle is due.
 
-Hidden is a state, `v.hidden()`, not a flag; *retargeted* and *repaint*
-are dropped and return with direct mode. A view listed only because the
-handle runs for another view has no flag.
+Hidden is a state, `v.hidden()`: becoming hidden runs the callback with
+no flag. A scale change alters the pixel size, so it arrives as
+*resized*; the scale is readable on the view. There is no *reconfigured*
+flag, which mixed a replaced texture with a visibility change;
+*retargeted* and *repaint* return with direct mode. A view listed only
+because the handle runs for another view has no flag.
 
 **Present (decided: per view).** `present()` in layer 2 means "the view's
 texture now holds a new image"; it routes through layer 1, needing no
@@ -325,10 +352,10 @@ the code is*): the view walk composes `getFinalObb` from the root as
 computed (an infinite animation on the view or an ancestor, detectable
 with `isInfinite`), reconfigure fires when the size has stopped changing,
 on the first frame the composed size equals the previous frame's. A view
-under a never-ending size animation keeps its last reconfigured size,
-stretched; the size now in every layer 2 frame lets the engine correct
-its camera aspect. The oversized-texture rectangle (*Other later stages*)
-is the answer if a real case appears.
+under a never-ending size animation keeps its last configured size,
+stretched, and a layer 2 engine corrects its aspect from the size now.
+The oversized-texture rectangle (*Other later stages*) is the answer if a
+real case appears.
 
 **Delivery (decided).** In layer 2 the configuration reaches the callback
 through `reasons()` and the listed view; the view has created the texture
@@ -356,19 +383,36 @@ its path (`src/avg/src/rendertree/clipnode.cpp:140`). The walk does not
 mirror the `Drawing`'s rect culling (`filterElementsByRect`) or the cull
 inside backdrop scopes, so a "visible" view may paint no pixel.
 
+**A hidden window (decided).** A minimised or hidden window makes no
+frames (unverified), so no walk marks its views hidden; instead its hide
+and show update its mounted views' configuration on the loop thread,
+without a frame. Layer 1: the counter increases and the handler runs, so
+a producer can pause and resume. Layer 2: the hidden state changes, no
+callback is forced, and the first frame after the return lists the views
+as *revealed*, harmless though the engine was not called while hidden.
+What counts as hidden (minimised, fully covered) is what the platform
+reports; the first version covers what ase's backends already report
+(*Lookups before implementation*).
+
 ## Frame order
 
 Proposed in discussion and treated as the working design. In
 `WindowBridge::onFrame`, after resize and the transaction:
 
 1. **Collect views.** Walk the render tree at this frame's time, as
-   `RenderTree::snapshot` does, recording each mounted view with its size
-   now, size at rest and visibility; compare with the last walk, noting
-   views created and unmounted since; update each changed configuration
-   and its counter; create or recreate layer 2 textures for reconfigured
-   views. Runs when the tree changed or is animating; an idle frame reuses
-   the last list. Hooks in between the transaction
-   (`windowbridge.cpp:386-387`) and the draw (`:389`).
+   `RenderTree::snapshot` does, recording each mounted view object (a
+   leaving node is not a mount) with its size now, size at rest and
+   visibility. Compare the set with the previous frame's **by view
+   object**, not by widget or tree node (decided): in both, continuing,
+   flagged only for what changed (*resized* if the new mount's size
+   differs); only in the new set, *created*; only in the old,
+   *unmounted*, and the view object drops its texture. A widget rebuild
+   that removes and re-adds the same object in one update thus reports
+   nothing. Second mounts are found here (*The renderView widget*). Update
+   each changed configuration and its counter; create layer 2 textures
+   for created and resized views. Runs when the tree changed or is
+   animating; an idle frame reuses the last list. Hooks in between the
+   transaction (`windowbridge.cpp:386-387`) and the draw (`:389`).
 2. **Run the due frame callbacks**, once per due handle, from a copy of
    the list so a callback cannot invalidate the iteration. Presents land
    in the view state.
@@ -378,8 +422,8 @@ Proposed in discussion and treated as the working design. In
 4. **Paint, present and flush**, unchanged (`:401-404`). The return value
    is zero when a request or `needsUpdate_` is pending, as above.
 
-Running callbacks before the `Drawing` is built lets a reconfigured view
-show its new image in the same frame.
+Running callbacks before the `Drawing` is built lets a created or resized
+view show its new image in the same frame.
 
 ## Handle lifetime and threads
 
@@ -397,11 +441,11 @@ show its new image in the same frame.
   thread marks the cells and wakes each window once; a request racing a
   closing window does nothing. A cell holds no callback or GPU resource.
 - **Mounted** is readable on the view object from any thread. It turns
-  false in the transaction that removes the widget.
-- **Not covered:** a minimised window makes no frames; closing a window
-  or the App does not wait for an engine, and the last callback with its
-  *unmounted* listing may never run, which is harmless because view
-  objects release their state when destroyed.
+  false in the first frame whose walk no longer finds the object.
+- **Not covered:** closing a window or the App does not wait for an
+  engine, and the last callback with its *unmounted* listing may never
+  run, which is harmless because view objects release their state when
+  destroyed.
 
 ## The renderView widget
 
@@ -421,8 +465,15 @@ one form serves both layers (decided).
   image, layer 2 the view object.
 - **State.** The widget keeps no view state of its own; a rebuild mounts
   the same object again, so the texture and engine state survive it.
-- **One mount at a time (decided for view objects).** Mounting a view
-  object that is already mounted is an error in the first version.
+- **One mount (decided)**, for image sources and view objects alike: two
+  mounts would mean two sizes and visibilities for one configuration. To
+  show a picture twice, present the same image to two sources, or draw
+  the image value with an image brush or `widget::image`. The build
+  cannot reject a second mount (one object passed to two `renderView`
+  calls is fine while only one is in the tree), so frame step 1 detects
+  it: the first mount in tree order wins; any further one, in any window,
+  shows nothing and asserts in debug builds. No exception, which would be
+  thrown inside the frame.
 - **Layout and input:** stretches (natural size zero); input through the
   usual modifiers, in local logical coordinates.
 
@@ -431,22 +482,21 @@ one form serves both layers (decided).
 - **Entering.** A mount fires reconfigure; in layer 2 the view is listed
   as *created* and presented before the `Drawing` is built. A view with
   no image is skipped until its first present.
-- **Leaving (decided: frozen in the first version).** The view counts as
-  unmounted the moment the widget is removed, and the next callback lists
-  it once as *unmounted*. The `TransitionNode` keeps drawing the node
-  until its exit animation ends; the leaving node keeps the image it
-  held at removal, whose value keeps the texture alive. A leaving node is
-  not a mount, so the same object may be mounted again meanwhile.
-  Accepted side effect: if the new mount shows the same texture (same
-  size), the leaving node shows live content; with a new size it stays
-  frozen on the old texture. Unverified, carried over: that bq releases a
+- **Leaving (decided: frozen in the first version).** Once frame step 1
+  no longer finds the view object, the next callback lists it once as
+  *unmounted* and the object drops its texture. The `TransitionNode`
+  keeps drawing the leaving node until its exit animation ends, with the
+  image it held at removal, whose value keeps the texture alive. A
+  leaving node is not a mount, so the object may be mounted again
+  meanwhile. Remounted in the same update, it keeps its texture and the
+  leaving node shows live content if that texture is unchanged
+  (accepted); remounted later, it has a new texture and the leaving node
+  stays frozen. Unverified, carried over: that bq releases a
   removed subtree's build state in that update; a test in the layer 2
   stage checks it.
-- **Hidden (decided).** A view keeps its colour texture while hidden and
-  stays in `frame.views()`, flagged hidden; the engine skips drawing it
-  and decides itself about its depth and intermediate targets, using the
-  visibility and *revealed*. A layer 1 producer sees the same visibility
-  in its configuration and may pause.
+- **Hidden (decided).** A view keeps its texture and stays in
+  `frame.views()`, flagged hidden; the engine skips drawing it and decides
+  about its own targets. A layer 1 producer sees it and may pause.
 
 ## Later: hardware buffers and foreign images
 
@@ -548,33 +598,30 @@ Dummy backend, CI on every leg, real frame loop paused and unpaused:
 submit order; call counts (per request, on mount, once per frame for many
 views and per window, none while only the UI animates or during a size
 animation, one at rest, one for an unmount with no views left);
-`reasons()` through mount, reconfigure, hide, reveal and unmount; a
-rebuild keeping texture and state; a second mount asserting; the
+`reasons()` through mount, resize, scale, hide, reveal and unmount; a
+same-update remount reporting nothing and keeping texture and state, a
+later one getting a new texture; second mounts (both layers, across
+windows) showing nothing and asserting; window hide and show updating the
+configuration without a frame; the
 configuration under size, scale, ancestor, retargeted and infinite
 animations; layer 1 presents from another thread, superseded; the
 `Drawing` rebuilt only on a new image value; fit; leaving views frozen.
 Pixels (sRGB, linear writes, row order, glass over 3D) by hand on real
 GL, or through `window.screenshot` once it lands.
 
+## Lookups before implementation
+
+- What ase's backends report today for a window hidden, minimised or
+  occluded (*A hidden window*).
+
 ## Open questions for the owner
 
 Gaps the decisions leave; each carries a proposed default, unconfirmed.
 
-1. **The `reasons()` set** above (*Layer 2*). Proposed as listed.
-2. **Unmounted and remounted between two frames.** Proposed: listed once,
-   as *created* only.
-3. **A view object's texture while unmounted.** The accepted leaving side
-   effect assumes a same-size remount reuses it. Proposed: keep it until
-   the view object dies or its size changes, as while hidden.
-4. **Second mounts.** Proposed: image sources follow the view objects'
-   one-mount rule; a second mount asserts in debug and shows nothing in
-   release.
-5. **A reference cycle.** A view object keeps its handle alive, so a
-   callback that owns its view objects never dies. Proposed: documented,
-   as for the handle: the callback does not own them.
-6. **Hidden by window state.** A minimised window makes no frames, so no
-   walk sees it hidden. Proposed: the window's show and hide update the
-   views' configuration on the loop thread without a frame.
+1. **An engine class destroyed while its views are mounted.** A mounted
+   view keeps the handle, and so the callback capturing `this`, alive
+   after the engine class is gone. Proposed: documented, the engine class
+   outlives every mount of its views (the widgets drop them first).
 
 ## Non-goals
 
@@ -596,14 +643,16 @@ Each stage is one PR, after the backdrop / effect-brushes stack (#172-#177,
    stages 1-2 (image, brush, lowering). Dummy tests.
 2. **bqui: layer 1 in the frame.** The image source object, show the last
    image presented (no fence, no release notification), the configuration
-   readable from any thread with its wake-up handler, the one-mount rule;
+   readable from any thread with its wake-up handler, the one-mount rule,
+   window hide and show updating the configuration;
    frame steps 1, 3 and 4; the `Drawing` rebuilt on an image change;
    presents from any thread waking the window. Depends on stage 1 and
    image-brush stage 4 (`App::getRenderContext()`, the thread-safe window
    frame request).
 3. **bqui: layer 2.** The handle, registry, cells and wakers; view objects
    from `makeView` with options (opaque, format) and typed state; frame
-   step 2; the view-owned texture created on reconfigure; `reasons()`
+   step 2; the view-owned texture created on mount and resize and
+   released at unmount; `reasons()`
    including the *unmounted* listing; present through layer 1; the
    zero-delay return; leaving views. Depends on stage 2.
 4. **bqui: the `renderView` widget.** One form over an image source or a
