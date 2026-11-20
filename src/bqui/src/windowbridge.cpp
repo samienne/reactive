@@ -8,6 +8,11 @@
 namespace bqui
 {
 
+namespace
+{
+    thread_local WindowBridge const* tSettingSize = nullptr;
+} // namespace
+
 // An input can fire the wake on another thread while, or after, the bridge is
 // destroyed, so the wake reaches the bridge only through this.
 struct WindowBridge::WakeTarget
@@ -241,7 +246,10 @@ WindowBridge::~WindowBridge()
 void WindowBridge::wake()
 {
     needsUpdate_ = true;
-    aseWindow.requestFrame();
+
+    // The size is set in onFrame, whose own transaction takes the change.
+    if (tSettingSize != this)
+        aseWindow.requestFrame();
 }
 
 void WindowBridge::makeTransaction(
@@ -361,7 +369,9 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     if (resized_)
     {
+        tSettingSize = this;
         size_.handle.set(aseWindow.getSize().cast<float>());
+        tSettingSize = nullptr;
         painter_.setSize(aseWindow.getSize());
         resized_ = false;
     }
