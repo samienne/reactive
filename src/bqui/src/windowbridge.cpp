@@ -222,14 +222,12 @@ void WindowBridge::makeTransaction(
 {
     ZoneScoped;
 
-    auto updateStart = std::chrono::steady_clock::now();
-
     auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
     bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-    auto updateResult = widgetInstanceSignal_.update(frameInfo);
-    updateResult = updateResult + titleSignal_.update(frameInfo);
+    widgetInstanceSignal_.update(frameInfo);
+    titleSignal_.update(frameInfo);
 
 
     if (titleSignal_.didChange<0>())
@@ -315,11 +313,6 @@ void WindowBridge::makeTransaction(
 
         animating_ = true;
     }
-
-    auto updateElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - updateStart);
-    std::cout << "Update took " << updateElapsed.count() << " us, changed="
-        << updateResult.didChange << std::endl;
 }
 
 std::optional<bq::signal::signal_time_t> WindowBridge::frame(
