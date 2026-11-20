@@ -573,7 +573,7 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
                 / scale;
 
             genericWindow_.injectPointerButtonEvent(0, 2, Vector2f(x, y),
-                    uMsg == WM_LBUTTONDOWN ? ButtonState::down : ButtonState::up);
+                    uMsg == WM_RBUTTONDOWN ? ButtonState::down : ButtonState::up);
 
             break;
         }
