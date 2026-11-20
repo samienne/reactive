@@ -97,6 +97,26 @@ TEST(framebufferObjectCache, sweepDestroysOnlyExpired)
     EXPECT_EQ(1, cache.get(*kept, objects.creator(), objects.destroyer()));
 }
 
+TEST(framebufferObjectCache, sweepDestroysChangedWithoutOwning)
+{
+    FakeObjects objects;
+    FramebufferObjectCache<int> cache;
+    auto kept = std::make_shared<AttachmentFramebuffer>();
+    auto changed = std::make_shared<AttachmentFramebuffer>();
+
+    cache.get(*kept, objects.creator(), objects.destroyer());
+    cache.get(*changed, objects.creator(), objects.destroyer());
+
+    changed->unsetDepthTarget();
+    cache.sweep(objects.destroyer());
+
+    EXPECT_EQ(1u, cache.size());
+    EXPECT_EQ(1, changed.use_count());
+    EXPECT_EQ(Events({ "create 1", "create 2", "destroy 2" }), objects.events);
+    EXPECT_EQ(3, cache.get(*changed, objects.creator(), objects.destroyer()));
+    EXPECT_EQ(1, cache.get(*kept, objects.creator(), objects.destroyer()));
+}
+
 TEST(framebufferObjectCache, clearDestroysAll)
 {
     FakeObjects objects;

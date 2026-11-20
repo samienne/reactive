@@ -2,6 +2,7 @@
 
 #include <ase/attachmentframebuffer.h>
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -46,20 +47,28 @@ namespace ase
             Handle handle = create(snapshot);
             entries_.emplace(id,
                 Entry{ framebuffer.weak_from_this(),
+                    framebuffer.getVersionCounter(),
                     snapshot.version,
                     handle });
             return handle;
         }
 
         /**
-         * @brief Destroys the handles of framebuffers that no longer exist.
+         * @brief Destroys the handles of framebuffers that no longer exist
+         * or whose attachments have changed since the handle was built.
+         *
+         * Never takes ownership of a framebuffer, so a framebuffer is never
+         * destroyed from here.
          */
         template <typename Destroy>
         void sweep(Destroy&& destroy)
         {
             for (auto i = entries_.begin(); i != entries_.end();)
             {
-                if (i->second.owner.expired())
+                Entry const& entry = i->second;
+                if (entry.owner.expired()
+                        || entry.counter->load(std::memory_order_acquire)
+                            != entry.version)
                 {
                     destroy(i->second.handle);
                     i = entries_.erase(i);
@@ -94,6 +103,7 @@ namespace ase
         struct Entry
         {
             std::weak_ptr<AttachmentFramebuffer const> owner;
+            std::shared_ptr<std::atomic<uint64_t> const> counter;
             uint64_t version;
             Handle handle;
         };
