@@ -93,9 +93,10 @@ are in the top-level `docs/`.
   the frame callback runs outranks the delay the callback returns. Every
   backend's `requestFrame` also wakes its platform loop through
   `PlatformBase::requestFrame`, which is why the dummy and offscreen windows
-  hold a platform reference like the GLX/WGL ones. The `WindowBase` ctor takes `(context, size,
-  scalingFactor)` so it can build `genericWindow_`. The platform render lists are
-  `weak_ptr<WindowBase>` since the loop hooks live there. `getRenderContext` is
+  hold a platform reference like the GLX/WGL ones. The `WindowBase` ctor takes
+  `(context, size, scalingFactor)` so it can build `genericWindow_`. The
+  platform render lists are `weak_ptr<WindowBase>` since the loop hooks live
+  there. `getRenderContext` is
   a pure virtual on `WindowImpl` (implemented by `WindowBase`), so `Window`
   reaches the render context without a downcast; the window's main render queue
   is just `getRenderContext().getMainRenderQueue()`, so `Window::getMainRenderQueue`

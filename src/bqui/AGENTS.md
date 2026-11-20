@@ -114,6 +114,16 @@ outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception
 must not leave one behind.
 
+### Where a window's frames come from
+
+A `WindowBridge` draws only when something asks for a frame, and only four
+things do: the observe handler on the window's signals (a content change), an
+ongoing animation (`onFrame` returns 0), a window event, and a scheduled
+render-tree update (`onFrame` returns the delay to `nextUpdate_`, the end of a
+transition). `makeTransaction` must not request a frame: it runs inside
+`onFrame`, whose draw follows in the same frame, so a request there paints the
+change twice.
+
 ### How `Window::close()` reaches the collection
 
 `WindowData` carries the window's `btl::UniqueId` and a
