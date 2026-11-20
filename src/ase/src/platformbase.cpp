@@ -108,6 +108,11 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             &lastFrame, &frameCallback, &frameTime, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
+        auto waited = tickTimerDue
+            ? std::chrono::duration_cast<std::chrono::microseconds>(
+                    *tickTimerDue - lastFrame)
+            : std::chrono::microseconds(0);
+
         tickScheduled = false;
         tickTimer.detach();
         tickTimerDue = std::nullopt;
@@ -124,7 +129,9 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         // Discard elapsed beyond the clamp so a long stall or pause drops
         // frames at the correct speed rather than jumping the animation clock.
-        auto const maxDt = 4 * frameStep_;
+        // A timer's own wait is not a stall: without this, a window due D
+        // ahead would advance only the clamp per wake and arrive far late.
+        auto const maxDt = std::max(4 * frameStep_, waited);
         auto dt = realElapsed > maxDt ? maxDt : realElapsed;
 
         frameTime += dt;

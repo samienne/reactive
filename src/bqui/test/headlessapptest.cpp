@@ -280,6 +280,42 @@ TEST(headlessApp, requestFrameCutsALongWaitShort)
                 secondFrame - firstFrame).count(), 2000);
 }
 
+TEST(headlessApp, aLongWaitEndsOnTime)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
+
+    constexpr std::chrono::milliseconds kWait{ 600 };
+
+    std::chrono::steady_clock::time_point firstFrame;
+    std::chrono::steady_clock::time_point secondFrame;
+
+    int frames = 0;
+    window.setFrameCallback([&](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+            {
+                if (++frames != 1)
+                {
+                    secondFrame = std::chrono::steady_clock::now();
+                    return std::nullopt;
+                }
+
+                firstFrame = std::chrono::steady_clock::now();
+                return kWait;
+            });
+
+    platform.run([&](ase::Frame const&) { return frames < 2; });
+
+    auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(
+            secondFrame - firstFrame);
+
+    ASSERT_EQ(2, frames);
+    EXPECT_GE(waited.count(), kWait.count());
+    EXPECT_LT(waited.count(), 2000);
+}
+
 TEST(headlessApp, secondAppRunsInTheSameProcess)
 {
     // App::run clones its windows rather than consuming them, so a second app
