@@ -7,7 +7,9 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <optional>
 
 namespace ase
 {
@@ -23,6 +25,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     // Cadence frozen at startup; also read by earliestFrameTime().
     frameStep_ = config.frameStep;
+    scheduledWaitEnd_ = std::nullopt;
 
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
@@ -33,22 +36,43 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     bool tickScheduled = false;
 
+    // The pending tick's timer and wall-clock due time; unset while the
+    // pending tick is a post.
+    btl::RunLoop::Timer tickTimer;
+    std::optional<std::chrono::steady_clock::time_point> tickTimerDue;
+
     std::function<void(btl::RunLoop::Controller&)> tick;
 
-    // Run a tick as soon as possible. The app wants to re-evaluate now -- at
-    // startup, on a content change, an event, or a window close -- independent
-    // of any window's render cadence, so this is what drives the loop to a stop
-    // when there is nothing (or nothing left) to draw.
-    auto wakeTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
+    // A wake cuts a pending timer short, but never to sooner than frameStep
+    // after the last tick.
+    auto wakeTick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &tick,
+            &clock, &lastFrame](btl::RunLoop::Controller& controller)
     {
-        if (tickScheduled)
+        if (tickScheduled && !tickTimerDue)
             return;
+
+        auto now = clock.now();
+
+        if (tickScheduled)
+        {
+            auto paced = std::max(now, lastFrame + frameStep_);
+            if (*tickTimerDue <= paced)
+                return;
+
+            tickTimer = controller.addTimer(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        paced - now),
+                    tick);
+            tickTimerDue = paced;
+            return;
+        }
+
         tickScheduled = true;
         controller.post(tick);
     };
 
-    auto scheduleTick = [this, &tickScheduled, &tick, &frameTime](
-            btl::RunLoop::Controller& controller)
+    auto scheduleTick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &tick,
+            &clock, &frameTime](btl::RunLoop::Controller& controller)
     {
         if (tickScheduled)
             return;
@@ -68,18 +92,29 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         }
         else
         {
-            controller.addTimer(*earliest - frameTime, tick).detach();
+            auto delay = *earliest - frameTime;
+            tickTimer = controller.addTimer(delay, tick);
+            tickTimerDue = clock.now() + delay;
+            scheduledWaitEnd_ = tickTimerDue;
         }
     };
 
-    tick = [this, &tickScheduled, &clock, &lastFrame,
-            &frameCallback, &frameTime, &scheduleTick](
+    tick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &clock,
+            &lastFrame, &frameCallback, &frameTime, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
+        tickTimer.detach();
+        tickTimerDue = std::nullopt;
 
         if (pauseCount_ != 0)
             return;
+
+        auto waited = scheduledWaitEnd_
+            ? std::chrono::duration_cast<std::chrono::microseconds>(
+                    *scheduledWaitEnd_ - lastFrame)
+            : std::chrono::microseconds(0);
+        scheduledWaitEnd_ = std::nullopt;
 
         ZoneScopedN("frameTick");
 
@@ -88,9 +123,10 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
                 thisFrame - lastFrame);
         lastFrame = thisFrame;
 
-        // Discard elapsed beyond the clamp so a long stall or pause drops
-        // frames at the correct speed rather than jumping the animation clock.
-        auto const maxDt = 4 * frameStep_;
+        // dt is the real elapsed time capped at the longer of the scheduled
+        // wait and four frame steps; the wait counts in full even when a wake
+        // ends it early.
+        auto const maxDt = std::max(4 * frameStep_, waited);
         auto dt = realElapsed > maxDt ? maxDt : realElapsed;
 
         frameTime += dt;
@@ -223,6 +259,10 @@ PlatformBase::earliestFrameTime()
 void PlatformBase::pauseFrames()
 {
     ++pauseCount_;
+
+    auto const now = std::chrono::steady_clock::now();
+    if (scheduledWaitEnd_ && *scheduledWaitEnd_ > now)
+        scheduledWaitEnd_ = now;
 }
 
 void PlatformBase::resumeFrames()

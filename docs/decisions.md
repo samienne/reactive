@@ -127,8 +127,10 @@ earlier background fence-completer that faked vsync was removed, taking its
 headful vsync today, a pixel-readback / double-buffer swap later. A
 `dispatch()`-a-task-to-the-render-thread method on the render queue was considered
 for an offscreen pacer and rejected as GL-specific — it assumes a thread a
-command-buffer backend need not have. (The bqui side that returns a real interval
-instead of "0 while animating" is a follow-up.)
+command-buffer backend need not have. (bqui returns a real interval for a
+scheduled render-tree update, the delay to the end of a transition; while a
+render tree animates it still returns 0, and a real interval there is a
+follow-up.)
 
 ## The platform owns a context-free frame loop; `App` picks the driver
 

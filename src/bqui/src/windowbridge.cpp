@@ -2,18 +2,36 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <algorithm>
+#include <mutex>
+#include <utility>
+
 namespace bqui
 {
 
+// An input can fire the wake on another thread while, or after, the bridge is
+// destroyed, so the wake reaches the bridge only through this.
+struct WindowBridge::WakeTarget
+{
+    explicit WakeTarget(WindowBridge* bridge) :
+        bridge(bridge)
+    {
+    }
+
+    std::mutex mutex;
+    WindowBridge* bridge;
+};
+
 WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         Window window, widget::AnyWidget widget, bool headless)
-    : memoryPool_(pmr::new_delete_resource()),
-    memoryStatistics_(&memoryPool_),
-    memory_(&memoryStatistics_),
+    : wakeTarget_(std::make_shared<WakeTarget>(this)),
+    memoryPool_(pmr::new_delete_resource()),
+    memory_(&memoryPool_),
     aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
     windowData_(window.data()),
     painter_(memory_, aseWindow.getRenderContext()),
-    size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
+    size_(bq::signal::makeInput(
+                ase::Vector2f(aseWindow.getSize().cast<float>()))),
     widgetInstanceSignal_((std::move(widget)
                 | modifier::background())(
                 BuildParams{}
@@ -22,13 +40,13 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     titleSignal_(windowData_->getTitle()),
     drawing_(memory_)
 {
-    aseWindow.setVisible(true);
     aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-    auto wake = [this]
+    auto wake = [target = wakeTarget_]
     {
-        needsUpdate_ = true;
-        aseWindow.requestFrame();
+        std::lock_guard<std::mutex> lock(target->mutex);
+        if (target->bridge)
+            target->bridge->wake();
     };
     widgetInstanceSignal_.observe(wake);
     titleSignal_.observe(wake);
@@ -53,6 +71,7 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     });
     aseWindow.setResizeCallback([this]()
             {
+                size_.handle.set(aseWindow.getSize().cast<float>());
                 resized_ = true;
                 animating_ = true;
             });
@@ -206,13 +225,21 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         }
     });
 
+    // Showing the window can resize it synchronously, which the resize
+    // callback must see.
+    aseWindow.setVisible(true);
 }
 
 WindowBridge::~WindowBridge()
 {
-    std::cout << "Maximum concurrent allocations: "
-        << memoryStatistics_.maximum_concurrent_bytes_allocated()
-        << std::endl;
+    std::lock_guard<std::mutex> lock(wakeTarget_->mutex);
+    wakeTarget_->bridge = nullptr;
+}
+
+void WindowBridge::wake()
+{
+    needsUpdate_ = true;
+    aseWindow.requestFrame();
 }
 
 void WindowBridge::makeTransaction(
@@ -222,20 +249,21 @@ void WindowBridge::makeTransaction(
 {
     ZoneScoped;
 
-    auto updateStart = std::chrono::steady_clock::now();
-
     auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
     bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-    auto updateResult = widgetInstanceSignal_.update(frameInfo);
-    updateResult = updateResult + titleSignal_.update(frameInfo);
+    widgetInstanceSignal_.update(frameInfo);
+    titleSignal_.update(frameInfo);
 
 
     if (titleSignal_.didChange<0>())
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-    if (widgetInstanceSignal_.didChange<0>())
+    bool const instanceChanged = std::exchange(firstTransaction_, false)
+        || widgetInstanceSignal_.didChange<0>();
+
+    if (instanceChanged)
     {
         ZoneScopedN("Widget instance signal evaluation");
 
@@ -292,7 +320,7 @@ void WindowBridge::makeTransaction(
         }
     }
 
-    if (widgetInstanceSignal_.didChange<0>()
+    if (instanceChanged
             || (nextUpdate_ && *nextUpdate_ <= timer)
             )
     {
@@ -303,7 +331,7 @@ void WindowBridge::makeTransaction(
                 timer
                 );
 
-        if (nextUpdate_ && *nextUpdate_ < timer)
+        if (nextUpdate_ && *nextUpdate_ <= timer)
             nextUpdate_ = std::nullopt;
 
         if (nextUpdate && *nextUpdate < timer)
@@ -315,11 +343,6 @@ void WindowBridge::makeTransaction(
 
         animating_ = true;
     }
-
-    auto updateElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - updateStart);
-    std::cout << "Update took " << updateElapsed.count() << " us, changed="
-        << updateResult.didChange << std::endl;
 }
 
 std::optional<bq::signal::signal_time_t> WindowBridge::frame(
@@ -339,7 +362,6 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     if (resized_)
     {
-        size_.handle.set(aseWindow.getSize().cast<float>());
         painter_.setSize(aseWindow.getSize());
         resized_ = false;
     }
@@ -347,7 +369,8 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
     auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
             timer_);
 
-    if (needsUpdate_.exchange(false))
+    bool updateDue = nextUpdate_ && *nextUpdate_ <= timer;
+    if (needsUpdate_.exchange(false) || updateDue)
         makeTransaction(frame.dt, std::nullopt);
 
     if (animating_)
@@ -369,8 +392,16 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     ++frames_;
 
-    return animating_ ? std::optional<std::chrono::microseconds>(std::chrono::microseconds(0))
-                      : std::nullopt;
+    if (animating_)
+        return std::chrono::microseconds(0);
+
+    if (nextUpdate_)
+    {
+        return std::max(std::chrono::microseconds(0),
+                std::chrono::microseconds(*nextUpdate_) - timer_);
+    }
+
+    return std::nullopt;
 }
 
 btl::UniqueId WindowBridge::getId() const

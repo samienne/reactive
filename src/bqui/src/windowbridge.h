@@ -30,7 +30,6 @@
 #include <ase/keyevent.h>
 #include <ase/pointerbuttonevent.h>
 
-#include <pmr/statistics_resource.h>
 #include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/new_delete_resource.h>
 
@@ -39,7 +38,6 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -103,8 +101,12 @@ public:
     avg::Snapshot snapshot() const override;
 
 private:
+    struct WakeTarget;
+
+    void wake();
+
+    std::shared_ptr<WakeTarget> wakeTarget_;
     pmr::unsynchronized_pool_resource memoryPool_;
-    pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;
     ase::Window aseWindow;
 
@@ -131,6 +133,8 @@ private:
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
     std::atomic<bool> needsUpdate_{true};
+    // The constructor evaluates the instance; the first transaction takes it.
+    bool firstTransaction_ = true;
     bool animating_ = true;
     bool resized_ = true;
     bool closed_ = false;

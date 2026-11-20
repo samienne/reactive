@@ -38,7 +38,6 @@
 #include <btl/future/future.h>
 #include <btl/future/futurecontrol.h>
 
-#include <pmr/statistics_resource.h>
 #include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/new_delete_resource.h>
 

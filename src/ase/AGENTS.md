@@ -57,7 +57,17 @@ are in the top-level `docs/`.
   `nextFrameTime`, not a platform cap — and the dummy queue completes fences
   inline), the OS `wakeSource()` (read
   once at loop start), and the live `getRenderWindows()` list (re-read every tick,
-  since windows open and close during a run); there is no `Session`. Manual
+  since windows open and close during a run); there is no `Session`. A wake
+  (`requestFrame`, an OS event, a presented frame's fence) cuts a pending timer
+  short, but never to sooner than one `frameStep` after the last tick, so the
+  per-frame fence wakes cannot run an animating window past the cadence. A
+  tick's `dt` is its real elapsed time capped at the longer of four frame steps
+  and the wait the loop scheduled for a window's `nextFrameTime`, so a
+  scheduled update arrives on time. The wait counts in full even when a wake
+  ends it early. Time past the cap, such as a stall, is dropped; a stall that
+  follows a wake which cut the wait short, but ends before the wait's original
+  end, is within the cap and counts in full. A pause ends the scheduled wait where the pause starts, so
+  the wait before the pause counts and the pause does not. Manual
   driving is a `Platform::pause()` RAII token (`PauseToken`) whose `step(dt)`
   produces one frame off the same callback/render path an auto tick takes;
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
@@ -93,13 +103,14 @@ are in the top-level `docs/`.
   the frame callback runs outranks the delay the callback returns. Every
   backend's `requestFrame` also wakes its platform loop through
   `PlatformBase::requestFrame`, which is why the dummy and offscreen windows
-  hold a platform reference like the GLX/WGL ones. The `WindowBase` ctor takes `(context, size,
-  scalingFactor)` so it can build `genericWindow_`. The platform render lists are
-  `weak_ptr<WindowBase>` since the loop hooks live there. `getRenderContext` is
-  a pure virtual on `WindowImpl` (implemented by `WindowBase`), so `Window`
-  reaches the render context without a downcast; the window's main render queue
-  is just `getRenderContext().getMainRenderQueue()`, so `Window::getMainRenderQueue`
-  is a convenience computed on that and stays off the impl interface.
+  hold a platform reference like the GLX/WGL ones. The `WindowBase` ctor takes
+  `(context, size, scalingFactor)` so it can build `genericWindow_`. The
+  platform render lists are `weak_ptr<WindowBase>` since the loop hooks live
+  there. `getRenderContext` is a pure virtual on `WindowImpl` (implemented by
+  `WindowBase`), so `Window` reaches the render context without a downcast; the
+  window's main render queue is just `getRenderContext().getMainRenderQueue()`,
+  so `Window::getMainRenderQueue` is a convenience computed on that and stays
+  off the impl interface.
 - **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
   `headless` gives an `OffscreenWindow` (backend-agnostic,
   `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from
