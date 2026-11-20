@@ -184,6 +184,39 @@ are in the top-level `docs/`.
   of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
   covers only the public contract, not the GL mapping. There is no
   three-byte RGB format.
+- **Framebuffers are attachment descriptions; each GL queue builds its own
+  objects.** `makeFramebuffer()` returns an `AttachmentFramebuffer` on the
+  GL and dummy backends alike. It records the attached textures and depth
+  renderbuffer under a mutex, with a process-unique id and a version that
+  every set or unset bumps, and holds no backend state. A backend reaches
+  it through `FramebufferImpl::asAttachments()` (null for a WGL/GLX/dummy
+  window's framebuffer, which binds the drawable's framebuffer 0; an
+  offscreen window's is an `AttachmentFramebuffer`); that and
+  `snapshot()` are the seam a non-GL backend builds its own objects on.
+  `GlRenderState` keeps a `FramebufferObjectCache`
+  (`src/framebufferobjectcache.h`, backend-neutral and unit-tested with
+  fake handles) of FBOs by framebuffer id. A bind builds one from a locked
+  snapshot when there is none or the version has moved, deleting the old
+  one first, so an unset target is never left attached. The cache is per
+  queue because FBOs are not shared between contexts: the GLX transfer
+  queue has its own context, the WGL one is the main queue. Only colour
+  attachment 0 is drawn (`glDrawBuffers` is never set), and nothing checks
+  completeness (`glCheckFramebufferStatus` is not in `GlFunctions`).
+- **FBOs are deleted only on their queue's thread.** The cache holds a
+  weak reference to each framebuffer and a shared one to its version
+  counter, never the framebuffer itself, so dropping a framebuffer makes no
+  GL call on its thread.
+  `GlRenderState` sweeps - deletes the FBOs of framebuffers that are gone
+  or have changed since - after every submit and from the dispatcher's one
+  idle callback, and clears the cache in its destructor. `updateIdle` keeps
+  that callback installed while fences are pending (every 16 ms; `onIdle`
+  also polls them) or FBOs are cached (every second), and removes it
+  otherwise. The period counts from the queue's last task, so a busy queue
+  sweeps only after submits. The callback runs with the dispatcher's mutex
+  held: it must never dispatch or wait, nor drop the last reference to
+  anything whose destructor does (a texture's dispatches to the transfer
+  queue), which is why the sweep reads the version counter instead of
+  locking the framebuffer.
 - **Submission executes now or later; no backend thread is promised.**
   `RenderQueue::submit` promises only that the commands execute in order.
   The GL queue runs them on a dedicated thread (`GlRenderQueue::dispatch`)
