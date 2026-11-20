@@ -469,12 +469,14 @@ TEST(RunLoop, stopInsideMoveLoopEndsRunAfterIt)
     MessageSourceHarness harness;
 
     int ranInMoveLoop = 0;
+    bool stoppedInMoveLoop = false;
     bool returnedFromMoveLoop = false;
 
     harness.run(loop, [&](Controller& c)
         {
             c.addTimer(20ms, [&](Controller& cc)
                 {
+                    stoppedInMoveLoop = inMoveSizeLoop();
                     cc.stop();
                     auto count = [&](Controller&)
                         {
@@ -491,6 +493,7 @@ TEST(RunLoop, stopInsideMoveLoopEndsRunAfterIt)
         });
 
     EXPECT_FALSE(harness.watchdogFired.load());
+    EXPECT_TRUE(stoppedInMoveLoop);
     EXPECT_TRUE(returnedFromMoveLoop);
     EXPECT_EQ(ranInMoveLoop, 0);
 }
@@ -502,12 +505,14 @@ TEST(RunLoop, exceptionInsideMoveLoopRethrowsFromRun)
     btl::RunLoop loop;
     MessageSourceHarness harness;
 
+    bool thrownInMoveLoop = false;
     bool returnedFromMoveLoop = false;
 
     EXPECT_THROW(harness.run(loop, [&](Controller& c)
         {
             c.addTimer(20ms, [&](Controller&)
                 {
+                    thrownInMoveLoop = inMoveSizeLoop();
                     endMoveLoop(harness.hwnd);
                     throw std::runtime_error("from the move loop");
                 }).detach();
@@ -517,6 +522,7 @@ TEST(RunLoop, exceptionInsideMoveLoopRethrowsFromRun)
         }), std::runtime_error);
 
     EXPECT_FALSE(harness.watchdogFired.load());
+    EXPECT_TRUE(thrownInMoveLoop);
     EXPECT_TRUE(returnedFromMoveLoop);
 }
 
