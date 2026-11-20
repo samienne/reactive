@@ -2,6 +2,8 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <algorithm>
+
 namespace bqui
 {
 
@@ -304,7 +306,7 @@ void WindowBridge::makeTransaction(
         if (nextUpdate_ && *nextUpdate_ <= timer)
             nextUpdate_ = std::nullopt;
 
-        if (nextUpdate && *nextUpdate <= timer)
+        if (nextUpdate && *nextUpdate < timer)
             nextUpdate = std::nullopt;
 
         nextUpdate_ = avg::earlier(nextUpdate_, nextUpdate);
@@ -367,7 +369,10 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
         return std::chrono::microseconds(0);
 
     if (nextUpdate_)
-        return std::chrono::microseconds(*nextUpdate_) - timer_;
+    {
+        return std::max(std::chrono::microseconds(0),
+                std::chrono::microseconds(*nextUpdate_) - timer_);
+    }
 
     return std::nullopt;
 }

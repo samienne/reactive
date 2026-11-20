@@ -31,6 +31,7 @@
 #include <future>
 #include <optional>
 #include <thread>
+#include <utility>
 
 using namespace bqui;
 using namespace bqui::widget;
@@ -398,46 +399,67 @@ TEST(headlessApp, changeInsideWithAnimationIsDrawn)
     EXPECT_EQ(frames, settledFrames);
 }
 
+namespace
+{
+    // Shows two rows, removes one under an animation of the given duration,
+    // and reports whether the removed row is shown before and after.
+    std::pair<bool, bool> removeRow(std::chrono::milliseconds duration)
+    {
+        bq::signal::Collection<std::string> items;
+        {
+            auto transaction = items.write();
+            transaction.pushBack("stays");
+            transaction.pushBack("leaves");
+        }
+
+        auto rows = bq::signal::forEach(items,
+                [](bq::signal::AnySignal<std::string> text, std::uint64_t)
+                    -> AnyWidget
+                {
+                    return label(std::move(text))
+                        | modifier::transition(modifier::transitionLeft());
+                });
+
+        bool shownBefore = false;
+        bool shownAfter = true;
+        float x = 0.0f;
+        float y = 0.0f;
+
+        runScript(vbox(std::move(rows)),
+                [&](App& app, ase::PauseToken& token)
+                {
+                    stepUntilIdle(app, token);
+                    shownBefore = test::WindowInput::findText(app, 0,
+                            "leaves", x, y);
+
+                    {
+                        auto guard = app.withAnimation(avg::AnimationOptions{
+                                duration,
+                                avg::curve::linear });
+                        auto transaction = items.write();
+                        transaction.erase(transaction.items().begin() + 1);
+                    }
+
+                    stepUntilIdle(app, token);
+                    shownAfter = test::WindowInput::findText(app, 0,
+                            "leaves", x, y);
+                });
+
+        return { shownBefore, shownAfter };
+    }
+} // namespace
+
 TEST(headlessApp, leavingNodeIsRemovedWhenItsTransitionEnds)
 {
-    bq::signal::Collection<std::string> items;
-    {
-        auto transaction = items.write();
-        transaction.pushBack("stays");
-        transaction.pushBack("leaves");
-    }
+    auto [shownBefore, shownAfter] = removeRow(std::chrono::milliseconds(100));
 
-    auto rows = bq::signal::forEach(items,
-            [](bq::signal::AnySignal<std::string> text, std::uint64_t)
-                -> AnyWidget
-            {
-                return label(std::move(text))
-                    | modifier::transition(modifier::transitionLeft());
-            });
+    EXPECT_TRUE(shownBefore);
+    EXPECT_FALSE(shownAfter);
+}
 
-    bool shownBefore = false;
-    bool shownAfter = true;
-    float x = 0.0f;
-    float y = 0.0f;
-
-    runScript(vbox(std::move(rows)), [&](App& app, ase::PauseToken& token)
-            {
-                stepUntilIdle(app, token);
-                shownBefore = test::WindowInput::findText(app, 0, "leaves",
-                        x, y);
-
-                {
-                    auto guard = app.withAnimation(avg::AnimationOptions{
-                            std::chrono::milliseconds(100),
-                            avg::curve::linear });
-                    auto transaction = items.write();
-                    transaction.erase(transaction.items().begin() + 1);
-                }
-
-                stepUntilIdle(app, token);
-                shownAfter = test::WindowInput::findText(app, 0, "leaves",
-                        x, y);
-            });
+TEST(headlessApp, leavingNodeWithAZeroDurationIsRemoved)
+{
+    auto [shownBefore, shownAfter] = removeRow(std::chrono::milliseconds(0));
 
     EXPECT_TRUE(shownBefore);
     EXPECT_FALSE(shownAfter);
