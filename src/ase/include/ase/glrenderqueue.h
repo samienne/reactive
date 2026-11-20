@@ -3,6 +3,8 @@
 #include "glrenderstate.h"
 #include "renderqueueimpl.h"
 
+#include "asevisibility.h"
+
 #include <memory>
 
 namespace ase
@@ -15,13 +17,13 @@ namespace ase
         GlRenderQueue(std::shared_ptr<GlDispatchedContext> context);
         ~GlRenderQueue();
 
-        void dispatch(std::function<void(GlFunctions const&)> f);
+        ASE_EXPORT void dispatch(std::function<void(GlFunctions const&)> f);
 
         GlDispatchedContext& getDispatcher();
         GlDispatchedContext const& getDispatcher() const;
 
         // From RenderQueueImpl
-        void flush() override;
+        ASE_EXPORT void flush() override;
         void finish() override;
         void submit(CommandBuffer&& renderQueue) override;
 
