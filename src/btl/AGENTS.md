@@ -34,3 +34,12 @@ conventions are in the top-level `docs/`.
   count and the rendezvous.
 - Most of `btl` is header-only template code, which is why the include-dir
   firewall matters here (see `docs/conventions.md`).
+- **On Windows, posts and timers can run under the message-source callback.**
+  DefWindowProc's move/size loop holds that callback for a whole window drag,
+  so `src/win32/runloopimpl.cpp` arms a thread timer around it whose callback
+  runs due posts and expired timers. It acts only while Windows reports a
+  move/size loop (`GUI_INMOVESIZE`), never inside a post or timer callback,
+  and never fires sources. Other modal loops, such as a dialog opened from an
+  input handler, stay frozen on purpose: they have app code on the stack. An
+  exception from a callback run there is rethrown from `run()` when the
+  drag ends.
