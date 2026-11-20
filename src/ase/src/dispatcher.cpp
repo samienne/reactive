@@ -31,7 +31,7 @@ Dispatcher::~Dispatcher()
 void Dispatcher::run(std::function<void()>&& func)
 {
     std::unique_lock<std::mutex> lock(mutex_);
-    funcs_.push_back(func);
+    funcs_.push_back(std::move(func));
     condition_.notify_all();
 }
 
@@ -86,7 +86,9 @@ void Dispatcher::runThread()
                     if (!condition_.wait_for(lock, idlePeriod_, predicate))
                     {
                         ZoneScopedN("Dispatcher idle callback");
-                        (*idleCallback_)();
+                        // The callback may replace or unset itself.
+                        auto callback = *idleCallback_;
+                        callback();
                     }
                 }
                 else
