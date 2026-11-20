@@ -68,6 +68,14 @@ namespace
         return LoadCursor(nullptr, IDC_ARROW);
     }
 
+    bool isInMoveSizeLoop()
+    {
+        GUITHREADINFO info{};
+        info.cbSize = sizeof(info);
+        return GetGUIThreadInfo(GetCurrentThreadId(), &info)
+            && (info.flags & GUI_INMOVESIZE);
+    }
+
     float getWindowScalingFactor(HWND hwnd)
     {
         int dpi = GetDpiForWindow(hwnd);
@@ -544,8 +552,8 @@ void WglWindow::setCursor(Cursor cursor)
     WindowBase::setCursor(cursor);
 
     // WM_SETCURSOR only arrives on the next pointer move, and never while the
-    // pointer is captured.
-    if (GetCapture() == hwnd_ || isPointerInClientArea())
+    // pointer is captured. A move/size loop owns the pointer.
+    if (!isInMoveSizeLoop() && (captureCount_ > 0 || isPointerInClientArea()))
         SetCursor(loadSystemCursor(cursor.getKind()));
 }
 
