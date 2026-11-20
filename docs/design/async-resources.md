@@ -42,7 +42,7 @@ is not a staged plan.
 - **OWNER: no waiting mechanism in the toolkit.** A window needs a
   resolved widget (*App exit and the first window*).
 - **OWNER, to be tried: a three-state future adapter** (*The future
-  adapter*).
+  adapter*); its accessors and failure handling are PROPOSED.
 - **OWNER: a default theme is always available** (*Theme*).
 - **OWNER: the app exits on a close, not on an empty window list**, and
   `run(signal)` leaves the public interface; `runUntil`, already private,
@@ -260,7 +260,8 @@ step. The transformations below exist to keep that step short.
   not measured. This covers any font loaded from memory, not only the
   default one.
 - **OWNER: fonts from files are futures**, and switching to one happens
-  in a `then` handler, through the theme (*Theme*).
+  in a `then` handler. PROPOSED: the switch goes through the theme
+  (*Theme*).
 
 ## Embedded resources
 
@@ -294,8 +295,8 @@ step. The transformations below exist to keep that step short.
 - **The window background ignores it.** The window wraps the user widget
   in a background built with empty `BuildParams` (`windowbridge.cpp:25-36`,
   `:49-52`), so the background always uses the default theme.
-- This fits the design above: the default theme on the embedded font,
-  and a settable font value added to `Theme`, changed through the
+- PROPOSED, fitting the design above: the default theme on the embedded
+  font, and a settable font value added to `Theme`, changed through the
   `setTheme` signal. Changing it rebuilds what reads the theme; the cost
   of that was not looked up.
 
@@ -309,22 +310,23 @@ step. The transformations below exist to keep that step short.
   - **pending**, the first value;
   - **ready**, holding the `T`;
   - **failed**, holding the `std::exception_ptr` the future failed with.
-- **One change.** The value goes from pending to ready or to failed once,
-  and that change causes a frame.
-- **Accessors.** `isPending`, `hasValue` and `hasError` never throw.
+- **PROPOSED: one change.** The value goes from pending to ready or to
+  failed once, and that change causes a frame.
+- **PROPOSED: accessors.** `isPending`, `hasValue` and `hasError` never
+  throw.
   `value()` gives the `T` when ready, rethrows the stored exception when
   failed, and throws a distinct exception while pending, since reading a
   pending value is a programming error. `valueOr(fallback)` gives the
   fallback while pending and rethrows on failure; the placeholder helper
   uses it. `error()` gives the `std::exception_ptr`, for code that wants
   to show an error widget.
-- **Loud by default.** Code that handles only the happy path exits on a
-  failure instead of showing nothing. As read, an exception thrown during
-  signal evaluation leaves `App::run`, except under the remote `app.step`
-  RPC, which swallows a `std::exception`; the App is not safe to reuse
-  afterwards (*Where the code is*, exceptions).
-- This replaces the signal of an optional value that `image-brush.md`
-  describes (*A placeholder*); its weak hold on the input stays.
+- **PROPOSED: loud by default.** Code that handles only the happy path
+  exits on a failure instead of showing nothing. As read, an exception
+  thrown during signal evaluation leaves `App::run`, except under the
+  remote `app.step` RPC, which swallows a `std::exception`; the App is
+  not safe to reuse afterwards (*Where the code is*, exceptions).
+- `image-brush.md` builds on this value (*A placeholder*, and the
+  `widget::image` widget); its weak hold on the input is that note's.
 
 ## Transformations
 
@@ -351,17 +353,20 @@ helper. The toolkit offers nothing else to wait with (OWNER).
 list is not empty"; it ends on a window closing, under the rules below.
 An app with no windows yet keeps running.
 
-- **`Window::exitOnClose(true)`.** Closing that window ends `run()`; the
-  other windows go with the app.
+- **PROPOSED: `Window::exitOnClose(true)`.** Closing that window ends
+  `run()`; the other windows go with the app.
 - **`App::exitWhenAllWindowsClosed(bool)`.** When a close leaves no
   windows, `run()` ends. It can be changed at any time. OWNER: on by
   default.
-- **`App::exit(int code = 0)`**, an explicit exit; the app has none
-  today. PROPOSED details: the exit code, and that it may be called from
-  any thread. If it sets a bq input internally, setting it from another
+- **PROPOSED: `App::exit(int code = 0)`**, an explicit exit; the app has
+  none today. The details too: the exit code, and that it may be called
+  from any thread. If it sets a bq input internally, setting it from another
   thread is safe and wakes the loop as long as only the app's running
   signal reads it; reached from a window, it needs the wake fixes in
   *Where the code is* (bq and other threads).
+
+Which closes count, and how a window still waiting for its widget
+counts, are open (*Lookups before implementation*).
 
 **`run(signal)` leaves the public interface (OWNER).** It conflicts with
 the exit methods above, and in practice the condition is an input of
@@ -428,6 +433,22 @@ font.wait();
 - Whether FreeType keeps reading the font file after `FT_New_Face`.
 - The licence and subset size of the embedded default font.
 - A cold-disk font load from a file, if the warm figure is not enough.
+
+Open questions for the owner, not decided here:
+
+- **What counts as a close** for `exitOnClose` and
+  `exitWhenAllWindowsClosed`. A window closes through its title bar
+  (`windowbridge.cpp:84`, then `removeWindow` at `app.cpp:185`), through
+  `Window::close()` or through `App::removeWindow`. Either every route
+  counts, so a program that closes its last window exits, or only the
+  user's close does, and a program closing windows calls `exit()` itself.
+- **A window whose widget future is still pending.** Whether it counts
+  as open, which decides whether another window's close leaves "no
+  windows"; and what happens if it is closed or removed, or the app
+  exits, before the future resolves, and to a failure that arrives after
+  `run()` has returned. One option drops the continuation with the
+  window and ignores a late failure; another keeps the app running until
+  pending windows resolve.
 
 Done, with results in place: setting an input from another thread and
 its wake, `run()` with no windows and exceptions (*Where the code is*),
