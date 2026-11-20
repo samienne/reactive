@@ -3,19 +3,19 @@
 namespace ase
 {
 
-Cursor::Cursor(CursorShape shape) :
-    shape_(shape)
+Cursor::Cursor(CursorKind kind) :
+    kind_(kind)
 {
 }
 
-CursorShape Cursor::getShape() const
+CursorKind Cursor::getKind() const
 {
-    return shape_;
+    return kind_;
 }
 
 bool Cursor::operator==(Cursor const& rhs) const
 {
-    return shape_ == rhs.shape_;
+    return kind_ == rhs.kind_;
 }
 
 bool Cursor::operator!=(Cursor const& rhs) const

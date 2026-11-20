@@ -32,35 +32,35 @@ namespace ase
 
 namespace
 {
-    HCURSOR loadSystemCursor(CursorShape shape)
+    HCURSOR loadSystemCursor(CursorKind kind)
     {
-        switch (shape)
+        switch (kind)
         {
-        case CursorShape::arrow:
+        case CursorKind::arrow:
             return LoadCursor(nullptr, IDC_ARROW);
-        case CursorShape::ibeam:
+        case CursorKind::ibeam:
             return LoadCursor(nullptr, IDC_IBEAM);
-        case CursorShape::hand:
+        case CursorKind::hand:
             return LoadCursor(nullptr, IDC_HAND);
-        case CursorShape::crosshair:
+        case CursorKind::crosshair:
             return LoadCursor(nullptr, IDC_CROSS);
-        case CursorShape::move:
+        case CursorKind::move:
             return LoadCursor(nullptr, IDC_SIZEALL);
-        case CursorShape::resizeHorizontal:
+        case CursorKind::resizeHorizontal:
             return LoadCursor(nullptr, IDC_SIZEWE);
-        case CursorShape::resizeVertical:
+        case CursorKind::resizeVertical:
             return LoadCursor(nullptr, IDC_SIZENS);
-        case CursorShape::resizeNwSe:
+        case CursorKind::resizeNwSe:
             return LoadCursor(nullptr, IDC_SIZENWSE);
-        case CursorShape::resizeNeSw:
+        case CursorKind::resizeNeSw:
             return LoadCursor(nullptr, IDC_SIZENESW);
-        case CursorShape::notAllowed:
+        case CursorKind::notAllowed:
             return LoadCursor(nullptr, IDC_NO);
-        case CursorShape::wait:
+        case CursorKind::wait:
             return LoadCursor(nullptr, IDC_WAIT);
-        case CursorShape::progress:
+        case CursorKind::progress:
             return LoadCursor(nullptr, IDC_APPSTARTING);
-        case CursorShape::hidden:
+        case CursorKind::hidden:
             return nullptr;
         }
 
@@ -543,7 +543,7 @@ void WglWindow::setCursor(Cursor cursor)
     // WM_SETCURSOR only arrives on the next pointer move, and never while the
     // pointer is captured.
     if (GetCapture() == hwnd_ || isPointerInClientArea())
-        SetCursor(loadSystemCursor(cursor.getShape()));
+        SetCursor(loadSystemCursor(cursor.getKind()));
 }
 
 Framebuffer& WglWindow::getDefaultFramebuffer()
@@ -686,7 +686,7 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
             if (LOWORD(lParam) == HTCLIENT)
             {
                 SetCursor(loadSystemCursor(
-                            genericWindow_.getCursor().getShape()));
+                            genericWindow_.getCursor().getKind()));
                 return TRUE;
             }
             break;

@@ -12,7 +12,6 @@
 #ifdef ASE_HAVE_XCURSOR
 #include <X11/Xcursor/Xcursor.h>
 #endif
-#undef CursorShape
 
 #include <cstdint>
 #include <stdexcept>
@@ -58,39 +57,39 @@ struct XCursorNames
     unsigned int fontShape;
 };
 
-XCursorNames getXCursorNames(CursorShape shape)
+XCursorNames getXCursorNames(CursorKind kind)
 {
-    switch (shape)
+    switch (kind)
     {
-    case CursorShape::arrow:
-    case CursorShape::hidden:
+    case CursorKind::arrow:
+    case CursorKind::hidden:
         return { { "default", "left_ptr", nullptr }, XC_left_ptr };
-    case CursorShape::ibeam:
+    case CursorKind::ibeam:
         return { { "text", "xterm", nullptr }, XC_xterm };
-    case CursorShape::hand:
+    case CursorKind::hand:
         return { { "pointer", "hand2", "hand1", nullptr }, XC_hand2 };
-    case CursorShape::crosshair:
+    case CursorKind::crosshair:
         return { { "crosshair", "cross", nullptr }, XC_crosshair };
-    case CursorShape::move:
+    case CursorKind::move:
         return { { "move", "fleur", "all-scroll", nullptr }, XC_fleur };
-    case CursorShape::resizeHorizontal:
+    case CursorKind::resizeHorizontal:
         return { { "ew-resize", "sb_h_double_arrow", "h_double_arrow",
             nullptr }, XC_sb_h_double_arrow };
-    case CursorShape::resizeVertical:
+    case CursorKind::resizeVertical:
         return { { "ns-resize", "sb_v_double_arrow", "v_double_arrow",
             nullptr }, XC_sb_v_double_arrow };
-    case CursorShape::resizeNwSe:
+    case CursorKind::resizeNwSe:
         return { { "nwse-resize", "size_fdiag", "bd_double_arrow", nullptr },
             XC_bottom_right_corner };
-    case CursorShape::resizeNeSw:
+    case CursorKind::resizeNeSw:
         return { { "nesw-resize", "size_bdiag", "fd_double_arrow", nullptr },
             XC_bottom_left_corner };
-    case CursorShape::notAllowed:
+    case CursorKind::notAllowed:
         return { { "not-allowed", "crossed_circle", "forbidden", nullptr },
             XC_X_cursor };
-    case CursorShape::wait:
+    case CursorKind::wait:
         return { { "wait", "watch", nullptr }, XC_watch };
-    case CursorShape::progress:
+    case CursorKind::progress:
         return { { "progress", "left_ptr_watch", "half-busy", nullptr },
             XC_watch };
     }
@@ -109,12 +108,12 @@ XCursorNames getXCursorNames(CursorShape shape)
     return cursor;
 }
 
-::Cursor createXCursor(Display* dpy, ::Window win, CursorShape shape)
+::Cursor createXCursor(Display* dpy, ::Window win, CursorKind kind)
 {
-    if (shape == CursorShape::hidden)
+    if (kind == CursorKind::hidden)
         return createBlankXCursor(dpy, win);
 
-    XCursorNames names = getXCursorNames(shape);
+    XCursorNames names = getXCursorNames(kind);
 
 #ifdef ASE_HAVE_XCURSOR
     for (char const* name : names.themeNames)
@@ -198,7 +197,7 @@ GlxWindow::GlxWindow(GlxPlatform& platform, RenderContext& context,
         if (!xWin_)
             throw std::runtime_error("Unable to create X window");
 
-        XDefineCursor(dpy, xWin_, getXCursor(CursorShape::arrow));
+        XDefineCursor(dpy, xWin_, getXCursor(CursorKind::arrow));
 
         xim_ = XOpenIM(dpy, NULL, NULL, NULL);
         if (!xim_)
@@ -554,15 +553,15 @@ void GlxWindow::setCursor(Cursor cursor)
 
     Lock lock(platform_.lockX());
     XDefineCursor(platform_.getDisplay(), xWin_,
-            getXCursor(cursor.getShape()));
+            getXCursor(cursor.getKind()));
     XFlush(platform_.getDisplay());
 }
 
-::Cursor GlxWindow::getXCursor(CursorShape shape)
+::Cursor GlxWindow::getXCursor(CursorKind kind)
 {
-    ::Cursor& cursor = xCursors_[static_cast<std::size_t>(shape)];
+    ::Cursor& cursor = xCursors_[static_cast<std::size_t>(kind)];
     if (!cursor)
-        cursor = createXCursor(platform_.getDisplay(), xWin_, shape);
+        cursor = createXCursor(platform_.getDisplay(), xWin_, kind);
 
     return cursor;
 }
