@@ -27,6 +27,13 @@ namespace ase
         bool operator!=(Framebuffer const& other) const;
         bool operator<(Framebuffer const& other) const;
 
+        /**
+         * @brief Attaches a texture as colour target `index`.
+         *
+         * Attachment changes apply to the commands executed after them,
+         * including ones already submitted. Colour targets are textures
+         * and the depth target, stencil included, is a renderbuffer.
+         */
         void setColorTarget(size_t index, Texture texture);
         void unsetColorTarget(size_t index);
 

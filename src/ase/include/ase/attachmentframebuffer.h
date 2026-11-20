@@ -20,7 +20,8 @@ namespace ase
      * @brief A framebuffer that only records the targets attached to it.
      *
      * A backend reads the attachments when it executes a command that
-     * targets the framebuffer.
+     * targets the framebuffer, and builds its own objects from them, one
+     * set per queue, rebuilt when the version changes.
      */
     class ASE_EXPORT AttachmentFramebuffer final :
         public FramebufferImpl,
