@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace btl
@@ -66,5 +67,12 @@ namespace bqui::test
          */
         static int run(App& app, btl::RunLoop& loop, std::size_t frames,
                 std::chrono::microseconds dt);
+
+        /**
+         * @brief Number of frames window @p index has drawn.
+         *
+         * Only valid to call while the app runs.
+         */
+        static std::uint64_t windowFrames(App const& app, std::size_t index);
     };
 }

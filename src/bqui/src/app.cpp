@@ -565,6 +565,12 @@ int test::FrameDriver::run(App& app, btl::RunLoop& loop, std::size_t frames,
     return app.run();
 }
 
+std::uint64_t test::FrameDriver::windowFrames(App const& app,
+        std::size_t index)
+{
+    return app.d()->windowBridges_.at(index)->getFrames();
+}
+
 AnimationGuard::AnimationGuard(AppDeferred& app,
         std::optional<avg::AnimationOptions> options) :
     app_(&app),
