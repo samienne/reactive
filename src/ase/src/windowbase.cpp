@@ -81,6 +81,16 @@ void WindowBase::submitFrameFence(std::function<void()> onSlotFreed)
     context_.getMainRenderQueue().submit(std::move(commandBuffer));
 }
 
+void WindowBase::setCursor(Cursor cursor)
+{
+    genericWindow_.setCursor(cursor);
+}
+
+Cursor WindowBase::getCursor() const
+{
+    return genericWindow_.getCursor();
+}
+
 Vector2i WindowBase::getSize() const
 {
     return genericWindow_.getSize();

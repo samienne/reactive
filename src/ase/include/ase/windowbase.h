@@ -60,6 +60,9 @@ namespace ase
                 uint32_t modifiers, std::string text) override;
         void injectTextEvent(std::string text) override;
 
+        void setCursor(Cursor cursor) override;
+        Cursor getCursor() const override;
+
         Vector2i getSize() const override;
         float getScalingFactor() const override;
 
