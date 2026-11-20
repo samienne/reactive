@@ -162,7 +162,7 @@ asetest = executable('asetest',
 # GL backend so it keeps compiling, but deliberately not registered as a test.
 if target_machine.system() in ['linux', 'windows']
   executable('asegltest',
-    'test/glframebuffertest.cpp',
+    'test/glframebufferobjecttest.cpp',
     dependencies: [gtestdep, libasedep, system_deps],
     include_directories: incdir,
     )

@@ -5,6 +5,7 @@
 #include <ase/framebuffer.h>
 #include <ase/glrendercontext.h>
 #include <ase/glrenderqueue.h>
+#include <ase/gltexture.h>
 #include <ase/platform.h>
 #include <ase/rendercontext.h>
 #include <ase/renderqueue.h>
@@ -24,7 +25,7 @@ namespace
 {
     Vector2i const size(16, 8);
 
-    class GlFramebufferTest : public testing::Test
+    class GlFramebufferObjectTest : public testing::Test
     {
     protected:
         GlRenderQueue& mainQueue()
@@ -87,6 +88,18 @@ namespace
             return value;
         }
 
+        static GLint glName(GlRenderQueue& queue, Texture const& texture)
+        {
+            GLint name = -1;
+            queue.dispatch([&](GlFunctions const&)
+                {
+                    name = static_cast<GLint>(
+                            texture.getImpl<GlTexture>().getGlObject());
+                });
+            queue.flush();
+            return name;
+        }
+
         btl::RunLoop loop;
         Platform platform = makeDefaultPlatform(loop);
         RenderContext context = platform.makeRenderContext();
@@ -95,7 +108,7 @@ namespace
     };
 } // anonymous namespace
 
-TEST_F(GlFramebufferTest, droppedFramebuffersLeaveNoObjects)
+TEST_F(GlFramebufferObjectTest, droppedFramebuffersLeaveNoObjects)
 {
     size_t const mainBefore = countFramebufferObjects(mainQueue());
     size_t const transferBefore = countFramebufferObjects(transferQueue());
@@ -114,7 +127,7 @@ TEST_F(GlFramebufferTest, droppedFramebuffersLeaveNoObjects)
     EXPECT_EQ(transferBefore, countFramebufferObjects(transferQueue()));
 }
 
-TEST_F(GlFramebufferTest, idleQueueSweepsDroppedFramebuffers)
+TEST_F(GlFramebufferObjectTest, idleQueueSweepsDroppedFramebuffers)
 {
     size_t const before = countFramebufferObjects(mainQueue());
 
@@ -141,7 +154,7 @@ TEST_F(GlFramebufferTest, idleQueueSweepsDroppedFramebuffers)
     EXPECT_EQ(before, after);
 }
 
-TEST_F(GlFramebufferTest, unsetColorTargetIsDetached)
+TEST_F(GlFramebufferObjectTest, unsetColorTargetIsDetached)
 {
     Framebuffer framebuffer = makeColorFramebuffer();
     framebuffer.setColorTarget(1, context.makeTexture(size, FORMAT_SRGBA));
@@ -159,21 +172,24 @@ TEST_F(GlFramebufferTest, unsetColorTargetIsDetached)
                 GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE));
 }
 
-TEST_F(GlFramebufferTest, changedTargetIsAttachedOnNextUse)
+TEST_F(GlFramebufferObjectTest, changedTargetIsAttachedOnNextUse)
 {
-    Framebuffer framebuffer = makeColorFramebuffer();
+    Texture first = context.makeTexture(size, FORMAT_SRGBA);
+    Texture second = context.makeTexture(size, FORMAT_SRGBA);
+    Framebuffer framebuffer = context.makeFramebuffer();
+    framebuffer.setColorTarget(0, first);
     clear(mainRenderQueue, framebuffer);
-    GLint const first = boundAttachment(mainQueue(), GL_COLOR_ATTACHMENT0,
-            GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+    GLint const firstAttached = boundAttachment(mainQueue(),
+            GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
 
-    framebuffer.setColorTarget(0, context.makeTexture(size, FORMAT_SRGBA));
+    framebuffer.setColorTarget(0, second);
     size_t const objects = countFramebufferObjects(mainQueue());
     clear(mainRenderQueue, framebuffer);
-    GLint const second = boundAttachment(mainQueue(), GL_COLOR_ATTACHMENT0,
-            GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+    GLint const secondAttached = boundAttachment(mainQueue(),
+            GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
 
-    EXPECT_NE(0, first);
-    EXPECT_NE(0, second);
-    EXPECT_NE(first, second);
+    EXPECT_EQ(glName(mainQueue(), first), firstAttached);
+    EXPECT_EQ(glName(mainQueue(), second), secondAttached);
+    EXPECT_NE(firstAttached, secondAttached);
     EXPECT_EQ(objects, countFramebufferObjects(mainQueue()));
 }

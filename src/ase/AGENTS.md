@@ -324,8 +324,8 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   flags, but no GL context runs in CI: the scissor and depth switches in
   `glrenderstate.cpp` have only been compiled. A change there needs a
   manual run of an app or `bquiheadlesstest` on a machine with a driver.
-  `asegltest` (`test/glframebuffertest.cpp`) covers the FBO cache, sweep
-  and attachments against a real context made without a visible window
+  `asegltest` (`test/glframebufferobjecttest.cpp`) covers the FBO cache,
+  sweep and attachments against a real context made without a visible window
   (a hidden dummy window under WGL, a pbuffer under GLX). It is built
   wherever there is a GL backend but is not a meson `test()`; run it by
   hand with `meson devenv -C <builddir> src/ase/asegltest`. Its idle test
