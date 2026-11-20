@@ -295,7 +295,7 @@ Window GlxPlatform::makeWindow(RenderContext& context, Vector2i size,
 {
     if (headless)
     {
-        auto window = std::make_shared<OffscreenWindow>(context, size);
+        auto window = std::make_shared<OffscreenWindow>(*this, context, size);
 
         {
             auto lock = lockX();

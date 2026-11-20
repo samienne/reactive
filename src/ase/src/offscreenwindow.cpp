@@ -1,12 +1,15 @@
 #include "offscreenwindow.h"
 
+#include "platformbase.h"
 #include "rendercontext.h"
 
 namespace ase
 {
 
-OffscreenWindow::OffscreenWindow(RenderContext& context, Vector2i size) :
+OffscreenWindow::OffscreenWindow(PlatformBase& platform,
+        RenderContext& context, Vector2i size) :
     WindowBase(context, size, 1.0f),
+    platform_(platform),
     texture_(context.makeTexture(size, FORMAT_SRGBA)),
     depthbuffer_(context.makeRenderbuffer(size, FORMAT_DEPTH16)),
     framebuffer_(context.makeFramebuffer())
@@ -42,6 +45,7 @@ Framebuffer& OffscreenWindow::getDefaultFramebuffer()
 void OffscreenWindow::requestFrame()
 {
     genericWindow_.requestFrame();
+    platform_.requestFrame();
 }
 
 std::optional<std::chrono::microseconds> OffscreenWindow::frame(
