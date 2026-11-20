@@ -16,6 +16,7 @@
 #include "gldispatchedcontext.h"
 #include "glfunctions.h"
 
+#include "attachmentframebuffer.h"
 #include "commandbuffer.h"
 #include "rendercommand.h"
 #include "shader.h"
@@ -187,7 +188,7 @@ std::shared_ptr<RenderbufferImpl> GlRenderContext::makeRenderbufferImpl(
 
 std::shared_ptr<FramebufferImpl> GlRenderContext::makeFramebufferImpl()
 {
-    return objectManager_.makeFramebuffer();
+    return std::make_shared<AttachmentFramebuffer>();
 }
 
 std::shared_ptr<PipelineImpl> GlRenderContext::makePipeline(

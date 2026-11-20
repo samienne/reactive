@@ -177,7 +177,7 @@ are in the top-level `docs/`.
   `FORMAT_RGBA16F` -> `GL_RGBA16F` (uploaded as `GL_HALF_FLOAT`, linear,
   8 bytes a pixel). Depth formats make renderbuffers only: `FORMAT_DEPTH16`,
   `_DEPTH24`, `_DEPTH32`, `_DEPTH32F` attach at `GL_DEPTH_ATTACHMENT` and
-  `FORMAT_DEPTH24_STENCIL8` at `GL_DEPTH_STENCIL_ATTACHMENT`; `GlFramebuffer`
+  `FORMAT_DEPTH24_STENCIL8` at `GL_DEPTH_STENCIL_ATTACHMENT`; a framebuffer
   has no separate stencil target. `getBytes` is the upload pixel size the
   buffer checks use. Every switch over `Format` lists each enumerator with no
   `default`, so adding a format fails to compile until it is placed in each
@@ -277,7 +277,7 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
 - **Declared formats are checked at draw time, in debug builds.** Every
   framebuffer reports `getColorFormat()` (attachment 0, `FORMAT_UNKNOWN`
   when empty) and `getDepthFormat()` (unset when there is none);
-  `GlFramebuffer` reads them off its attachments, the WGL/GLX window
+  `AttachmentFramebuffer` reads them off its attachments, the WGL/GLX window
   framebuffers answer with their platform's pixel-format request, and the
   dummy window's framebuffer answers `FORMAT_SRGBA` over
   `FORMAT_DEPTH24_STENCIL8`. `Pipeline::matchesTarget(framebuffer)` is the

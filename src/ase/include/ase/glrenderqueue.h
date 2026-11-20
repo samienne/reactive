@@ -27,7 +27,6 @@ namespace ase
 
     private:
         std::shared_ptr<GlDispatchedContext> dispatcher_;
-        std::shared_ptr<GlDispatchedContext> context_;
         GlRenderState renderState_;
     };
 } // namespace ase

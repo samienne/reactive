@@ -10,7 +10,6 @@
 #include "gltype.h"
 #include "glblendmode.h"
 #include "glpipeline.h"
-#include "glframebuffer.h"
 #include "glrendercontext.h"
 #include "gluniformset.h"
 #include "glrenderbuffer.h"
@@ -72,11 +71,6 @@ std::shared_ptr<GlRenderbuffer> GlObjectManager::makeRenderbuffer(
         Vector2i const& size, Format format)
 {
     return std::make_shared<GlRenderbuffer>(context_, size, format);
-}
-
-std::shared_ptr<GlFramebuffer> GlObjectManager::makeFramebuffer()
-{
-    return std::make_shared<GlFramebuffer>(context_);
 }
 
 std::shared_ptr<GlPipeline> GlObjectManager::makePipeline(

@@ -18,7 +18,6 @@ namespace ase
     class GlIndexBuffer;
     class GlUniformBuffer;
     class GlTexture;
-    class GlFramebuffer;
     class GlPipeline;
     class GlUniformSet;
     class GlRenderbuffer;
@@ -56,8 +55,6 @@ namespace ase
 
         std::shared_ptr<GlRenderbuffer> makeRenderbuffer(
                 Vector2i const& size, Format format);
-
-        std::shared_ptr<GlFramebuffer> makeFramebuffer();
 
         std::shared_ptr<GlPipeline> makePipeline(
                 Program program,

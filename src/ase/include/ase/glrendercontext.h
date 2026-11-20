@@ -1,6 +1,5 @@
 #pragma once
 
-#include "glframebuffer.h"
 #include "globjectmanager.h"
 #include "glrenderstate.h"
 #include "glrenderqueue.h"
@@ -47,7 +46,6 @@ namespace ase
         friend class GlShader;
         friend class GlPlatform;
         friend class GlPipeline;
-        friend class GlFramebuffer;
         friend class GlObjectManager;
         friend class GlUniformBuffer;
         friend class GlRenderbuffer;

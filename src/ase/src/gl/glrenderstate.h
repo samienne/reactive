@@ -1,5 +1,6 @@
 #pragma once
 
+#include "framebufferobjectcache.h"
 #include "vector.h"
 #include "scissorrect.h"
 
@@ -19,7 +20,6 @@ namespace ase
     class UniformBuffer;
     class FramebufferImpl;
     class GlDispatchedContext;
-    class GlBaseFramebuffer;
     class GlUniformSet;
     struct GlFunctions;
     struct Dispatched;
@@ -44,12 +44,26 @@ namespace ase
         void setScissor(Dispatched, std::optional<ScissorRect> const& scissor);
 
     private:
+        struct GlFramebufferObject
+        {
+            GLuint name;
+            Vector2i size;
+        };
+
         // These functions need to be called in dispatched context.
         void pushSpec(Dispatched, GlFunctions const& gl, VertexSpec const& spec,
                 std::vector<int>& activeAttribs);
         void dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
                 CommandBuffer&& commands);
         void checkFences(Dispatched, GlFunctions const& gl);
+        void bindTarget(Dispatched, GlFunctions const& gl,
+                FramebufferImpl const& framebuffer);
+        GlFramebufferObject createFramebufferObject(Dispatched,
+                GlFunctions const& gl,
+                AttachmentFramebuffer::Attachments const& attachments);
+        void deleteFramebufferObject(Dispatched, GlFunctions const& gl,
+                GlFramebufferObject const& object);
+        void sweepFramebufferObjects(Dispatched, GlFunctions const& gl);
 
     private:
         GlDispatchedContext& dispatcher_;
@@ -63,10 +77,13 @@ namespace ase
 
         std::vector<WaitingFence> fences_;
 
+        FramebufferObjectCache<GlFramebufferObject> framebufferObjects_;
+
         // Current state
         Vector2i viewportSize_ = Vector2i(0, 0);
         std::optional<ScissorRect> scissor_;
-        GlBaseFramebuffer const* boundFramebuffer_ = nullptr;
+        FramebufferImpl const* boundFramebuffer_ = nullptr;
+        uint64_t boundFramebufferVersion_ = 0;
         std::optional<GLuint> boundFramebufferObject_;
         GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;

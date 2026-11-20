@@ -2,7 +2,6 @@
 
 #include "glprogram.h"
 #include "gltexture.h"
-#include "glframebuffer.h"
 #include "glrendercontext.h"
 #include "glpipeline.h"
 
@@ -19,7 +18,6 @@ GlPlatform::GlPlatform(btl::RunLoop& loop) :
     //DBG("GlVertexBuffer size: %1 bytes.", sizeof(GlVertexBuffer));
     //DBG("GlIndexBuffer size: %1 bytes.", sizeof(GlIndexBuffer));
     //DBG("GlRenderContext size: %1 bytes.", sizeof(GlRenderContext));
-    //DBG("GlFramebuffer size: %1 bytes.", sizeof(GlFramebuffer));
     //DBG("GlTexture size: %1 bytes.", sizeof(GlTexture));
 }
 
