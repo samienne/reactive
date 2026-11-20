@@ -12,7 +12,6 @@ glsrcs = [
   'src/gl/gltype.cpp',
   'src/gl/glblendmode.cpp',
   'src/gl/glrendercontext.cpp',
-  'src/gl/glframebuffer.cpp',
   'src/gl/glpipeline.cpp',
   'src/gl/globjectmanager.cpp',
   'src/gl/glrenderstate.cpp',
