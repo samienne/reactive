@@ -33,8 +33,6 @@
 
 #include <bqui/modifier/setwidgetintrospection.h>
 
-#include <bqui/widget/introspection.h>
-
 #include <bqui/simplesizehint.h>
 #include <bqui/keyboardinput.h>
 #include <bqui/buildparams.h>
@@ -44,7 +42,6 @@
 #include <bqui/withanimation.h>
 
 #include <bq/signal/signal.h>
-#include <bq/signal/signalcontext.h>
 
 #include <avg/curve/curves.h>
 
@@ -91,53 +88,6 @@ void openSecondWindow()
                 | modifier::frame()
                 | modifier::focusGroup());
 }
-
-namespace
-{
-    void printIntrospection(widget::Introspection const& node, int depth)
-    {
-        std::cout << std::string(depth * 2, ' ') << node.role;
-        if (node.name)
-            std::cout << " \"" << *node.name << "\"";
-
-        if (!node.capabilities.empty())
-        {
-            std::cout << " [";
-            for (size_t i = 0; i < node.capabilities.size(); ++i)
-                std::cout << (i ? "," : "")
-                    << widget::toString(node.capabilities[i]);
-            std::cout << "]";
-        }
-
-        auto text = node.data.find("text");
-        if (text != node.data.end())
-            if (auto s = std::get_if<std::string>(&text->second.value))
-                std::cout << " text=\"" << *s << "\"";
-
-        auto size = node.obb.getSize();
-        std::cout << " obb=" << size[0] << "x" << size[1];
-        std::cout << "\n";
-
-        for (auto const& child : node.children)
-            printIntrospection(*child, depth + 1);
-    }
-
-    void printWidgetHierarchy(widget::AnyWidget widget, avg::Vector2f size)
-    {
-        // Introspection obbs are realised geometry, so drive a concrete size:
-        // the tree is resolved as if laid out in a window of that size.
-        auto introspection = std::move(widget)(BuildParams{})(
-                    bq::signal::constant(size))
-                .getIntrospection();
-        auto data = bq::signal::makeSignalContext(std::move(introspection))
-            .evaluate<0>().get<0>();
-
-        std::cout << "Widget hierarchy (window " << size[0] << "x" << size[1]
-            << "):\n";
-        printIntrospection(data, 0);
-        std::cout << std::endl;
-    }
-} // anonymous namespace
 
 int main()
 {
@@ -295,9 +245,6 @@ int main()
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 bq::signal::constant(0.5f))
     });
-
-    printWidgetHierarchy(widgets.clone(), avg::Vector2f(800.0f, 600.0f));
-    printWidgetHierarchy(widgets.clone(), avg::Vector2f(400.0f, 300.0f));
 
     return app()
         .addWindow(
