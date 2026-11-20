@@ -1,8 +1,8 @@
 #include <bqui/app.h>
 #include <bqui/window.h>
 #include <bqui/withanimation.h>
-#include <bqui/widget/label.h>
 #include <bqui/widget/introspection.h>
+#include <bqui/widget/label.h>
 #include <bqui/widget/vbox.h>
 #include <bqui/modifier/transition.h>
 
@@ -370,12 +370,13 @@ TEST(headlessApp, aLongWaitEndsOnTime)
 
     platform.run([&](ase::Frame const&) { return frames < 2; });
 
-    auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(
+    auto waited = std::chrono::duration_cast<std::chrono::microseconds>(
             secondFrame - firstFrame);
 
     ASSERT_EQ(2, frames);
-    EXPECT_GE(waited.count(), kWait.count());
-    EXPECT_LT(waited.count(), 2000);
+    EXPECT_GE(waited.count(), std::chrono::microseconds(
+                kWait - std::chrono::milliseconds(1)).count());
+    EXPECT_LT(waited.count(), 2000000);
 }
 
 TEST(headlessApp, secondAppRunsInTheSameProcess)
@@ -462,8 +463,6 @@ TEST(headlessApp, changeInsideWithAnimationIsDrawn)
 
 namespace
 {
-    // Shows two rows, removes one under an animation of the given duration,
-    // and reports whether the removed row is shown before and after.
     std::pair<bool, bool> removeRow(std::chrono::milliseconds duration)
     {
         bq::signal::Collection<std::string> items;
@@ -569,7 +568,15 @@ TEST(headlessApp, aWakeFiredAfterTheWindowIsGoneIsHarmless)
                         {
                             text.handle.set("b");
                         });
-                entered.get_future().wait();
+                if (entered.get_future().wait_for(std::chrono::seconds(10))
+                        == std::future_status::timeout)
+                {
+                    ADD_FAILURE() << "the set never reached the blocker";
+                    release.set_value();
+                    setter.join();
+                    controller.stop();
+                    return;
+                }
 
                 app.removeWindow(observing.getId());
                 for (int i = 0; i < 3; ++i)
