@@ -7,7 +7,9 @@
 pipeline state and target format notes against `28b2afb6` (2026-11-12); the
 submission contract, clip-space, texture and format notes against `28b2afb6`
 (2026-11-12); the `UniformValues` equality note against `0666a8d5`
-(2026-11-14).*
+(2026-11-14); the framebuffer, FBO deletion and `asegltest` notes, and the
+framebuffer sentences of the format and declared-format notes, against
+`3436b0ea` (2026-11-20).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -189,8 +191,9 @@ are in the top-level `docs/`.
   GL and dummy backends alike. It records the attached textures and depth
   renderbuffer under a mutex, with a process-unique id and a version that
   every set or unset bumps, and holds no backend state. A backend reaches
-  it through `FramebufferImpl::asAttachments()` (null for a window's
-  framebuffer, which binds the drawable's own framebuffer 0); that and
+  it through `FramebufferImpl::asAttachments()` (null for a WGL/GLX/dummy
+  window's framebuffer, which binds the drawable's framebuffer 0; an
+  offscreen window's is an `AttachmentFramebuffer`); that and
   `snapshot()` are the seam a non-GL backend builds its own objects on.
   `GlRenderState` keeps a `FramebufferObjectCache`
   (`src/framebufferobjectcache.h`, backend-neutral and unit-tested with
@@ -202,8 +205,9 @@ are in the top-level `docs/`.
   attachment 0 is drawn (`glDrawBuffers` is never set), and nothing checks
   completeness (`glCheckFramebufferStatus` is not in `GlFunctions`).
 - **FBOs are deleted only on their queue's thread.** The cache holds a
-  weak reference to each framebuffer and its shared version counter, never
-  ownership, so dropping a framebuffer makes no GL call on its thread.
+  weak reference to each framebuffer and a shared one to its version
+  counter, never the framebuffer itself, so dropping a framebuffer makes no
+  GL call on its thread.
   `GlRenderState` sweeps - deletes the FBOs of framebuffers that are gone
   or have changed since - after every submit and from the dispatcher's one
   idle callback, and clears the cache in its destructor. `updateIdle` keeps

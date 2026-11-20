@@ -9,18 +9,19 @@ Vulkan work; the five backdrop-effect entries against `4d8e996e`
 (2026-11-12), their sentences on final passes, sharing and surfaces against
 `0666a8d5` (2026-11-14); the six effect-brush, pass-sharing, sub-drawing,
 outline and shadow entries against `0666a8d5` (2026-11-14), the effect
-sizes entry against `d8398ce4` (2026-11-14).*
+sizes entry against `d8398ce4` (2026-11-14); the per-queue framebuffer
+entry against `3436b0ea` (2026-11-20).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
 ## A framebuffer is a description; each queue builds its own objects
 
-`ase::Framebuffer` records its attachments and a version; it owns no GL
-object. Each GL render queue keeps its own framebuffer objects, built on
-first bind from a locked snapshot of the attachments, deleted and rebuilt
-when the version moves, and deleted on that queue's thread when the
-framebuffer is gone.
+A context framebuffer (`makeFramebuffer`) records its attachments and a
+version and owns no GL object. Each GL render queue keeps its own
+framebuffer objects, built on first bind from a locked snapshot of the
+attachments, deleted and rebuilt when the version moves, and deleted on
+that queue's thread when the framebuffer is gone.
 
 **Why:** an FBO belongs to one context, but a framebuffer is used from
 whichever queue submits against it, and the GLX transfer queue has its own
@@ -29,12 +30,11 @@ and could delete an unrelated object. Rebuilding on change, rather than
 re-attaching in place, leaves no stale attachment behind and keeps the
 cache to one rule. The snapshot is copied under a lock so a queue never
 sees half an update; a change applies to the commands the queue executes
-after it, including ones submitted earlier. The description is also what a Vulkan backend
-would build its own framebuffers from. Rejected: one FBO per framebuffer
-with cross-thread deletion (the leak); re-attaching on change (every
-attachment point must be reset correctly, and an unset one was not);
-reading attachments without a lock (a torn read between colour and
-depth).
+after it, including ones submitted earlier. The description is also what a
+Vulkan backend would build its own framebuffers from. Rejected: one FBO per
+framebuffer with cross-thread deletion (the leak); re-attaching on change
+(every attachment point must be reset correctly, and an unset one was not);
+reading attachments without a lock (a torn read between colour and depth).
 
 ## Shadows are one union and one blur per shadow boundary; casting is opt-out
 
