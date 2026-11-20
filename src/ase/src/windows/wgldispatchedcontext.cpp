@@ -148,6 +148,11 @@ namespace
             getProcAddress("glBindRenderbuffer");
         gl.glFramebufferRenderbuffer = (PFNGLFRAMEBUFFERRENDERBUFFERPROC)
             getProcAddress("glFramebufferRenderbuffer");
+        gl.glIsFramebuffer = (PFNGLISFRAMEBUFFERPROC)
+            getProcAddress("glIsFramebuffer");
+        gl.glGetFramebufferAttachmentParameteriv =
+            (PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVPROC)
+            getProcAddress("glGetFramebufferAttachmentParameteriv");
         gl.glFenceSync = (PFNGLFENCESYNCPROC)
             getProcAddress("glFenceSync");
         gl.glClientWaitSync = (PFNGLCLIENTWAITSYNCPROC)

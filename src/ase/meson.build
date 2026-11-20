@@ -158,6 +158,15 @@ asetest = executable('asetest',
   include_directories: include_directories('src'),
   )
 
+# Needs a real GL context, which CI lacks: built, not a test().
+if target_machine.system() in ['linux', 'windows']
+  executable('asegltest',
+    'test/glframebufferobjecttest.cpp',
+    dependencies: [gtestdep, libasedep, system_deps],
+    include_directories: incdir,
+    )
+endif
+
 test('ase', asetest, timeout: 1200,
   args: ['--gtest_output=xml:' + meson.current_build_dir() / 'test_detail.xml'],
   workdir: meson.project_source_root())

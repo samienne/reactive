@@ -71,6 +71,8 @@ void GlDispatchedContext::setGlFunctions(GlFunctions gl)
     assert(gl.glGenFramebuffers);
     assert(gl.glDeleteFramebuffers);
     assert(gl.glFramebufferTexture2D);
+    assert(gl.glIsFramebuffer);
+    assert(gl.glGetFramebufferAttachmentParameteriv);
     assert(gl.glBindFramebuffer);
     assert(gl.glGenVertexArrays);
     assert(gl.glBindVertexArray);

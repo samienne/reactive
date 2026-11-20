@@ -50,6 +50,9 @@ namespace ase
         PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = nullptr;
         PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D = nullptr;
         PFNGLFRAMEBUFFERRENDERBUFFERPROC glFramebufferRenderbuffer = nullptr;
+        PFNGLISFRAMEBUFFERPROC glIsFramebuffer = nullptr;
+        PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVPROC
+            glGetFramebufferAttachmentParameteriv = nullptr;
         PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
         PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = nullptr;
         PFNGLBINDVERTEXARRAYPROC glBindVertexArray = nullptr;

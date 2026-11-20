@@ -130,6 +130,11 @@ namespace
             glXGetProcAddressARB((GLubyte const*)"glBindRenderbuffer");
         gl.glFramebufferRenderbuffer = (PFNGLFRAMEBUFFERRENDERBUFFERPROC)
             glXGetProcAddressARB((GLubyte const*)"glFramebufferRenderbuffer");
+        gl.glIsFramebuffer = (PFNGLISFRAMEBUFFERPROC)
+            glXGetProcAddressARB((GLubyte const*)"glIsFramebuffer");
+        gl.glGetFramebufferAttachmentParameteriv =
+            (PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVPROC)
+            glXGetProcAddressARB((GLubyte const*)"glGetFramebufferAttachmentParameteriv");
         gl.glFenceSync = (PFNGLFENCESYNCPROC)
             glXGetProcAddressARB((GLubyte const*)"glFenceSync");
         gl.glClientWaitSync = (PFNGLCLIENTWAITSYNCPROC)
