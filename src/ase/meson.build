@@ -147,6 +147,7 @@ libasedep = declare_dependency(
 asetest = executable('asetest',
   'test/commandbuffertest.cpp',
   'test/dispatchertest.cpp',
+  'test/framebufferobjectcachetest.cpp',
   'test/framebuffertest.cpp',
   'test/genericwindowtest.cpp',
   'test/pipelinetest.cpp',
@@ -155,6 +156,7 @@ asetest = executable('asetest',
   'test/texturetest.cpp',
   'test/uniformtest.cpp',
   dependencies: [gtestdep, libasedep],
+  include_directories: include_directories('src'),
   )
 
 test('ase', asetest, timeout: 1200,
