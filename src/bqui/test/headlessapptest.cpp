@@ -2,8 +2,12 @@
 #include <bqui/window.h>
 #include <bqui/withanimation.h>
 #include <bqui/widget/label.h>
+#include <bqui/widget/vbox.h>
+#include <bqui/modifier/transition.h>
 #include <bqui/widget/introspection.h>
 
+#include <bq/signal/collection.h>
+#include <bq/signal/collectionsignal.h>
 #include <bq/signal/input.h>
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
@@ -37,9 +41,9 @@ namespace
     // the run completes cleanly, not its timing.
     constexpr std::chrono::microseconds kFrameStep{ 16667 };
 
-    // Runs a one-window app showing @p text with frames paused, hands @p script
-    // the pause token on the loop thread, and stops when it returns.
-    void runScript(bq::signal::AnySignal<std::string> text,
+    // Runs a one-window app showing @p content with frames paused, hands
+    // @p script the pause token on the loop thread, and stops when it returns.
+    void runScript(AnyWidget content,
             std::function<void(App&, ase::PauseToken&)> script)
     {
         btl::RunLoop loop;
@@ -49,7 +53,7 @@ namespace
         app.platform(platform);
         app.addWindow(
                 window(bq::signal::constant<std::string>("Test")),
-                label(std::move(text)));
+                std::move(content));
 
         loop.post([&](btl::RunLoop::Controller& controller)
                 {
@@ -272,7 +276,7 @@ TEST(headlessApp, oneChangeDrawsOneFrame)
     std::uint64_t idleFrames = 0;
     std::uint64_t frames = 0;
 
-    runScript(text.signal, [&](App& app, ase::PauseToken& token)
+    runScript(label(text.signal), [&](App& app, ase::PauseToken& token)
             {
                 idleFrames = stepUntilIdle(app, token);
 
@@ -294,7 +298,7 @@ TEST(headlessApp, changeInsideWithAnimationIsDrawn)
     std::uint64_t frames = 0;
     std::uint64_t settledFrames = 0;
 
-    runScript(text.signal, [&](App& app, ase::PauseToken& token)
+    runScript(label(text.signal), [&](App& app, ase::PauseToken& token)
             {
                 idleFrames = stepUntilIdle(app, token);
 
@@ -315,4 +319,49 @@ TEST(headlessApp, changeInsideWithAnimationIsDrawn)
 
     EXPECT_LT(idleFrames, frames);
     EXPECT_EQ(frames, settledFrames);
+}
+
+TEST(headlessApp, leavingNodeIsRemovedWhenItsTransitionEnds)
+{
+    bq::signal::Collection<std::string> items;
+    {
+        auto transaction = items.write();
+        transaction.pushBack("stays");
+        transaction.pushBack("leaves");
+    }
+
+    auto rows = bq::signal::forEach(items,
+            [](bq::signal::AnySignal<std::string> text, std::uint64_t)
+                -> AnyWidget
+            {
+                return label(std::move(text))
+                    | modifier::transition(modifier::transitionLeft());
+            });
+
+    bool shownBefore = false;
+    bool shownAfter = true;
+    float x = 0.0f;
+    float y = 0.0f;
+
+    runScript(vbox(std::move(rows)), [&](App& app, ase::PauseToken& token)
+            {
+                stepUntilIdle(app, token);
+                shownBefore = test::WindowInput::findText(app, 0, "leaves",
+                        x, y);
+
+                {
+                    auto guard = app.withAnimation(avg::AnimationOptions{
+                            std::chrono::milliseconds(100),
+                            avg::curve::linear });
+                    auto transaction = items.write();
+                    transaction.erase(transaction.items().begin() + 1);
+                }
+
+                stepUntilIdle(app, token);
+                shownAfter = test::WindowInput::findText(app, 0, "leaves",
+                        x, y);
+            });
+
+    EXPECT_TRUE(shownBefore);
+    EXPECT_FALSE(shownAfter);
 }
