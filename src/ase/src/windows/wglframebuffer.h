@@ -29,7 +29,6 @@ namespace ase
         void setDepthTarget(Renderbuffer buffer) override;
         void unsetDepthTarget() override;
 
-
         Format getColorFormat() const override;
         std::optional<Format> getDepthFormat() const override;
 

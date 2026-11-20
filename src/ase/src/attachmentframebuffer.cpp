@@ -46,7 +46,6 @@ void AttachmentFramebuffer::setColorTarget(size_t index, Texture texture)
 {
     std::unique_lock<std::mutex> lock(mutex_);
     attachments_.color.at(index).emplace(std::move(texture));
-    updateSize();
     version_->fetch_add(1, std::memory_order_release);
 }
 
@@ -54,7 +53,6 @@ void AttachmentFramebuffer::unsetColorTarget(size_t index)
 {
     std::unique_lock<std::mutex> lock(mutex_);
     attachments_.color.at(index).reset();
-    updateSize();
     version_->fetch_add(1, std::memory_order_release);
 }
 
@@ -86,14 +84,6 @@ std::optional<Format> AttachmentFramebuffer::getDepthFormat() const
     if (attachments_.depth.has_value())
         return attachments_.depth->getFormat();
     return std::nullopt;
-}
-
-void AttachmentFramebuffer::updateSize()
-{
-    if (attachments_.color[0].has_value())
-        attachments_.size = attachments_.color[0]->getSize();
-    else
-        attachments_.size = Vector2i(0, 0);
 }
 
 } // namespace ase

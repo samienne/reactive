@@ -13,6 +13,13 @@ namespace ase
     class Renderbuffer;
     class FramebufferImpl;
 
+    /**
+     * @brief The colour and depth targets a command draws into.
+     *
+     * Colour targets are textures; the depth target, stencil included, is
+     * a renderbuffer. A change applies to the commands executed after it,
+     * including ones already submitted.
+     */
     class ASE_EXPORT Framebuffer
     {
     public:
@@ -28,18 +35,13 @@ namespace ase
         bool operator<(Framebuffer const& other) const;
 
         /**
-         * @brief Attaches a texture as colour target `index`.
-         *
-         * Attachment changes apply to the commands executed after them,
-         * including ones already submitted. Colour targets are textures
-         * and the depth target, stencil included, is a renderbuffer.
+         * @brief Attaches a texture as colour target `index`, below 8.
          */
         void setColorTarget(size_t index, Texture texture);
         void unsetColorTarget(size_t index);
 
         void setDepthTarget(Renderbuffer buffer);
         void unsetDepthTarget();
-
 
         /**
          * @brief The format of colour attachment 0, `FORMAT_UNKNOWN` when

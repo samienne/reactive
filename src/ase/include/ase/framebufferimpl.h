@@ -20,7 +20,7 @@ namespace ase
 
         /**
          * @brief This framebuffer as a description of its attachments, null
-         * when it is a window's own framebuffer.
+         * when it draws to a platform window's drawable.
          */
         virtual AttachmentFramebuffer const* asAttachments() const noexcept
         {
@@ -32,7 +32,6 @@ namespace ase
 
         virtual void setDepthTarget(Renderbuffer buffer) = 0;
         virtual void unsetDepthTarget() = 0;
-
 
         virtual Format getColorFormat() const = 0;
         virtual std::optional<Format> getDepthFormat() const = 0;

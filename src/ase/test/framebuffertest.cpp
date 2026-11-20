@@ -149,7 +149,7 @@ TEST(framebuffer, everyChangeBumpsTheVersion)
     expectBumped();
 }
 
-TEST(framebuffer, snapshotSizeFollowsColorTargetZero)
+TEST(framebuffer, snapshotRecordsTheTargets)
 {
     btl::RunLoop loop;
     Platform platform = makeDummyPlatform(loop);
@@ -157,26 +157,21 @@ TEST(framebuffer, snapshotSizeFollowsColorTargetZero)
 
     Framebuffer framebuffer = context.makeFramebuffer();
     AttachmentFramebuffer const& attachments = *attachmentsOf(framebuffer);
-    Vector2i const otherSize(4, 2);
 
-    framebuffer.setColorTarget(1, context.makeTexture(otherSize, FORMAT_R8));
-    EXPECT_EQ(Vector2i(0, 0), attachments.snapshot().attachments.size);
-
+    framebuffer.setColorTarget(1, context.makeTexture(size, FORMAT_R8));
     framebuffer.setColorTarget(0, context.makeTexture(size, FORMAT_SRGBA));
     AttachmentFramebuffer::Snapshot snapshot = attachments.snapshot();
-    EXPECT_EQ(size, snapshot.attachments.size);
     EXPECT_EQ(attachments.getVersion(), snapshot.version);
     EXPECT_TRUE(snapshot.attachments.color[0].has_value());
     EXPECT_TRUE(snapshot.attachments.color[1].has_value());
+    EXPECT_FALSE(snapshot.attachments.color[2].has_value());
     EXPECT_FALSE(snapshot.attachments.depth.has_value());
 
-    framebuffer.setColorTarget(0,
-        context.makeTexture(otherSize, FORMAT_RGBA16F));
-    EXPECT_EQ(otherSize, attachments.snapshot().attachments.size);
+    framebuffer.setColorTarget(0, context.makeTexture(size, FORMAT_RGBA16F));
     EXPECT_EQ(FORMAT_RGBA16F, framebuffer.getColorFormat());
 
     framebuffer.unsetColorTarget(0);
-    EXPECT_EQ(Vector2i(0, 0), attachments.snapshot().attachments.size);
+    EXPECT_FALSE(attachments.snapshot().attachments.color[0].has_value());
     EXPECT_EQ(FORMAT_UNKNOWN, framebuffer.getColorFormat());
 }
 

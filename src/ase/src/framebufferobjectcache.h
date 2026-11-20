@@ -56,9 +56,6 @@ namespace ase
         /**
          * @brief Destroys the handles of framebuffers that no longer exist
          * or whose attachments have changed since the handle was built.
-         *
-         * Never takes ownership of a framebuffer, so a framebuffer is never
-         * destroyed from here.
          */
         template <typename Destroy>
         void sweep(Destroy&& destroy)

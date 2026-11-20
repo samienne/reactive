@@ -158,8 +158,7 @@ asetest = executable('asetest',
   include_directories: include_directories('src'),
   )
 
-# Needs a real GL context, which CI runners lack: built wherever there is a
-# GL backend so it keeps compiling, but deliberately not registered as a test.
+# Needs a real GL context, which CI lacks: built, not a test().
 if target_machine.system() in ['linux', 'windows']
   executable('asegltest',
     'test/glframebufferobjecttest.cpp',

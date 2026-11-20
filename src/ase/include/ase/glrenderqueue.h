@@ -11,19 +11,19 @@ namespace ase
 {
     class GlDispatchedContext;
 
-    class GlRenderQueue : public RenderQueueImpl
+    class ASE_EXPORT GlRenderQueue : public RenderQueueImpl
     {
     public:
         GlRenderQueue(std::shared_ptr<GlDispatchedContext> context);
         ~GlRenderQueue();
 
-        ASE_EXPORT void dispatch(std::function<void(GlFunctions const&)> f);
+        void dispatch(std::function<void(GlFunctions const&)> f);
 
         GlDispatchedContext& getDispatcher();
         GlDispatchedContext const& getDispatcher() const;
 
         // From RenderQueueImpl
-        ASE_EXPORT void flush() override;
+        void flush() override;
         void finish() override;
         void submit(CommandBuffer&& renderQueue) override;
 
