@@ -303,10 +303,10 @@ void WindowBridge::makeTransaction(
                 timer
                 );
 
-        if (nextUpdate_ && *nextUpdate_ < timer)
+        if (nextUpdate_ && *nextUpdate_ <= timer)
             nextUpdate_ = std::nullopt;
 
-        if (nextUpdate && *nextUpdate < timer)
+        if (nextUpdate && *nextUpdate <= timer)
             nextUpdate = std::nullopt;
 
         nextUpdate_ = avg::earlier(nextUpdate_, nextUpdate);
@@ -347,7 +347,8 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
     auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
             timer_);
 
-    if (needsUpdate_.exchange(false))
+    bool updateDue = nextUpdate_ && *nextUpdate_ <= timer;
+    if (needsUpdate_.exchange(false) || updateDue)
         makeTransaction(frame.dt, std::nullopt);
 
     if (animating_)
@@ -369,8 +370,13 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     ++frames_;
 
-    return animating_ ? std::optional<std::chrono::microseconds>(std::chrono::microseconds(0))
-                      : std::nullopt;
+    if (animating_)
+        return std::chrono::microseconds(0);
+
+    if (nextUpdate_)
+        return std::chrono::microseconds(*nextUpdate_) - timer_;
+
+    return std::nullopt;
 }
 
 btl::UniqueId WindowBridge::getId() const
