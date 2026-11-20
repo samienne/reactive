@@ -133,6 +133,8 @@ private:
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
     std::atomic<bool> needsUpdate_{true};
+    // The constructor evaluates the instance; the first transaction takes it.
+    bool firstTransaction_ = true;
     bool animating_ = true;
     bool resized_ = true;
     bool closed_ = false;

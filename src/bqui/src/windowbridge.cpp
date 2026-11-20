@@ -4,14 +4,10 @@
 
 #include <algorithm>
 #include <mutex>
+#include <utility>
 
 namespace bqui
 {
-
-namespace
-{
-    thread_local WindowBridge const* tSettingSize = nullptr;
-} // namespace
 
 // An input can fire the wake on another thread while, or after, the bridge is
 // destroyed, so the wake reaches the bridge only through this.
@@ -34,7 +30,8 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
     windowData_(window.data()),
     painter_(memory_, aseWindow.getRenderContext()),
-    size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
+    size_(bq::signal::makeInput(
+                ase::Vector2f(aseWindow.getSize().cast<float>()))),
     widgetInstanceSignal_((std::move(widget)
                 | modifier::background())(
                 BuildParams{}
@@ -75,6 +72,7 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     });
     aseWindow.setResizeCallback([this]()
             {
+                size_.handle.set(aseWindow.getSize().cast<float>());
                 resized_ = true;
                 animating_ = true;
             });
@@ -239,10 +237,7 @@ WindowBridge::~WindowBridge()
 void WindowBridge::wake()
 {
     needsUpdate_ = true;
-
-    // The size is set in onFrame, whose own transaction takes the change.
-    if (tSettingSize != this)
-        aseWindow.requestFrame();
+    aseWindow.requestFrame();
 }
 
 void WindowBridge::makeTransaction(
@@ -263,7 +258,10 @@ void WindowBridge::makeTransaction(
     if (titleSignal_.didChange<0>())
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-    if (widgetInstanceSignal_.didChange<0>())
+    bool const instanceChanged = std::exchange(firstTransaction_, false)
+        || widgetInstanceSignal_.didChange<0>();
+
+    if (instanceChanged)
     {
         ZoneScopedN("Widget instance signal evaluation");
 
@@ -320,7 +318,7 @@ void WindowBridge::makeTransaction(
         }
     }
 
-    if (widgetInstanceSignal_.didChange<0>()
+    if (instanceChanged
             || (nextUpdate_ && *nextUpdate_ <= timer)
             )
     {
@@ -362,9 +360,6 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     if (resized_)
     {
-        tSettingSize = this;
-        size_.handle.set(aseWindow.getSize().cast<float>());
-        tSettingSize = nullptr;
         painter_.setSize(aseWindow.getSize());
         resized_ = false;
     }
