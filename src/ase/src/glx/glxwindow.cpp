@@ -73,6 +73,9 @@ GlxWindow::GlxWindow(GlxPlatform& platform, RenderContext& context,
     unsigned int width = static_cast<unsigned int>((float)size[0] * scalingFactor);
     unsigned int height = static_cast<unsigned int>((float)size[1] * scalingFactor);
 
+    defaultFramebuffer_.getImpl<GlxFramebuffer>().setPixelSize(Vector2i(
+            static_cast<int>(width), static_cast<int>(height)));
+
     Display* dpy = platform_.getDisplay();
 
     /*std::ofstream stream("keys.txt");
@@ -234,6 +237,8 @@ void GlxWindow::handleEvent(_XEvent const& e)
         }
         break;
     case ConfigureNotify:
+        defaultFramebuffer_.getImpl<GlxFramebuffer>().setPixelSize(Vector2i(
+                event.xconfigure.width, event.xconfigure.height));
         genericWindow_.resize(
                 Vector2i(
                     (float)event.xconfigure.width / genericWindow_.getScalingFactor(),
