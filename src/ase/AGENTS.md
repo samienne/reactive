@@ -61,11 +61,13 @@ are in the top-level `docs/`.
   (`requestFrame`, an OS event, a presented frame's fence) cuts a pending timer
   short, but never to sooner than one `frameStep` after the last tick, so the
   per-frame fence wakes cannot run an animating window past the cadence. A
-  tick's `dt` is its real elapsed time clamped to four frame steps, except that
-  time spent in a wait the loop scheduled for a window's `nextFrameTime` counts
-  in full, also when a wake ends it early, so a scheduled update arrives on
-  time; a pause ends the scheduled wait where the pause starts, so the wait
-  before the pause counts and the pause does not. Manual
+  tick's `dt` is its real elapsed time capped at the longer of four frame steps
+  and the wait the loop scheduled for a window's `nextFrameTime`, so a
+  scheduled update arrives on time. The wait counts in full even when a wake
+  ends it early. Time past the cap, such as a stall, is dropped; a stall that
+  follows a wake which cut the wait short, but ends before the wait's original
+  end, is within the cap and counts in full. A pause ends the scheduled wait where the pause starts, so
+  the wait before the pause counts and the pause does not. Manual
   driving is a `Platform::pause()` RAII token (`PauseToken`) whose `step(dt)`
   produces one frame off the same callback/render path an auto tick takes;
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep

@@ -123,8 +123,9 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
                 thisFrame - lastFrame);
         lastFrame = thisFrame;
 
-        // A scheduled wait counts in full, even when a wake ends it early;
-        // any other elapsed time is clamped to four frame steps.
+        // dt is the real elapsed time capped at the longer of the scheduled
+        // wait and four frame steps; the wait counts in full even when a wake
+        // ends it early.
         auto const maxDt = std::max(4 * frameStep_, waited);
         auto dt = realElapsed > maxDt ? maxDt : realElapsed;
 
