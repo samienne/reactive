@@ -40,6 +40,9 @@ conventions are in the top-level `docs/`.
   runs due posts and expired timers. It acts only while Windows reports a
   move/size loop (`GUI_INMOVESIZE`), never inside a post or timer callback,
   and never fires sources. Other modal loops, such as a dialog opened from an
-  input handler, stay frozen on purpose: they have app code on the stack. An
-  exception from a callback run there is rethrown from `run()` when the
-  drag ends.
+  input handler, are not pumped. The check is the thread's state, not the
+  stack: a window procedure that opens a nested modal loop (a message box,
+  drag-and-drop) while handling a message from inside a move/size loop is
+  pumped with that handler on the stack. The first exception from a callback
+  run by the pump is rethrown from `run()` when the message-source callback
+  returns; it takes precedence over one thrown by that callback itself.
