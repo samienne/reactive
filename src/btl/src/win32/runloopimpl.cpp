@@ -294,9 +294,6 @@ namespace
                 std::rethrow_exception(std::exchange(pumpError_, nullptr));
         }
 
-        /**
-         * The pump timer exists only while the message-source callback runs.
-         */
         struct PumpTimerScope
         {
             explicit PumpTimerScope(Win32RunLoop& loop) :

@@ -45,4 +45,6 @@ conventions are in the top-level `docs/`.
   drag-and-drop) while handling a message from inside a move/size loop is
   pumped with that handler on the stack. The first exception from a callback
   run by the pump is rethrown from `run()` when the message-source callback
-  returns; it takes precedence over one thrown by that callback itself.
+  returns; it takes precedence over one thrown by that callback itself. After
+  that exception the pump runs nothing more for the rest of that callback, so
+  posts and timers wait until the drag ends.
