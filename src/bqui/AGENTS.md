@@ -117,12 +117,15 @@ must not leave one behind.
 ### Where a window's frames come from
 
 A `WindowBridge` draws only when something asks for a frame, and only four
-things do: the observe handler on the window's signals (a content change), an
-ongoing animation (`onFrame` returns 0), a window event, and a scheduled
-render-tree update (`onFrame` returns the delay to `nextUpdate_`, the end of a
-transition). `makeTransaction` must not request a frame: it runs inside
-`onFrame`, whose draw follows in the same frame, so a request there paints the
-change twice.
+things do: the observe handler on the window's signals (a content change,
+including the size input, which the resize callback sets), an ongoing animation
+(`onFrame` returns 0), a window event, and a scheduled render-tree update
+(`onFrame` returns the delay to `nextUpdate_`, the end of a transition).
+`makeTransaction` does not request a frame for the transaction itself: it runs
+inside `onFrame`, whose draw follows in the same frame, so a request there would
+paint the change twice. Inputs it sets (the focus handles) wake the window
+through the ordinary observe path, which asks for the frame that takes their
+change.
 
 ### How `Window::close()` reaches the collection
 
