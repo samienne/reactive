@@ -7,7 +7,9 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <optional>
 
 namespace ase
 {
@@ -33,22 +35,50 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     bool tickScheduled = false;
 
+    // The pending tick's timer and wall-clock due time; unset while the
+    // pending tick is a post.
+    btl::RunLoop::Timer tickTimer;
+    std::optional<std::chrono::steady_clock::time_point> tickTimerDue;
+
     std::function<void(btl::RunLoop::Controller&)> tick;
 
     // Run a tick as soon as possible. The app wants to re-evaluate now -- at
     // startup, on a content change, an event, or a window close -- independent
     // of any window's render cadence, so this is what drives the loop to a stop
     // when there is nothing (or nothing left) to draw.
-    auto wakeTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
+    //
+    // A pending timer -- possibly a long wait for an idle window -- is cut
+    // short, but never to sooner than frameStep after the last tick: wakes
+    // also arrive once per presented frame (the fence), and an unpaced tick
+    // would then render an animating window as fast as the fences complete.
+    auto wakeTick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &tick,
+            &clock, &lastFrame](btl::RunLoop::Controller& controller)
     {
-        if (tickScheduled)
+        if (tickScheduled && !tickTimerDue)
             return;
+
+        auto now = clock.now();
+
+        if (tickScheduled)
+        {
+            auto paced = std::max(now, lastFrame + frameStep_);
+            if (*tickTimerDue <= paced)
+                return;
+
+            tickTimer = controller.addTimer(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        paced - now),
+                    tick);
+            tickTimerDue = paced;
+            return;
+        }
+
         tickScheduled = true;
         controller.post(tick);
     };
 
-    auto scheduleTick = [this, &tickScheduled, &tick, &frameTime](
-            btl::RunLoop::Controller& controller)
+    auto scheduleTick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &tick,
+            &clock, &frameTime](btl::RunLoop::Controller& controller)
     {
         if (tickScheduled)
             return;
@@ -68,15 +98,19 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         }
         else
         {
-            controller.addTimer(*earliest - frameTime, tick).detach();
+            auto delay = *earliest - frameTime;
+            tickTimer = controller.addTimer(delay, tick);
+            tickTimerDue = clock.now() + delay;
         }
     };
 
-    tick = [this, &tickScheduled, &clock, &lastFrame,
-            &frameCallback, &frameTime, &scheduleTick](
+    tick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &clock,
+            &lastFrame, &frameCallback, &frameTime, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
+        tickTimer.detach();
+        tickTimerDue = std::nullopt;
 
         if (pauseCount_ != 0)
             return;

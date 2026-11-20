@@ -239,6 +239,47 @@ TEST(headlessApp, requestFrameFromAnotherThreadWakesAnIdleLoop)
     EXPECT_EQ(2, frames);
 }
 
+TEST(headlessApp, requestFrameCutsALongWaitShort)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
+
+    btl::RunLoop::Timer request;
+    std::chrono::steady_clock::time_point firstFrame;
+    std::chrono::steady_clock::time_point secondFrame;
+
+    int frames = 0;
+    window.setFrameCallback([&](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+            {
+                if (++frames != 1)
+                {
+                    secondFrame = std::chrono::steady_clock::now();
+                    return std::nullopt;
+                }
+
+                firstFrame = std::chrono::steady_clock::now();
+                loop.post([&](btl::RunLoop::Controller& controller)
+                        {
+                            request = controller.addTimer(
+                                    std::chrono::milliseconds(100),
+                                    [&](btl::RunLoop::Controller&)
+                                    {
+                                        window.requestFrame();
+                                    });
+                        });
+                return std::chrono::seconds(5);
+            });
+
+    platform.run([&](ase::Frame const&) { return frames < 2; });
+
+    ASSERT_EQ(2, frames);
+    EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(
+                secondFrame - firstFrame).count(), 2000);
+}
+
 TEST(headlessApp, secondAppRunsInTheSameProcess)
 {
     // App::run clones its windows rather than consuming them, so a second app
