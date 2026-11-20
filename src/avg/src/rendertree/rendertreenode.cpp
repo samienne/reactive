@@ -80,12 +80,16 @@ UpdateResult updateNode(
         return { nullptr, std::nullopt };
 
     if (!newNode)
+    {
         return oldNode->update(oldTree, newTree, oldNode, nullptr,
                 animationOptions, time);
+    }
 
     if (!oldNode || !canUpdate(*oldNode, *newNode))
+    {
         return newNode->update(oldTree, newTree, nullptr, newNode,
                 animationOptions, time);
+    }
 
     return newNode->update(oldTree, newTree, oldNode, newNode,
             animationOptions, time);
