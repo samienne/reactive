@@ -110,13 +110,13 @@ Read at `30b6727b`; nothing was built or run.
 
 **The app's run and its windows** (`src/bqui`):
 
-- `App::addWindow(Window, AnyWidget)` (`app.h:47`) is documented as
-  callable before and while the app runs, and lock-guarded so a worker
-  thread may call it (`app.h:35-47`, `:105-111`). As read: it updates the
-  window list under its lock, queues the mount under `pendingMutex_` and
-  wakes the loop (`app.cpp:239-274`); the loop thread builds the window
-  on its next sync (`app.cpp:393-414`). The wake is
-  `PlatformBase::requestFrame`, an atomic flag and a run loop post
+- `App::addWindow` with a window and a widget (`app.h:47`) is
+  documented as callable before and while the app runs, and lock-guarded
+  so a worker thread may call it (`app.h:35-47`, `:105-111`). As read: it
+  updates the window list under its lock, queues the mount under
+  `pendingMutex_` and wakes the loop (`app.cpp:239-274`); the loop
+  thread builds the window on its next sync (`app.cpp:393-414`). The
+  wake is `PlatformBase::requestFrame`, an atomic flag and a run loop post
   (`platformbase.cpp:242-252`). So adding a window from a `then` on a pool
   thread works today, as read; UNVERIFIED by a test of that case (the
   closer thread in `apptest.cpp:573` calls `addWindow` and `close` from
@@ -168,8 +168,8 @@ Read at `30b6727b`; nothing was built or run.
     window that writes a plain `std::optional`
     (`genericwindow.cpp:102-105`) that the loop also writes in
     `GenericWindow::frame` (`:117-124`): a data race, the one
-    `image-brush.md` makes safe in its frame request stage (fixed on the
-    local branch `bugfix/requestframe-race`). WGL and GLX windows then
+    `image-brush.md` makes safe in its frame request stage (a fix
+    exists, unmerged). WGL and GLX windows then
     wake the platform (`wglwindow.cpp:502-506`, `glxwindow.cpp:454-458`);
     dummy and offscreen windows do not (`dummywindow.cpp:42-45`,
     `offscreenwindow.cpp:42-45`). Offscreen windows back headless
@@ -360,10 +360,10 @@ An app with no windows yet keeps running.
   default.
 - **PROPOSED: `App::exit(int code = 0)`**, an explicit exit; the app has
   none today. The details too: the exit code, and that it may be called
-  from any thread. If it sets a bq input internally, setting it from another
-  thread is safe and wakes the loop as long as only the app's running
-  signal reads it; reached from a window, it needs the wake fixes in
-  *Where the code is* (bq and other threads).
+  from any thread. If it sets a bq input internally, setting it from
+  another thread is safe and wakes the loop as long as only the app's
+  running signal reads it; reached from a window, it needs the wake
+  fixes in *Where the code is* (bq and other threads).
 
 Which closes count, and how a window still waiting for its widget
 counts, are open (*Lookups before implementation*).
