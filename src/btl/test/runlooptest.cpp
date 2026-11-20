@@ -323,7 +323,9 @@ namespace
             && (info.flags & GUI_INMOVESIZE);
     }
 
-    /** Never shown: the move loop runs on it without anything on screen. */
+    /**
+     * Never shown: the move loop runs on it without anything on screen.
+     */
     HWND makeHiddenWindow()
     {
         WNDCLASSW wc{};
@@ -417,6 +419,7 @@ TEST(RunLoop, moveLoopUnderMessageSourceRunsTimersAndPosts)
     MessageSourceHarness harness;
 
     std::atomic<bool> timerRan{ false };
+    std::atomic<bool> finished{ false };
     bool timerInMoveLoop = false;
     bool postInMoveLoop = false;
     bool postRan = false;
@@ -432,8 +435,10 @@ TEST(RunLoop, moveLoopUnderMessageSourceRunsTimersAndPosts)
 
             poster = std::thread([&]
                 {
-                    while (!timerRan)
+                    while (!timerRan && !finished)
                         std::this_thread::sleep_for(1ms);
+                    if (!timerRan)
+                        return;
                     loop.post([&](Controller&)
                         {
                             postRan = true;
@@ -445,6 +450,7 @@ TEST(RunLoop, moveLoopUnderMessageSourceRunsTimersAndPosts)
             ::SendMessageW(harness.hwnd, WM_SYSCOMMAND, SC_MOVE, 0);
             c.stop();
         });
+    finished = true;
     if (poster.joinable())
         poster.join();
 
@@ -512,6 +518,28 @@ TEST(RunLoop, exceptionInsideMoveLoopRethrowsFromRun)
 
     EXPECT_FALSE(harness.watchdogFired.load());
     EXPECT_TRUE(returnedFromMoveLoop);
+}
+
+// The move loop's exception happened first, so it is the one run() rethrows
+// when the message-source callback throws as well.
+TEST(RunLoop, exceptionInsideMoveLoopWinsOverMessageSourceException)
+{
+    btl::RunLoop loop;
+    MessageSourceHarness harness;
+
+    EXPECT_THROW(harness.run(loop, [&](Controller& c)
+        {
+            c.addTimer(20ms, [&](Controller&)
+                {
+                    endMoveLoop(harness.hwnd);
+                    throw std::runtime_error("from the move loop");
+                }).detach();
+
+            ::SendMessageW(harness.hwnd, WM_SYSCOMMAND, SC_MOVE, 0);
+            throw std::logic_error("from the message source");
+        }), std::runtime_error);
+
+    EXPECT_FALSE(harness.watchdogFired.load());
 }
 
 // Only the move/size loop runs callbacks: another nested message loop under

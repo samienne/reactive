@@ -279,17 +279,23 @@ namespace
             Callback callback = it->second.callback;
             {
                 PumpTimerScope scope(*this);
-                invoke(callback);
+                try
+                {
+                    invoke(callback);
+                }
+                catch (...)
+                {
+                    if (!pumpError_)
+                        throw;
+                    // The pump's exception happened first; it wins.
+                }
             }
             if (pumpError_)
                 std::rethrow_exception(std::exchange(pumpError_, nullptr));
         }
 
         /**
-         * Armed while the message-source callback runs. If that callback sits
-         * in DefWindowProc's modal move/size loop, the loop below is stuck;
-         * the modal loop still dispatches this timer, which runs due posts
-         * and timers so the app keeps rendering during the drag.
+         * The pump timer exists only while the message-source callback runs.
          */
         struct PumpTimerScope
         {
@@ -297,7 +303,6 @@ namespace
                 loop_(loop),
                 previous_(pumpLoop_)
             {
-                loop_.pumpError_ = nullptr;
                 loop_.pumpTimer_ = SetTimer(nullptr, 0, USER_TIMER_MINIMUM,
                         &Win32RunLoop::onPumpTimer);
                 pumpLoop_ = &loop_;
@@ -318,7 +323,6 @@ namespace
             Win32RunLoop* previous_;
         };
 
-        /** The id check drops a WM_TIMER already queued before KillTimer. */
         static void CALLBACK onPumpTimer(HWND, UINT, UINT_PTR id, DWORD)
         {
             Win32RunLoop* loop = pumpLoop_;
@@ -327,10 +331,8 @@ namespace
         }
 
         /**
-         * Only inside a move/size loop: other modal loops under the message
-         * source (a dialog opened by an input handler) have app code on the
-         * stack. Exceptions must not cross the TIMERPROC; the first one is
-         * rethrown from fireMessage().
+         * Never throws, since it runs in a TIMERPROC. The first callback
+         * exception is kept in pumpError_ for fireMessage() to rethrow.
          */
         void pumpFromModalLoop()
         {
