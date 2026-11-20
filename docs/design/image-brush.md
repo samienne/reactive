@@ -58,10 +58,13 @@ before the render view (`render-view.md`), which builds on it.
 
 Verified at `30b6727b`.
 
-- **No image type exists.** A search of `src/` for `Image` finds only a
-  comment in `src/avg/include/avg/effectemitter.h`. There is no decoder;
-  the `libpng` wrap in `subprojects/` serves only FreeType, which the root
-  `meson.build` builds with `png=disabled`.
+- **No sampled image type exists.** The nearest name is
+  `avg::TargetImage` (`src/avg/include/avg/targetimage.h:20`), an
+  offscreen render target used by the effect emitter and the painter
+  (`effectemitter.h:65`, `:155`, `painter.h:92-156`), not a value a brush
+  can sample; the working name `avg::Image` sits beside it. There is no
+  decoder; the `libpng` wrap in `subprojects/` serves only FreeType,
+  which the root `meson.build` builds with `png=disabled`.
 - **Textures.** `ase::Texture` (`src/ase/include/ase/texture.h`) is a
   shared handle compared by identity, made by `RenderContext::makeTexture`
   (`rendercontext.h`) from a size and a format. On GL that calls no GL
