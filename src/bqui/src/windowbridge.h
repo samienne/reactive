@@ -103,6 +103,11 @@ public:
     avg::Snapshot snapshot() const override;
 
 private:
+    struct WakeTarget;
+
+    void wake();
+
+    std::shared_ptr<WakeTarget> wakeTarget_;
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;

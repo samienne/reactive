@@ -3,13 +3,28 @@
 #include <tracy/Tracy.hpp>
 
 #include <algorithm>
+#include <mutex>
 
 namespace bqui
 {
 
+// An input can fire the wake on another thread while, or after, the bridge is
+// destroyed, so the wake reaches the bridge only through this.
+struct WindowBridge::WakeTarget
+{
+    explicit WakeTarget(WindowBridge* bridge) :
+        bridge(bridge)
+    {
+    }
+
+    std::mutex mutex;
+    WindowBridge* bridge;
+};
+
 WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         Window window, widget::AnyWidget widget, bool headless)
-    : memoryPool_(pmr::new_delete_resource()),
+    : wakeTarget_(std::make_shared<WakeTarget>(this)),
+    memoryPool_(pmr::new_delete_resource()),
     memoryStatistics_(&memoryPool_),
     memory_(&memoryStatistics_),
     aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
@@ -27,10 +42,11 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     aseWindow.setVisible(true);
     aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-    auto wake = [this]
+    auto wake = [target = wakeTarget_]
     {
-        needsUpdate_ = true;
-        aseWindow.requestFrame();
+        std::lock_guard<std::mutex> lock(target->mutex);
+        if (target->bridge)
+            target->bridge->wake();
     };
     widgetInstanceSignal_.observe(wake);
     titleSignal_.observe(wake);
@@ -212,9 +228,20 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
 
 WindowBridge::~WindowBridge()
 {
+    {
+        std::lock_guard<std::mutex> lock(wakeTarget_->mutex);
+        wakeTarget_->bridge = nullptr;
+    }
+
     std::cout << "Maximum concurrent allocations: "
         << memoryStatistics_.maximum_concurrent_bytes_allocated()
         << std::endl;
+}
+
+void WindowBridge::wake()
+{
+    needsUpdate_ = true;
+    aseWindow.requestFrame();
 }
 
 void WindowBridge::makeTransaction(

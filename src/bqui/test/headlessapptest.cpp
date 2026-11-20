@@ -25,6 +25,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -461,4 +462,65 @@ TEST(headlessApp, leavingNodeWithAZeroDurationIsRemoved)
 
     EXPECT_TRUE(shownBefore);
     EXPECT_FALSE(shownAfter);
+}
+
+TEST(headlessApp, aWakeFiredAfterTheWindowIsGoneIsHarmless)
+{
+    auto text = bq::signal::makeInput<std::string>("a");
+
+    // Observes the input before the window does, so a set reaches this
+    // callback first and holds the window's wake until the window is gone.
+    auto blocker = bq::signal::makeSignalContext(text.signal);
+    std::promise<void> entered;
+    std::promise<void> release;
+    auto released = release.get_future().share();
+    std::atomic<bool> blocking{ false };
+    blocker.observe([&, released]
+            {
+                if (blocking.exchange(false))
+                {
+                    entered.set_value();
+                    released.wait();
+                }
+            });
+
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+
+    App app;
+    app.platform(platform);
+    Window observing = window(bq::signal::constant<std::string>("Observing"));
+    app.addWindow(observing, label(text.signal));
+    app.addWindow(window(bq::signal::constant<std::string>("Other")),
+            label("Other"));
+
+    std::size_t windowsAfterRemove = 0;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+            {
+                auto token = platform.pause();
+                for (int i = 0; i < 3; ++i)
+                    token.step(kFrameStep);
+
+                blocking = true;
+                std::thread setter([&]
+                        {
+                            text.handle.set("b");
+                        });
+                entered.get_future().wait();
+
+                app.removeWindow(observing.getId());
+                for (int i = 0; i < 3; ++i)
+                    token.step(kFrameStep);
+                windowsAfterRemove = test::WindowInput::count(app);
+
+                release.set_value();
+                setter.join();
+
+                controller.stop();
+            });
+
+    app.run();
+
+    EXPECT_EQ(1u, windowsAfterRemove);
 }
