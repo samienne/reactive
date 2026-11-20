@@ -155,8 +155,9 @@ are in the top-level `docs/`.
   and is not sent during capture; it skips this during a move/size loop, where
   the system holds capture and owns the pointer. GLX loads the theme cursor
   through libXcursor when the optional `xcursor` dependency is found
-  (`ASE_HAVE_XCURSOR`), falling back to `XCreateFontCursor`; `hidden` is a blank 1x1 pixmap cursor. Cursors are
-  cached per window and freed in `destroy()`.
+  (`ASE_HAVE_XCURSOR`), falling back to `XCreateFontCursor`; `hidden` is a
+  blank 1x1 pixmap cursor. Cursors are cached per window and freed in
+  `destroy()`.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

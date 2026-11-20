@@ -52,7 +52,6 @@ void printAll(std::ostream& stream)
 
 struct XCursorNames
 {
-    // Cursor theme names, most preferred first, ending in nullptr.
     char const* themeNames[4];
     unsigned int fontShape;
 };
