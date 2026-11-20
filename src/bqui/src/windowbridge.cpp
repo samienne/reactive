@@ -40,7 +40,6 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     titleSignal_(windowData_->getTitle()),
     drawing_(memory_)
 {
-    aseWindow.setVisible(true);
     aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
     auto wake = [target = wakeTarget_]
@@ -226,6 +225,9 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         }
     });
 
+    // Showing the window can resize it synchronously, which the resize
+    // callback must see.
+    aseWindow.setVisible(true);
 }
 
 WindowBridge::~WindowBridge()
