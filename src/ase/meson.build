@@ -111,6 +111,7 @@ libasesrc = [
   'src/commandbuffer.cpp',
   'src/drawcommand.cpp',
   'src/texture.cpp',
+  'src/attachmentframebuffer.cpp',
   'src/framebuffer.cpp',
   'src/pipeline.cpp',
   'src/pipelinedesc.cpp',
