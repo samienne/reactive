@@ -283,8 +283,7 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   `FORMAT_DEPTH24_STENCIL8`. `Pipeline::matchesTarget(framebuffer)` is the
   predicate: colour formats equal, depth present on both sides or neither,
   and equal when the target's is known (a target reporting
-  `FORMAT_UNKNOWN` depth, as the context-level `GlFramebuffer` for
-  framebuffer 0 does, accepts any declared depth). `GlRenderState` and
+  `FORMAT_UNKNOWN` depth accepts any declared depth). `GlRenderState` and
   `DummyRenderQueue` `assert` it for every draw command, so the check costs
   nothing once `NDEBUG` is defined; note Meson's default `b_ndebug=false`
   leaves asserts on in every buildtype unless the option is set. Tests

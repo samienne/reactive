@@ -41,9 +41,7 @@ GlRenderContext::GlRenderContext(
     transferQueue_(platform.isBackgroundQueueEnabled()
             ? std::make_shared<GlRenderQueue>(std::move(bgContext))
             : mainQueue_),
-    objectManager_(*this),
-    defaultFramebuffer_(*this, nullptr),
-    sharedFramebuffer_(*this)
+    objectManager_(*this)
 {
     dispatch([this, bgEnabled=platform.isBackgroundQueueEnabled()]
         (GlFunctions const&)
@@ -113,11 +111,6 @@ std::shared_ptr<RenderQueueImpl> GlRenderContext::getTransferQueue()
     return transferQueue_;
 }
 
-GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
-{
-    return defaultFramebuffer_;
-}
-
 void GlRenderContext::dispatch(std::function<void(GlFunctions const&)> f)
 {
     mainQueue_->dispatch(std::move(f));
@@ -136,11 +129,6 @@ void GlRenderContext::wait() const
 void GlRenderContext::waitBg() const
 {
     transferQueue_->flush();
-}
-
-GlFramebuffer& GlRenderContext::getSharedFramebuffer(Dispatched)
-{
-    return sharedFramebuffer_;
 }
 
 std::vector<ShaderLanguage> const& GlRenderContext::getShaderLanguages()
