@@ -59,8 +59,7 @@ TEST(framebuffer, everyChangeBumpsTheVersion)
 
     framebuffer.setColorTarget(0, context.makeTexture(size, FORMAT_SRGBA));
     expectBumped();
-    framebuffer.setColorTarget(1,
-        context.makeRenderbuffer(size, FORMAT_SRGBA));
+    framebuffer.setColorTarget(1, context.makeTexture(size, FORMAT_SRGBA));
     expectBumped();
     framebuffer.unsetColorTarget(1);
     expectBumped();
@@ -94,11 +93,8 @@ TEST(framebuffer, snapshotSizeFollowsColorTargetZero)
     EXPECT_FALSE(snapshot.attachments.depth.has_value());
 
     framebuffer.setColorTarget(0,
-        context.makeRenderbuffer(otherSize, FORMAT_SRGBA));
-    AttachmentFramebuffer::Snapshot replaced = attachments.snapshot();
-    EXPECT_EQ(otherSize, replaced.attachments.size);
-    EXPECT_FALSE(replaced.attachments.color[0].has_value());
-    EXPECT_TRUE(replaced.attachments.colorBuffers[0].has_value());
+        context.makeTexture(otherSize, FORMAT_SRGBA));
+    EXPECT_EQ(otherSize, attachments.snapshot().attachments.size);
 
     framebuffer.unsetColorTarget(0);
     EXPECT_EQ(Vector2i(0, 0), attachments.snapshot().attachments.size);

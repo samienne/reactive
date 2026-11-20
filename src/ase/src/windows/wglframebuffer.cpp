@@ -51,11 +51,6 @@ void WglFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)
     assert(false);
 }
 
-void WglFramebuffer::setColorTarget(size_t /*index*/, Renderbuffer /*texture*/)
-{
-    assert(false);
-}
-
 void WglFramebuffer::unsetColorTarget(size_t /*index*/)
 {
     assert(false);
@@ -67,16 +62,6 @@ void WglFramebuffer::setDepthTarget(Renderbuffer /*buffer*/)
 }
 
 void WglFramebuffer::unsetDepthTarget()
-{
-    assert(false);
-}
-
-void WglFramebuffer::setStencilTarget(Renderbuffer /*buffer*/)
-{
-    assert(false);
-}
-
-void WglFramebuffer::unsetStencilTarget()
 {
     assert(false);
 }

@@ -32,11 +32,6 @@ void Framebuffer::setColorTarget(size_t index, Texture texture)
     d()->setColorTarget(index, std::move(texture));
 }
 
-void Framebuffer::setColorTarget(size_t index, Renderbuffer buffer)
-{
-    d()->setColorTarget(index, std::move(buffer));
-}
-
 void Framebuffer::unsetColorTarget(size_t index)
 {
     d()->unsetColorTarget(index);
@@ -50,16 +45,6 @@ void Framebuffer::setDepthTarget(Renderbuffer buffer)
 void Framebuffer::unsetDepthTarget()
 {
     d()->unsetDepthTarget();
-}
-
-void Framebuffer::setStencilTarget(Renderbuffer buffer)
-{
-    d()->setStencilTarget(std::move(buffer));
-}
-
-void Framebuffer::unsetStencilTarget()
-{
-    d()->unsetStencilTarget();
 }
 
 } // namespace ase
