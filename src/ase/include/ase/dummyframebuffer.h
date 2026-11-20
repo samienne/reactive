@@ -11,12 +11,6 @@ namespace ase
     {
     public:
         /**
-         * @brief A framebuffer whose formats are those of the targets
-         * attached to it.
-         */
-        DummyFramebuffer() = default;
-
-        /**
          * @brief A window's framebuffer, with formats fixed as a platform's
          * pixel format fixes them.
          */

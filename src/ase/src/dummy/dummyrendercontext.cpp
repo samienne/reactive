@@ -4,7 +4,6 @@
 #include "dummyrenderbuffer.h"
 #include "dummyuniformset.h"
 #include "dummypipeline.h"
-#include "dummyframebuffer.h"
 #include "dummytexture.h"
 #include "dummyuniformbuffer.h"
 #include "dummyindexbuffer.h"
@@ -12,6 +11,7 @@
 #include "dummyshader.h"
 #include "dummyprogram.h"
 
+#include "attachmentframebuffer.h"
 #include "buffer.h"
 #include "program.h"
 #include "shader.h"
@@ -99,7 +99,7 @@ std::shared_ptr<RenderbufferImpl> DummyRenderContext::makeRenderbufferImpl(
 
 std::shared_ptr<FramebufferImpl> DummyRenderContext::makeFramebufferImpl()
 {
-    return std::make_shared<DummyFramebuffer>();
+    return std::make_shared<AttachmentFramebuffer>();
 }
 
 std::shared_ptr<PipelineImpl> DummyRenderContext::makePipeline(
