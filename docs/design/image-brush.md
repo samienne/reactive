@@ -298,7 +298,8 @@ on the main thread keeps working, where a loop resolve would deadlock
 it; on GL nothing needs a running loop, which images made before
 `App::run` want; and it matches `btl::async`. The way to the UI is bq's
 signal from a future. The window frame request is safe from any thread
-(next section); whether setting a bq input is, is a lookup below.
+(next section); setting a bq input is too, as read, with the wake it
+causes as the weak link (*Lookups before implementation*).
 
 The costs: resolution is not ordered against frames, so tests wait on
 the future instead of assuming an inline resolve, and a `then` that
@@ -571,10 +572,23 @@ tests also wait for remote-screenshot.
 
 ## Lookups before implementation
 
-- Whether a bq input can be set safely from another thread: the future
-  resolves on a pool thread, while signals are evaluated on the loop
-  thread.
-- Whether such a set causes a frame when nothing else is happening.
+Both are done, read in code; detail and references are in
+[async-resources.md](async-resources.md) (*Where the code is*).
+
+- **Setting a bq input from another thread is safe** for the value and
+  the context: `set` writes under the input's mutex, and the loop thread
+  copies the value into its own context data under the same mutex.
+  Observers fire on the setter's thread, outside the lock. No test does
+  it yet.
+- **Whether it causes a frame depends on who reads the input.** Read by
+  the app's running signal, the wake is thread safe and causes a frame
+  on every platform. Read by a widget, it goes through the racy
+  `GenericWindow::requestFrame` (fixed on the local branch
+  `bugfix/requestframe-race`), and on dummy and offscreen windows
+  (the dummy platform, headless windows, macOS) it does not wake the
+  platform, so an idle loop may stay blocked. The frame request stage
+  (*Asking for a repaint*) covers both; it also needs a test setting an
+  input from another thread.
 
 ## Open questions for the owner
 

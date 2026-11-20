@@ -387,22 +387,49 @@ until the animation ends.
 
 **Visibility.** In the first version **hidden means clipped out or the
 window not shown** (decided), not occluded by another widget; whether
-the walk can tell more is unverified. Proposed test: the composed
+the walk can tell more is unverified. The window half cannot be met
+today (*A hidden window*), so in the first version hidden means clipped
+out, plus a window hidden with `setVisible(false)` if bqui ever exposes
+it. Proposed test: the composed
 rectangle misses the window or lies wholly outside the `ClipNode`s on
 its path (`src/avg/src/rendertree/clipnode.cpp:140`). The walk does not
 mirror the `Drawing`'s rect culling (`filterElementsByRect`) or the cull
 inside backdrop scopes, so a "visible" view may paint no pixel.
 
 **A hidden window (decided).** A minimised or hidden window makes no
-frames (unverified), so no walk marks its views hidden; instead its hide
-and show update its mounted views' configuration on the loop thread,
-without a frame. Layer 1: the counter increases and the handler runs, so
-a producer can pause and resume. Layer 2: the hidden state changes, no
+frames, so no walk marks its views hidden; instead its hide and show
+update its mounted views' configuration on the loop thread, without a
+frame. Layer 1: the counter increases and the handler runs, so a
+producer can pause and resume. Layer 2: the hidden state changes, no
 callback is forced, and the first frame after the return lists the views
 as *revealed*, harmless though the engine was not called while hidden.
 What counts as hidden (minimised, fully covered) is what the platform
-reports; the first version covers what ase's backends already report
-(*Lookups before implementation*).
+reports.
+
+**What ase reports today, read in code: nothing.** `isVisible()` returns
+a flag only `setVisible` writes, on every backend
+(`src/ase/include/ase/window.h:50-51`); no callback or state reports
+minimised, unmapped or occluded. GLX receives map and property events
+but drops them and does not select visibility events
+(`src/ase/src/glx/glxwindow.cpp:96-100`, `:341-344`, `:368-370`); WGL's
+`WM_SIZE` ignores `SIZE_MINIMIZED` (`src/ase/src/windows/wglwindow.cpp:629-631`).
+The frame loop never checks visibility (`src/ase/src/platformbase.cpp:163-218`),
+so a minimised window still makes frames whenever one is requested.
+bqui's `Window` has no show or hide (`src/bqui/include/bqui/window.h:29-73`),
+and the bridge shows the window once and never hides it
+(`src/bqui/src/windowbridge.cpp:58`).
+
+So two assumptions above do not hold today: a minimised window does make
+frames, and nothing flags the views of a hidden window. The decided
+mechanism has no hide or show to react to. Window-level hidden needs ase
+work first: GLX and WGL tracking minimise and unmap, and ase exposing
+it. That joins the ase prework; until then the views of a minimised
+window stay visible to the engine.
+
+Inferred, not run: minimising on Windows sends a 0x0 `WM_SIZE`, bqui
+lays out at zero size, and `Painter::setSize` divides by the size
+(`src/avg/src/painter.cpp:255-256`), filling the projection with
+infinities. An existing bug, independent of this design.
 
 ## Frame order
 
@@ -506,7 +533,9 @@ one form serves both layers (decided).
   stage checks it.
 - **Hidden (decided).** A view keeps its texture and stays in
   `frame.views()`, flagged hidden; the engine skips drawing it and decides
-  about its own targets. A layer 1 producer sees it and may pause.
+  about its own targets. A layer 1 producer sees it and may pause. Until
+  ase reports hidden windows, only clipping flags a view (*A hidden
+  window*).
 
 ## Later: hardware buffers and foreign images
 
@@ -612,7 +641,7 @@ animation, one at rest, one for an unmount with no views left);
 same-update remount reporting nothing and keeping texture and state, a
 later one getting a new texture; second mounts (both layers, across
 windows) showing nothing and asserting; window hide and show updating the
-configuration without a frame; the
+configuration without a frame, once ase reports them; the
 configuration under size, scale, ancestor, retargeted and infinite
 animations; layer 1 presents from another thread, superseded; the
 `Drawing` rebuilt only on a new image value; fit; leaving views frozen.
@@ -621,8 +650,11 @@ GL, or through `window.screenshot` once it lands.
 
 ## Lookups before implementation
 
-- What ase's backends report today for a window hidden, minimised or
-  occluded (*A hidden window*).
+None remain. The one listed, what ase reports for a hidden, minimised or
+occluded window, is answered in *A hidden window*: nothing beyond the
+app's own `setVisible` flag. Work it found: ase tracking minimise and
+unmap in GLX and WGL and exposing it, as ase prework, before window-level
+hidden; and the zero-size resize on a Windows minimise.
 
 ## Open questions for the owner
 
@@ -650,7 +682,8 @@ Each stage is one PR, after the backdrop / effect-brushes stack (#172-#177,
 2. **bqui: layer 1 in the frame.** The image source object, show the last
    image presented (no fence, no release notification), the configuration
    readable from any thread with its wake-up handler, the one-mount rule,
-   window hide and show updating the configuration;
+   window hide and show updating the configuration (once ase reports
+   them; until then clipping only);
    frame steps 1, 3 and 4; the `Drawing` rebuilt on an image change;
    presents from any thread waking the window. Depends on stage 1 and
    image-brush stage 4 (`App::getRenderContext()`, the thread-safe window
