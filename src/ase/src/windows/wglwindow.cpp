@@ -39,11 +39,14 @@ namespace
         return scale;
     }
 
-    void syncClientArea(HWND hwnd, GenericWindow& window)
+    void syncClientArea(HWND hwnd, GenericWindow& window,
+            WglFramebuffer& framebuffer)
     {
         RECT rect;
         if (!GetClientRect(hwnd, &rect))
             return;
+
+        framebuffer.setPixelSize(Vector2i(rect.right, rect.bottom));
 
         float const scale = getWindowScalingFactor(hwnd);
         window.setScalingFactor(scale);
@@ -438,7 +441,8 @@ WglWindow::WglWindow(WglPlatform& platform, RenderContext& context,
 
     // The HWND is not yet routed to this window, so the WM_SIZE above went
     // unseen.
-    syncClientArea(hwnd_, genericWindow_);
+    syncClientArea(hwnd_, genericWindow_,
+            defaultFramebuffer_.getImpl<WglFramebuffer>());
 }
 
 WglWindow::~WglWindow()
@@ -629,12 +633,14 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
 
             // SetWindowPos skips WM_SIZE if the suggested rect keeps the
             // client size.
-            syncClientArea(hwnd_, genericWindow_);
+            syncClientArea(hwnd_, genericWindow_,
+                    defaultFramebuffer_.getImpl<WglFramebuffer>());
             return 0;
         }
 
         case WM_SIZE:
-            syncClientArea(hwnd_, genericWindow_);
+            syncClientArea(hwnd_, genericWindow_,
+                    defaultFramebuffer_.getImpl<WglFramebuffer>());
             break;
     }
 

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "glbaseframebuffer.h"
+#include "vector.h"
+
+#include <mutex>
 
 namespace ase
 {
@@ -16,6 +19,9 @@ namespace ase
 
         WglFramebuffer& operator=(WglFramebuffer const&) = delete;
         WglFramebuffer& operator=(WglFramebuffer&&) = delete;
+
+        /** Sets the client area in pixels; may be called from any thread. */
+        void setPixelSize(Vector2i size);
 
         // From GlBaseFramebuffer
         void makeCurrent(Dispatched, GlDispatchedContext& context,
@@ -35,6 +41,8 @@ namespace ase
 
     private:
         WglWindow& window_;
+        mutable std::mutex mutex_;
+        Vector2i pixelSize_ = Vector2i::Zero();
     };
 } // namespace ase
 
