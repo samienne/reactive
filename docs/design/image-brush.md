@@ -310,17 +310,16 @@ joined at static destruction, so no fence may complete after `main`
 returns; the render context and its dispatchers end with the App,
 before that.
 
-**A placeholder** needs a signal of `std::optional<Image>` that starts
-empty and is set when the future resolves; the widget shows the
-placeholder while it is empty, which `fromOptional` and the conditional
-signals already express. bq gains that small adapter (decided; a working
-name: signal from future), generic over any value: a future becomes a
-signal of an optional value. Its continuation holds only the input's weak
+**A placeholder** needs a signal that starts pending and changes when
+the future resolves; the widget shows the placeholder while it is
+pending. bq gains that small adapter (decided; a working name: signal
+from future), generic over any value: a future becomes a signal of a
+three-state value, pending, ready or failed. Its continuation holds only the input's weak
 handle, so dropping the UI before the upload ends is harmless. bqui
 builds the widget form on it: a future of a widget plus a default widget
 gives a widget. The wider async design (explicit loading, a default font,
-loading before the window opens) is out of scope and would get its own
-note.
+loading before the window opens) and the adapter's value type are in
+[async-resources.md](async-resources.md).
 
 ## Asking for a repaint
 
@@ -530,7 +529,8 @@ painter submits on the dummy backend, and pixels are checked by hand.
   it; a watch made before submit resolves on the pool; a dropped buffer
   and a torn-down queue fail watchers and release a blocked wait; headless
   frame stepping never finds a window saturated.
-  bq's adapter: empty until the future resolves, then the image; a
+  bq's adapter: pending until the future resolves, then the image or the
+  failure; a
   dropped signal ignores a late result, driven by `makeManualFuture`.
 - **bqui (dummy, CI).** `src/bqui/test/shapetest.cpp` and
   `shadowboundarytest.cpp`: outlines under opaque, translucent and contain
