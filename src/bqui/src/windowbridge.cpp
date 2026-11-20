@@ -314,8 +314,6 @@ void WindowBridge::makeTransaction(
         renderTree_ = std::move(renderTree);
 
         animating_ = true;
-
-        aseWindow.requestFrame();
     }
 
     auto updateElapsed = std::chrono::duration_cast<std::chrono::microseconds>(

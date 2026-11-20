@@ -77,6 +77,8 @@ void GenericWindow::resize(Vector2i size)
 std::optional<std::chrono::microseconds>
 GenericWindow::nextFrameTime() const
 {
+    if (frameRequested_.load())
+        return (std::chrono::microseconds::min)();
     return nextFrame_;
 }
 
@@ -87,7 +89,7 @@ std::chrono::microseconds GenericWindow::lastFrameTime() const
 
 void GenericWindow::requestFrame()
 {
-    nextFrame_ = (std::chrono::microseconds::min)();
+    frameRequested_.store(true);
 }
 
 void GenericWindow::setFrameCallback(
@@ -104,6 +106,8 @@ std::optional<std::chrono::microseconds> GenericWindow::frame(
 
     if (frameCallback_)
     {
+        frameRequested_.store(false);
+
         auto delay = frameCallback_(frame);
         nextFrame_ = delay
             ? std::make_optional(frame.time + *delay)

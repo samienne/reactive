@@ -2,13 +2,17 @@
 
 #include "dummyframebuffer.h"
 
+#include "platformbase.h"
+
 #include <memory>
 
 namespace ase
 {
 
-DummyWindow::DummyWindow(RenderContext& context, Vector2i size) :
+DummyWindow::DummyWindow(PlatformBase& platform, RenderContext& context,
+        Vector2i size) :
     WindowBase(context, size, 1.0f),
+    platform_(platform),
     defaultFramebuffer_(std::make_shared<DummyFramebuffer>())
 {
 }
@@ -41,6 +45,7 @@ Framebuffer& DummyWindow::getDefaultFramebuffer()
 void DummyWindow::requestFrame()
 {
     genericWindow_.requestFrame();
+    platform_.requestFrame();
 }
 
 std::optional<std::chrono::microseconds> DummyWindow::frame(Frame const& frame)

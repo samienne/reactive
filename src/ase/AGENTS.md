@@ -88,7 +88,12 @@ are in the top-level `docs/`.
   concrete forwarders on `WindowBase`; a backend overrides only what genuinely
   differs (`present`, framebuffer, visibility, scaling-aware title/requestFrame,
   `frame`). `nextFrameTime` reads `genericWindow_` on `WindowBase` itself, so
-  backends do not reimplement it. The `WindowBase` ctor takes `(context, size,
+  backends do not reimplement it. `GenericWindow` is loop-thread only except
+  `requestFrame`, which just sets an atomic flag, and a request made while
+  the frame callback runs outranks the delay the callback returns. Every
+  backend's `requestFrame` also wakes its platform loop through
+  `PlatformBase::requestFrame`, which is why the dummy and offscreen windows
+  hold a platform reference like the GLX/WGL ones. The `WindowBase` ctor takes `(context, size,
   scalingFactor)` so it can build `genericWindow_`. The platform render lists are
   `weak_ptr<WindowBase>` since the loop hooks live there. `getRenderContext` is
   a pure virtual on `WindowImpl` (implemented by `WindowBase`), so `Window`

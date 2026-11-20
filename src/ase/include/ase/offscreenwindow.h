@@ -11,6 +11,7 @@
 
 namespace ase
 {
+    class PlatformBase;
     class RenderContext;
 
     /**
@@ -24,7 +25,8 @@ namespace ase
     class ASE_EXPORT OffscreenWindow : public WindowBase
     {
     public:
-        OffscreenWindow(RenderContext& context, Vector2i size);
+        OffscreenWindow(PlatformBase& platform, RenderContext& context,
+                Vector2i size);
 
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -45,6 +47,7 @@ namespace ase
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 
+        PlatformBase& platform_;
         Texture texture_;
         Renderbuffer depthbuffer_;
         Framebuffer framebuffer_;

@@ -4,6 +4,7 @@
 #include <bqui/widget/label.h>
 #include <bqui/widget/introspection.h>
 
+#include <bq/signal/input.h>
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 
@@ -21,6 +22,11 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdint>
+#include <functional>
+#include <future>
+#include <optional>
+#include <thread>
 
 using namespace bqui;
 using namespace bqui::widget;
@@ -30,6 +36,45 @@ namespace
     // A ~60fps step. The exact value is immaterial to these tests, which assert
     // the run completes cleanly, not its timing.
     constexpr std::chrono::microseconds kFrameStep{ 16667 };
+
+    // Runs a one-window app showing @p text with frames paused, hands @p script
+    // the pause token on the loop thread, and stops when it returns.
+    void runScript(bq::signal::AnySignal<std::string> text,
+            std::function<void(App&, ase::PauseToken&)> script)
+    {
+        btl::RunLoop loop;
+        auto platform = ase::makeDummyPlatform(loop);
+
+        App app;
+        app.platform(platform);
+        app.addWindow(
+                window(bq::signal::constant<std::string>("Test")),
+                label(std::move(text)));
+
+        loop.post([&](btl::RunLoop::Controller& controller)
+                {
+                    auto token = platform.pause();
+                    script(app, token);
+                    controller.stop();
+                });
+
+        app.run();
+    }
+
+    std::uint64_t stepUntilIdle(App& app, ase::PauseToken& token)
+    {
+        auto frames = test::FrameDriver::windowFrames(app, 0);
+        for (int i = 0; i < 100; ++i)
+        {
+            token.step(kFrameStep);
+            auto now = test::FrameDriver::windowFrames(app, 0);
+            if (now == frames)
+                return now;
+            frames = now;
+        }
+        ADD_FAILURE() << "the window never went idle";
+        return frames;
+    }
 } // namespace
 
 TEST(headlessApp, runsAndExitsWithNoWindow)
@@ -106,6 +151,90 @@ TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
     EXPECT_EQ("hi", gotText);
 }
 
+TEST(headlessApp, requestFrameDuringAFrameIsNotLost)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
+
+    int frames = 0;
+    window.setFrameCallback([&](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+            {
+                if (++frames == 1)
+                    window.requestFrame();
+                return std::nullopt;
+            });
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+            {
+                auto token = platform.pause();
+                token.step(kFrameStep);
+                token.step(kFrameStep);
+                token.step(kFrameStep);
+                controller.stop();
+            });
+
+    platform.run([](ase::Frame const&) { return true; });
+
+    EXPECT_EQ(2, frames);
+}
+
+TEST(headlessApp, requestFrameFromAnotherThreadWakesAnIdleLoop)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
+
+    int frames = 0;
+    window.setFrameCallback([&](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+            {
+                ++frames;
+                return std::nullopt;
+            });
+
+    std::promise<void> idle;
+    std::promise<void> finished;
+    std::thread requester([&]
+            {
+                idle.get_future().wait();
+                window.requestFrame();
+
+                if (finished.get_future().wait_for(std::chrono::seconds(10))
+                        == std::future_status::timeout)
+                {
+                    loop.post([](btl::RunLoop::Controller& controller)
+                            {
+                                controller.stop();
+                            });
+                }
+            });
+
+    bool idleSignalled = false;
+    platform.run([&](ase::Frame const&)
+            {
+                // The first tick after the quiescing frame schedules nothing
+                // more; a task posted from it runs once the loop has gone idle.
+                if (frames == 1 && !idleSignalled)
+                {
+                    idleSignalled = true;
+                    loop.post([&](btl::RunLoop::Controller&)
+                            {
+                                idle.set_value();
+                            });
+                }
+                return frames < 2;
+            });
+
+    finished.set_value();
+    requester.join();
+
+    EXPECT_EQ(2, frames);
+}
+
 TEST(headlessApp, secondAppRunsInTheSameProcess)
 {
     // App::run clones its windows rather than consuming them, so a second app
@@ -134,4 +263,56 @@ TEST(headlessApp, withAnimationIsANoOpWithNoRunningApp)
             [] {});
 
     SUCCEED();
+}
+
+TEST(headlessApp, oneChangeDrawsOneFrame)
+{
+    auto text = bq::signal::makeInput<std::string>("a");
+
+    std::uint64_t idleFrames = 0;
+    std::uint64_t frames = 0;
+
+    runScript(text.signal, [&](App& app, ase::PauseToken& token)
+            {
+                idleFrames = stepUntilIdle(app, token);
+
+                text.handle.set("b");
+                for (int i = 0; i < 10; ++i)
+                    token.step(kFrameStep);
+
+                frames = test::FrameDriver::windowFrames(app, 0);
+            });
+
+    EXPECT_EQ(idleFrames + 1, frames);
+}
+
+TEST(headlessApp, changeInsideWithAnimationIsDrawn)
+{
+    auto text = bq::signal::makeInput<std::string>("a");
+
+    std::uint64_t idleFrames = 0;
+    std::uint64_t frames = 0;
+    std::uint64_t settledFrames = 0;
+
+    runScript(text.signal, [&](App& app, ase::PauseToken& token)
+            {
+                idleFrames = stepUntilIdle(app, token);
+
+                {
+                    auto guard = app.withAnimation(avg::AnimationOptions{
+                            std::chrono::milliseconds(100),
+                            avg::curve::linear });
+                    text.handle.set("b");
+                }
+
+                frames = stepUntilIdle(app, token);
+
+                for (int i = 0; i < 10; ++i)
+                    token.step(kFrameStep);
+
+                settledFrames = test::FrameDriver::windowFrames(app, 0);
+            });
+
+    EXPECT_LT(idleFrames, frames);
+    EXPECT_EQ(frames, settledFrames);
 }

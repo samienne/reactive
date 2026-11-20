@@ -5,12 +5,14 @@
 
 namespace ase
 {
+    class PlatformBase;
     class RenderContext;
 
     class ASE_EXPORT DummyWindow : public WindowBase
     {
     public:
-        DummyWindow(RenderContext& context, Vector2i size);
+        DummyWindow(PlatformBase& platform, RenderContext& context,
+                Vector2i size);
 
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -31,6 +33,7 @@ namespace ase
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 
+        PlatformBase& platform_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;
     };

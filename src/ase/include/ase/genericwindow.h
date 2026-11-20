@@ -11,6 +11,7 @@
 #include <functional>
 #include <string>
 #include <optional>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 
@@ -45,6 +46,7 @@ namespace ase
          */
         std::chrono::microseconds lastFrameTime() const;
 
+        /** @brief The only member callable off the loop thread. */
         void requestFrame();
 
         void setFrameCallback(
@@ -99,6 +101,7 @@ namespace ase
         // the Windows min() macro.
         std::optional<std::chrono::microseconds> nextFrame_ =
             (std::chrono::microseconds::min)();
+        std::atomic<bool> frameRequested_{ false };
         std::chrono::microseconds lastFrameTime_{ 0 };
         bool hover_ = false;
 
