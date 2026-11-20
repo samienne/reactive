@@ -330,9 +330,8 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   sweep and attachments against a real context made without a visible window
   (a hidden dummy window under WGL, a pbuffer under GLX). It is built
   wherever there is a GL backend but is not a meson `test()`; run it by
-  hand with `meson devenv -C <builddir> src/ase/asegltest`. Its idle test
-  sleeps a few seconds, and it counts FBOs by probing names 1 to 4096 with
-  `glIsFramebuffer`.
+  hand with `lw run gltest`. Its idle test sleeps a few seconds, and it
+  counts FBOs by probing names 1 to 4096 with `glIsFramebuffer`.
 
 ## Shader interface and uniforms
 
