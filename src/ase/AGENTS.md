@@ -225,6 +225,12 @@ are in the top-level `docs/`.
   so `GlBaseFramebuffer::canReadback` is false for the GLX/WGL window
   framebuffers and GL fails their readback with `Unsupported`. The real-GL
   check is the manual `bquiheadlesstest`.
+- **Framebuffer objects.** A backend builds its framebuffer objects from an
+  `AttachmentFramebuffer` snapshot, cached in `FramebufferObjectCache`; a
+  version change means rebuild, and `sweep` runs on the thread that owns the
+  handles. `asAttachments()` is null for a framebuffer not described by
+  attachments. `asetest` includes ase's private `src/` headers on purpose, to
+  test the cache.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
