@@ -5,8 +5,10 @@
 > 2026-11-14); every path below points there. Three labels mark status:
 > **OWNER**, the owner said it; **PROPOSED**, suggested in discussion and
 > not confirmed; **UNVERIFIED**, a factual claim the code was not checked
-> for. Nothing here upgrades a label. Names are working names. Builds on
-> `image-brush.md`, whose decisions are referenced, not restated.
+> for. Nothing here upgrades a label. Lookup results say whether they
+> were read in code at that tip or inferred, and inferred ones were not
+> run. Names are working names. Builds on `image-brush.md`, whose
+> decisions are referenced, not restated.
 
 ## Purpose
 
@@ -45,6 +47,9 @@ is not a staged plan.
 - **OWNER: the app exits on a close, not on an empty window list**, and
   `run(signal)` and `runUntil(signal)` leave the public interface (*App
   exit and the first window*).
+- **OWNER: `App::exitWhenAllWindowsClosed` is on by default**, and the
+  window overload is `addWindow(Window, Future<AnyWidget>)`, a failed
+  future rethrown from `run()` (*App exit and the first window*).
 - **OWNER, decided in `image-brush.md`:** watched futures resolve on the
   thread pool, never the GL thread (*Fences*); the future-to-signal
   adapter lives in bq and is generic, its widget form in bqui; image
@@ -112,40 +117,104 @@ Read at `30b6727b`; nothing was built or run.
   on its next sync (`app.cpp:393-414`). The wake is
   `PlatformBase::requestFrame`, an atomic flag and a run loop post
   (`platformbase.cpp:242-252`). So adding a window from a `then` on a pool
-  thread works today, as read; UNVERIFIED by a test.
+  thread works today, as read; UNVERIFIED by a test of that case (the
+  closer thread in `apptest.cpp:573` calls `addWindow` and `close` from
+  another thread).
 - **`run()` is a state test.** `run()` is `runUntil` of "the window list
   is not empty" and `run(signal)` is `runUntil(signal)`
   (`app.cpp:309-321`); `runUntil` is public (`app.h:129`). An app that
   starts with no windows stops at once.
   `App.runWithNoWindowsReturnsImmediately` (`apptest.cpp:547-551`) tests
-  exactly that. UNVERIFIED whether the stop happens before a first frame.
+  exactly that, and is the only test or example relying on it; every
+  other caller of `run()` adds a window first. Read: the stop comes in
+  the first tick, before any window renders. `runUntil` makes the signal
+  context (which evaluates the condition, `signalcontext.h:41-46`) and
+  mounts pending windows before the loop (`app.cpp:369`, `:427`); the
+  first tick updates, syncs and evaluates the condition, and a false
+  stops the loop before `renderDirtyWindows` (`app.cpp:433-443`,
+  `platformbase.cpp:103-112`). So windows are created and one update
+  runs, but no frame is drawn.
 - **The platform is made inside the run.** `runUntil` creates the
   platform (`app.cpp:323-338`) and then the render context
   (`app.cpp:362`), so nothing can be uploaded before `run()`.
 - **The app has no exit.** Nothing ends `run()` other than its condition.
 - `run(signal)` has eight callers, all tests in `src/bqui/test`:
-  `apptest.cpp` (six), `headlessrendertest.cpp:49` and
-  `inputreentrancytest.cpp:95`.
+  `apptest.cpp` (six: `:166`, `:245`, `:315`, `:402`, `:482`, `:533`),
+  `headlessrendertest.cpp:49` and `inputreentrancytest.cpp:95`. Nothing
+  outside `app.cpp` calls `runUntil` directly (read).
 
 **bq and other threads** (`src/bq`):
 
 - **No future-to-signal piece exists.** `signal.h:19` and `shared.h:11`
   include the btl future header, but nothing in `src/bq` uses it.
-- **Setting an input from another thread looks safe, as read.**
-  `InputHandle::set` writes under the input's recursive mutex
-  (`input.h:66-85`) and the update reads under the same mutex
-  (`input.h:186-240`); observers fire outside the lock through
-  `ObserveControl::fire` (`datacontext.h:33-42`). UNVERIFIED by a test or
-  a sanitizer run.
-- **The wake it causes is the weak link.** A window's observer sets an
-  atomic and calls the ase window's `requestFrame`
-  (`windowbridge.cpp:61-67`, `windowbridge.h:133`). On a generic window
-  that writes a plain `std::optional` (`genericwindow.cpp:102-105`,
-  `genericwindow.h:111`) before the platform's thread-safe wake; this is
-  the racy request `image-brush.md` already makes safe in its frame
-  request stage. `windowbase.cpp:75-76` states that `requestFrame()` is
-  thread-safe; read against the generic window, that claim looks too
-  strong.
+- **Setting an input from another thread is safe for the value and the
+  context, as read.** `InputHandle::set` writes the value under the
+  input's recursive mutex (`input.h:66-83`); the update takes the same
+  mutex and copies the value into the context's own data, which
+  `evaluate` reads without a lock (`input.h:151`, `:182-190`,
+  `:233-239`). `set` never touches the context; the loop thread pulls.
+  Observers fire outside the lock, on the setter's thread, through
+  `ObserveControl::fire` (`datacontext.h:24-46`). No test sets an input
+  from another thread: the threaded tests set it on the test thread.
+- **The wake it causes is the weak link.** Two observers exist, as read:
+  - **The app's own wake** (an input the app's running signal reads):
+    `wakeLoop` takes a mutex and calls the platform's thread-safe
+    `requestFrame` (`app.cpp:227-232`, `:371`;
+    `platformbase.cpp:242-252`). It causes a frame on every platform.
+  - **A window's wake** (an input a widget or title reads) sets an
+    atomic and calls the ase window's `requestFrame`
+    (`windowbridge.cpp:61-67`, `windowbridge.h:133`). On a generic
+    window that writes a plain `std::optional`
+    (`genericwindow.cpp:102-105`) that the loop also writes in
+    `GenericWindow::frame` (`:117-124`): a data race, the one
+    `image-brush.md` makes safe in its frame request stage (fixed on the
+    local branch `bugfix/requestframe-race`). WGL and GLX windows then
+    wake the platform (`wglwindow.cpp:502-506`, `glxwindow.cpp:454-458`);
+    dummy and offscreen windows do not (`dummywindow.cpp:42-45`,
+    `offscreenwindow.cpp:42-45`). Offscreen windows back headless
+    windows on every backend, and macOS uses the dummy platform. There,
+    inferred, an idle loop stays blocked until something else wakes it.
+    `windowbase.cpp:75-76` states that `requestFrame()` is thread-safe;
+    as read, that claim is too strong.
+  - Inferred: a set landing between `onFrame`'s exchange of the atomic
+    and `frame()` clearing the request is lost; and the window's wake
+    captures the bridge's raw `this`, so a bridge torn down on the loop
+    thread while another thread fires can be called after destruction.
+- **Consequence.** The future adapter, and `App::exit` from another
+  thread if its input is reached from a window, need the race fix, a
+  platform wake for dummy and offscreen windows, and a test that sets an
+  input from another thread. An input reached only by the app's running
+  signal wakes safely today.
+
+**Exceptions** (`src/btl`, `src/ase`, `src/bqui`):
+
+- **An exception during signal evaluation leaves `App::runUntil`, as
+  read.** Frames run as tasks of the run loop on every backend, never
+  from a window procedure or an X11 callback, and the path from
+  `RunLoop::run` through the platform tick to the App's frame callback
+  and `WindowBridge::onFrame` has no `catch` and no `noexcept`
+  (`runloopimpl.h:42-46`, `platformbase.cpp:73-116`, `app.cpp:433-443`,
+  `windowbridge.cpp:386`). The only `catch` in `src/bqui/src` is the
+  remote driver's: the `app.step` RPC swallows the exception into an
+  error reply and the app carries on from a half-updated frame
+  (`remotedriver.cpp:392-408`); its running-state tick does not catch.
+- **What it leaves behind** (inferred from the code read):
+  - an injected run loop stays marked running (`running_` is set with no
+    guard, win32 `runloopimpl.cpp:121`, posix `:90`), so a second run on
+    it throws; the owned default loop is destroyed, so no effect there;
+  - the platform's tick and step callbacks are cleared only on a normal
+    return and capture `run()`'s locals by reference
+    (`platformbase.cpp:147-148`), so they dangle; a later `requestFrame`
+    on a surviving platform is undefined behaviour if its loop runs;
+  - if the render queue's `finish()` throws during the unwind
+    (`app.cpp:161-169`), the process terminates; not determined whether
+    it can.
+  - Separately, WGL input handlers run inside the window procedure
+    (`wglplatform.cpp:40-50`, `:336-344`), so a throwing event handler
+    crosses a Win32 callback. Not the frame path.
+- **Consequence.** Exiting on a failure works as a way to end the
+  process. The App should not be reused after such a throw unless that
+  cleanup is made exception safe.
 
 ## The model
 
@@ -180,9 +249,14 @@ step. The transformations below exist to keep that step short.
   embedding is UNVERIFIED.
 - **OWNER: a font from memory is immediate.** Opening a face from memory
   reads only its headers, and glyphs rasterise on demand, so there is
-  nothing to wait for. UNVERIFIED: this is general FreeType knowledge, not
-  measured here (*Lookups before implementation*). This covers any font
-  loaded from memory, not only the default one.
+  nothing to wait for. Measured (FreeType 2.13.2, MSVC x64, Open Sans
+  Regular, 217 KB): opening and closing a face from memory takes about
+  7.5 us in a release build, 18 us in debug; from a file path about
+  370-390 us with a warm cache, dominated by opening the file; the 95
+  ASCII glyphs at 16 px about 136 us release, 295 us debug. This
+  confirms an embedded font can be immediate. A cold-disk file load was
+  not measured. This covers any font loaded from memory, not only the
+  default one.
 - **OWNER: fonts from files are futures**, and switching to one happens
   in a `then` handler, through the theme (*Theme*).
 
@@ -206,8 +280,22 @@ step. The transformations below exist to keep that step short.
 - **PROPOSED: a theme built only on fonts from memory can be immediate**,
   and the theme holds a settable font value, so a font future resolving
   in a `then` handler changes it.
-- Not looked up: how the theme reaches widgets, and so what changing its
-  font at run time causes.
+- **How the theme reaches widgets, as read.** It is a build parameter:
+  `BuildParams` maps a tag to a signal (`buildparams.h:14-56`), and
+  `ThemeTag` defaults to `constant(Theme())` (`settheme.h:9-15`).
+  Widgets read it through `provideTheme()` (`providetheme.h:9-11`). An
+  application supplies one with the `setTheme` modifier, taking a `Theme`
+  or a signal of `Theme`, for that subtree (`settheme.h:19-27`); a signal
+  changes it at run time, as `testapp1` does (`adder.cpp:154-163`). There
+  is no App or window level theme. `Theme` has one setter,
+  `setSecondary` (`theme.h:16-43`), and no font setter.
+- **The window background ignores it.** The window wraps the user widget
+  in a background built with empty `BuildParams` (`windowbridge.cpp:25-36`,
+  `:49-52`), so the background always uses the default theme.
+- This fits the design above: the default theme on the embedded font,
+  and a settable font value added to `Theme`, changed through the
+  `setTheme` signal. Changing it rebuilds what reads the theme; the cost
+  of that was not looked up.
 
 ## The future adapter
 
@@ -229,8 +317,10 @@ step. The transformations below exist to keep that step short.
   uses it. `error()` gives the `std::exception_ptr`, for code that wants
   to show an error widget.
 - **Loud by default.** Code that handles only the happy path exits on a
-  failure instead of showing nothing. UNVERIFIED: that an exception
-  thrown during signal evaluation propagates cleanly out of `App::run`.
+  failure instead of showing nothing. As read, an exception thrown during
+  signal evaluation leaves `App::run`, except under the remote `app.step`
+  RPC, which swallows it; the App is not safe to reuse afterwards
+  (*Where the code is*, exceptions).
 - This replaces the signal of an optional value that `image-brush.md`
   describes (*A placeholder*); its weak hold on the input stays.
 
@@ -262,13 +352,14 @@ An app with no windows yet keeps running.
 - **`Window::exitOnClose(true)`.** Closing that window ends `run()`; the
   other windows go with the app.
 - **`App::exitWhenAllWindowsClosed(bool)`.** When a close leaves no
-  windows, `run()` ends. It can be changed at any time. PROPOSED: on by
-  default; the owner has not confirmed the default, and thinks apps that
-  exit only on the last window are rare.
+  windows, `run()` ends. It can be changed at any time. OWNER: on by
+  default.
 - **`App::exit(int code = 0)`**, an explicit exit; the app has none
   today. PROPOSED details: the exit code, and that it may be called from
-  any thread. If it sets a bq input internally, it depends on the open
-  lookup about setting an input from another thread.
+  any thread. If it sets a bq input internally, setting it from another
+  thread is safe and wakes the loop as long as only the app's running
+  signal reads it; reached from a window, it needs the wake fixes in
+  *Where the code is* (bq and other threads).
 
 **`run(signal)` and `runUntil(signal)` leave the public interface
 (OWNER).** They conflict with the exit methods above, and in practice the
@@ -279,13 +370,12 @@ Recorded loss: the app evaluated the condition in its own signal context
 even with no window open. An app-level observe can be added later if a
 real use appears.
 
-**Adding a window with a future.** The owner proposed `addWindow` taking
-a future of a window. PROPOSED refinement: `addWindow(Window,
+**Adding a window with a future.** OWNER: `addWindow(Window,
 Future<AnyWidget>)`, since today's form takes a window and a widget
 (`app.h:47`) and the window value is normally known up front. The window
 opens when the widget resolves.
 
-- PROPOSED: a failed future is rethrown from `run()`. With exit on close,
+- OWNER: a failed future is rethrown from `run()`. With exit on close,
   this overload is not needed to keep the app alive; its job is to carry
   the failure.
 - Calling `addWindow` inside a `then` still works, since `addWindow` is
@@ -333,20 +423,20 @@ font.wait();
 
 ## Lookups before implementation
 
-- A test or sanitizer run for setting a bq input from a pool thread
-  (`input.h:66-85`), and whether the wake reaches the loop with nothing
-  else happening.
-- Whether any test or example other than
-  `App.runWithNoWindowsReturnsImmediately` relies on `run()` returning at
-  once with no window, and whether `run()` today stops before or after a
-  first frame.
 - Whether FreeType keeps reading the font file after `FT_New_Face`.
-- How long a font load from memory takes, measured, to confirm that
-  treating it as immediate holds.
 - The licence and subset size of the embedded default font.
-- Whether an exception thrown during signal evaluation propagates cleanly
-  out of `App::run`.
-- How the theme reaches widgets.
+- A cold-disk font load from a file, if the warm figure is not enough.
+
+Done, with results in place: setting an input from another thread and
+its wake, `run()` with no windows and exceptions (*Where the code is*),
+the font load time (*Fonts*) and theme delivery (*Theme*).
+Work they found:
+
+- The window frame request race fix, a platform wake from dummy and
+  offscreen windows, and a test setting an input from another thread,
+  before the future adapter or an any-thread `App::exit` rely on it.
+- Making the run's cleanup exception safe, only if an App is to be
+  reused after a throw.
 
 ## Non-goals
 
