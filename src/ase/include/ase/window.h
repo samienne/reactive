@@ -66,7 +66,11 @@ namespace ase
          * present share. */
         RenderQueue getMainRenderQueue();
 
-        /** @brief Ask for a frame as soon as possible. Safe from any thread. */
+        /**
+         * @brief Ask for a frame as soon as possible.
+         *
+         * Safe from any thread; wakes an idle platform loop on every backend.
+         */
         void requestFrame();
 
         /** @brief Present this window's finished frame.
