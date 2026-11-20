@@ -88,10 +88,12 @@ Verified at `30b6727b`.
   thread rule for `makeTexture` or `submit`. GL's `submit` only queues a
   closure under the dispatcher's mutex (`GlRenderState::submit` in
   `glrenderstate.cpp`, `src/ase/src/dispatcher.cpp`); the dummy queue's
-  submission recording is unguarded (`src/ase/src/dummy/dummyrenderqueue.cpp:35`).
+  submission recording is unguarded
+  (`src/ase/src/dummy/dummyrenderqueue.cpp:35`).
 - **Upload completion.** `CommandBuffer::pushFence` returns a
   `btl::future::Future<>` that resolves once the commands before it have
-  completed; an overload takes a callback (`src/ase/src/commandbuffer.cpp:50`).
+  completed; an overload takes a callback
+  (`src/ase/src/commandbuffer.cpp:50`).
   GL polls its sync objects in `GlRenderState::checkFences` at the end of
   every submit and, while any are pending, from a 16 ms dispatcher idle
   function (`src/ase/src/gl/glrenderstate.cpp:580-628`,
@@ -192,19 +194,20 @@ texture, submitted to a queue of the context. That changes no value, so
 nothing in avg notices: the next frame that draws the image samples
 whatever the texture then holds. A queue executes in order, so work
 submitted to the main queue before a frame's draws is seen by them, so
-updating an existing image is already same-frame. Rendering on another thread, another queue or inside the frame is the
-render view's business. The writes must follow the pixel contract (avg
-offers the conversion from straight alpha), and a texture nothing has
-written is undefined, so an application fills its own before showing it.
+updating an existing image is already same-frame. Rendering on another
+thread, another queue or inside the frame is the render view's business.
+The writes must follow the pixel contract (avg offers the conversion
+from straight alpha), and a texture nothing has written is undefined, so
+an application fills its own before showing it.
 
 ## Making an image from pixels
 
 The texture needs the render context; the image does not. bqui gains
 `App::getRenderContext()`, the easy way to reach the App's default
 context, valid from App construction (the render view needs it too).
-An avg helper
-takes a context, a size and tightly packed 8-bit sRGB RGBA rows, top row
-first, with **straight** alpha (what decoders produce). It converts the
+An avg helper takes a context, a size and tightly packed 8-bit sRGB RGBA
+rows, top row first, with **straight** alpha (what decoders produce). It
+converts the
 pixels on the calling thread, makes the texture, submits a whole upload
 with a fence after it, watches the fence through the context and returns
 a `btl::future::Future` of the image, chained by `then` on the watch: it
@@ -320,8 +323,9 @@ before that.
 the future resolves; the widget shows the placeholder while it is
 pending. bq gains that small adapter (decided; a working name: signal
 from future), generic over any value: a future becomes a signal of a
-three-state value, pending, ready or failed. Its continuation holds only the input's weak
-handle, so dropping the UI before the upload ends is harmless. bqui
+three-state value, pending, ready or failed. Its continuation holds only
+the input's weak handle, so dropping the UI before the upload ends is
+harmless. bqui
 builds the widget form on it: a future of a widget plus a default widget
 gives a widget. The wider async design (explicit loading, a default font,
 loading before the window opens) and the adapter's value type are in
@@ -366,11 +370,12 @@ callback for applications with their own decoder.
   values, exactly what an avg render target holds after drawing; the
   painter blends on that assumption. Whoever builds an image directly
   from a texture (a transparent render view, whose engine's final pass
-  writes it, for one) must put premultiplied content in it. Sampling decodes to linear and blends `One, OneMinusSrcAlpha`
-  like every other element, without dark fringes under filtering.
+  writes it, for one) must put premultiplied content in it. Sampling
+  decodes to linear and blends `One, OneMinusSrcAlpha` like every other
+  element, without dark fringes under filtering.
 - **Conversion** from straight alpha, which the raw-byte helper always
-  applies before upload: decode each channel to linear,
-  multiply by alpha, encode again; opaque and fully transparent pixels
+  applies before upload: decode each channel to linear, multiply by
+  alpha, encode again; opaque and fully transparent pixels
   come out exact, dark translucent ones lose a little precision.
 - **Rendered pixels** already follow it when drawn with avg's blending;
   with `GL_FRAMEBUFFER_SRGB` on, a producer writes linear values.
@@ -537,8 +542,8 @@ painter submits on the dummy backend, and pixels are checked by hand.
   and a torn-down queue fail watchers and release a blocked wait; headless
   frame stepping never finds a window saturated.
   bq's adapter: pending until the future resolves, then the image or the
-  failure; a
-  dropped signal ignores a late result, driven by `makeManualFuture`.
+  failure; a dropped signal ignores a late result, driven by
+  `makeManualFuture`.
 - **bqui (dummy, CI).** `src/bqui/test/shapetest.cpp` and
   `shadowboundarytest.cpp`: outlines under opaque, translucent and contain
   fills; `widgettest.cpp`: the natural size; `apptest.cpp`: a frame
@@ -590,8 +595,8 @@ Both are done, read in code; detail and references are in
 - **Whether it causes a frame depends on who reads the input.** Read by
   the app's running signal, the wake is thread safe and causes a frame
   on every platform. Read by a widget, it goes through the racy
-  `GenericWindow::requestFrame` (fixed on the local branch
-  `bugfix/requestframe-race`), and on dummy and offscreen windows
+  `GenericWindow::requestFrame` (a fix exists, unmerged), and on dummy
+  and offscreen windows
   (the dummy platform, headless windows, macOS) it does not wake the
   platform, so an idle loop may stay blocked. The frame request stage
   (*Asking for a repaint*) covers both; it also needs a test setting an

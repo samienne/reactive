@@ -51,10 +51,10 @@ an engine with its own swapchain or queue.
   rest, scale factor and visibility. It fires when the size at rest
   changes, not on every animation frame.
 - **Carried over:** a move-only owner **handle** whose frame callback is
-  also the engine's tick; per-view `reasons()`; a per-view **present**; layer 2
-  time is the window's frame clock, so remote pause and step freeze the
-  3D; SDR pixels per `image-brush.md`; "view", not "surface", which the
-  effect branch already uses.
+  also the engine's tick; per-view `reasons()`; a per-view **present**;
+  layer 2 time is the window's frame clock, so remote pause and step
+  freeze the 3D; SDR pixels per `image-brush.md`; "view", not "surface",
+  which the effect branch already uses.
 - **One render context.** bqui's render views assume the App's single
   render context (`App::getRenderContext()` in `image-brush.md`). A queue
   per window and extra queues for engines are future mapping only.
@@ -264,11 +264,12 @@ texture.
 
 **The handle** is the owner of the callback and a request registry, and
 is move-only; widgets and view objects refer to the shared state behind
-it, not to the owner. A handle runs **at most once per frame** of each window
-where its views are mounted, listing that window's views. A callback
-cannot be replaced. The frame object hands it the window's `ase::Frame`,
-the render context, `submit` to the main queue, `requestFrame()` (so a
-callback never needs its handle), and `views()`, in tree order.
+it, not to the owner. A handle runs **at most once per frame** of each
+window where its views are mounted, listing that window's views. A
+callback cannot be replaced. The frame object hands it the window's
+`ase::Frame`, the render context, `submit` to the main queue,
+`requestFrame()` (so a callback never needs its handle), and `views()`,
+in tree order.
 
 **Destroying the owner (decided)** clears the callback; if it is running
 on the loop thread, destruction waits for it to return. The one rule: the
@@ -412,10 +413,11 @@ a flag only `setVisible` writes, on every backend
 minimised, unmapped or occluded. GLX receives map and property events
 but drops them and does not select visibility events
 (`src/ase/src/glx/glxwindow.cpp:96-100`, `:341-344`, `:368-370`); WGL's
-`WM_SIZE` ignores `SIZE_MINIMIZED` (`src/ase/src/windows/wglwindow.cpp:629-631`).
-The frame loop never checks visibility (`src/ase/src/platformbase.cpp:163-218`),
-so a minimised window still makes frames whenever one is requested.
-bqui's `Window` has no show or hide (`src/bqui/include/bqui/window.h:29-73`),
+`WM_SIZE` ignores `SIZE_MINIMIZED`
+(`src/ase/src/windows/wglwindow.cpp:629-631`). The frame loop never
+checks visibility (`src/ase/src/platformbase.cpp:163-218`), so a
+minimised window still makes frames whenever one is requested. bqui's
+`Window` has no show or hide (`src/bqui/include/bqui/window.h:29-73`),
 and the bridge shows the window once and never hides it
 (`src/bqui/src/windowbridge.cpp:58`).
 
