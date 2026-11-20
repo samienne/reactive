@@ -43,15 +43,8 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     std::function<void(btl::RunLoop::Controller&)> tick;
 
-    // Run a tick as soon as possible. The app wants to re-evaluate now -- at
-    // startup, on a content change, an event, or a window close -- independent
-    // of any window's render cadence, so this is what drives the loop to a stop
-    // when there is nothing (or nothing left) to draw.
-    //
-    // A pending timer -- possibly a long wait for an idle window -- is cut
-    // short, but never to sooner than frameStep after the last tick: wakes
-    // also arrive once per presented frame (the fence), and an unpaced tick
-    // would then render an animating window as fast as the fences complete.
+    // A wake cuts a pending timer short, but never to sooner than frameStep
+    // after the last tick.
     auto wakeTick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &tick,
             &clock, &lastFrame](btl::RunLoop::Controller& controller)
     {
@@ -130,10 +123,8 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
                 thisFrame - lastFrame);
         lastFrame = thisFrame;
 
-        // Time spent in a scheduled wait counts in full, also when a wake
-        // ended it early; elapsed time beyond the scheduled wait, or beyond
-        // four frame steps when nothing was scheduled, is a stall or a pause
-        // and is dropped.
+        // A scheduled wait counts in full, even when a wake ends it early;
+        // any other elapsed time is clamped to four frame steps.
         auto const maxDt = std::max(4 * frameStep_, waited);
         auto dt = realElapsed > maxDt ? maxDt : realElapsed;
 

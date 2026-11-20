@@ -57,7 +57,15 @@ are in the top-level `docs/`.
   `nextFrameTime`, not a platform cap — and the dummy queue completes fences
   inline), the OS `wakeSource()` (read
   once at loop start), and the live `getRenderWindows()` list (re-read every tick,
-  since windows open and close during a run); there is no `Session`. Manual
+  since windows open and close during a run); there is no `Session`. A wake
+  (`requestFrame`, an OS event, a presented frame's fence) cuts a pending timer
+  short, but never to sooner than one `frameStep` after the last tick, so the
+  per-frame fence wakes cannot run an animating window past the cadence. A
+  tick's `dt` is its real elapsed time clamped to four frame steps, except that
+  time spent in a wait the loop scheduled for a window's `nextFrameTime` counts
+  in full, also when a wake ends it early, so a scheduled update arrives on
+  time; a pause discards the scheduled wait, so neither a pause nor a stall
+  jumps the frame clock. Manual
   driving is a `Platform::pause()` RAII token (`PauseToken`) whose `step(dt)`
   produces one frame off the same callback/render path an auto tick takes;
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
@@ -96,11 +104,11 @@ are in the top-level `docs/`.
   hold a platform reference like the GLX/WGL ones. The `WindowBase` ctor takes
   `(context, size, scalingFactor)` so it can build `genericWindow_`. The
   platform render lists are `weak_ptr<WindowBase>` since the loop hooks live
-  there. `getRenderContext` is
-  a pure virtual on `WindowImpl` (implemented by `WindowBase`), so `Window`
-  reaches the render context without a downcast; the window's main render queue
-  is just `getRenderContext().getMainRenderQueue()`, so `Window::getMainRenderQueue`
-  is a convenience computed on that and stays off the impl interface.
+  there. `getRenderContext` is a pure virtual on `WindowImpl` (implemented by
+  `WindowBase`), so `Window` reaches the render context without a downcast; the
+  window's main render queue is just `getRenderContext().getMainRenderQueue()`,
+  so `Window::getMainRenderQueue` is a convenience computed on that and stays
+  off the impl interface.
 - **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
   `headless` gives an `OffscreenWindow` (backend-agnostic,
   `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from
