@@ -9,6 +9,12 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <X11/cursorfont.h>
+#ifdef ASE_HAVE_XCURSOR
+#include <X11/Xcursor/Xcursor.h>
+#endif
+#undef CursorShape
+
 #include <cstdint>
 #include <stdexcept>
 
@@ -46,6 +52,85 @@ void printAll(std::ostream& stream)
     }
 }
 #endif
+
+struct XCursorNames
+{
+    // Cursor theme names, most preferred first, ending in nullptr.
+    char const* themeNames[4];
+    unsigned int fontShape;
+};
+
+XCursorNames getXCursorNames(CursorShape shape)
+{
+    switch (shape)
+    {
+    case CursorShape::arrow:
+    case CursorShape::hidden:
+        return { { "default", "left_ptr", nullptr }, XC_left_ptr };
+    case CursorShape::ibeam:
+        return { { "text", "xterm", nullptr }, XC_xterm };
+    case CursorShape::hand:
+        return { { "pointer", "hand2", "hand1", nullptr }, XC_hand2 };
+    case CursorShape::crosshair:
+        return { { "crosshair", "cross", nullptr }, XC_crosshair };
+    case CursorShape::move:
+        return { { "move", "fleur", "all-scroll", nullptr }, XC_fleur };
+    case CursorShape::resizeHorizontal:
+        return { { "ew-resize", "sb_h_double_arrow", "h_double_arrow",
+            nullptr }, XC_sb_h_double_arrow };
+    case CursorShape::resizeVertical:
+        return { { "ns-resize", "sb_v_double_arrow", "v_double_arrow",
+            nullptr }, XC_sb_v_double_arrow };
+    case CursorShape::resizeNwSe:
+        return { { "nwse-resize", "size_fdiag", "bd_double_arrow", nullptr },
+            XC_bottom_right_corner };
+    case CursorShape::resizeNeSw:
+        return { { "nesw-resize", "size_bdiag", "fd_double_arrow", nullptr },
+            XC_bottom_left_corner };
+    case CursorShape::notAllowed:
+        return { { "not-allowed", "crossed_circle", "forbidden", nullptr },
+            XC_X_cursor };
+    case CursorShape::wait:
+        return { { "wait", "watch", nullptr }, XC_watch };
+    case CursorShape::progress:
+        return { { "progress", "left_ptr_watch", "half-busy", nullptr },
+            XC_watch };
+    }
+
+    return { { "default", "left_ptr", nullptr }, XC_left_ptr };
+}
+
+::Cursor createBlankXCursor(Display* dpy, ::Window win)
+{
+    char data = 0;
+    XColor black{};
+    Pixmap pixmap = XCreateBitmapFromData(dpy, win, &data, 1, 1);
+    ::Cursor cursor = XCreatePixmapCursor(dpy, pixmap, pixmap, &black, &black,
+            0, 0);
+    XFreePixmap(dpy, pixmap);
+    return cursor;
+}
+
+::Cursor createXCursor(Display* dpy, ::Window win, CursorShape shape)
+{
+    if (shape == CursorShape::hidden)
+        return createBlankXCursor(dpy, win);
+
+    XCursorNames names = getXCursorNames(shape);
+
+#ifdef ASE_HAVE_XCURSOR
+    for (char const* name : names.themeNames)
+    {
+        if (!name)
+            break;
+
+        if (::Cursor cursor = XcursorLibraryLoadCursor(dpy, name))
+            return cursor;
+    }
+#endif
+
+    return XCreateFontCursor(dpy, names.fontShape);
+}
 
 } // anonymous namespace
 
@@ -117,6 +202,8 @@ GlxWindow::GlxWindow(GlxPlatform& platform, RenderContext& context,
         if (!xWin_)
             throw std::runtime_error("Unable to create X window");
 
+        XDefineCursor(dpy, xWin_, getXCursor(CursorShape::arrow));
+
         xim_ = XOpenIM(dpy, NULL, NULL, NULL);
         if (!xim_)
             throw std::runtime_error("Unable to open X input method");
@@ -186,6 +273,15 @@ void GlxWindow::destroy()
     GlxWindow::Lock lock(platform_.lockX());
 
     Display* dpy = platform_.getDisplay();
+
+    for (::Cursor& cursor : xCursors_)
+    {
+        if (cursor)
+        {
+            XFreeCursor(dpy, cursor);
+            cursor = 0;
+        }
+    }
 
     if (syncCounter_)
     {
@@ -465,6 +561,28 @@ void GlxWindow::setTitle(std::string&& title)
 std::string const& GlxWindow::getTitle() const
 {
     return genericWindow_.getTitle();
+}
+
+void GlxWindow::setCursor(Cursor cursor)
+{
+    if (genericWindow_.getCursor() == cursor)
+        return;
+
+    WindowBase::setCursor(cursor);
+
+    Lock lock(platform_.lockX());
+    XDefineCursor(platform_.getDisplay(), xWin_,
+            getXCursor(cursor.getShape()));
+    XFlush(platform_.getDisplay());
+}
+
+::Cursor GlxWindow::getXCursor(CursorShape shape)
+{
+    ::Cursor& cursor = xCursors_[static_cast<std::size_t>(shape)];
+    if (!cursor)
+        cursor = createXCursor(platform_.getDisplay(), xWin_, shape);
+
+    return cursor;
 }
 
 Framebuffer& GlxWindow::getDefaultFramebuffer()
