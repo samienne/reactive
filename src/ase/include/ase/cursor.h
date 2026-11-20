@@ -9,7 +9,7 @@ namespace ase
      *
      * `hidden` shows no pointer at all.
      */
-    enum class CursorShape
+    enum class CursorKind
     {
         arrow,
         ibeam,
@@ -29,20 +29,20 @@ namespace ase
     /**
      * @brief The pointer a window shows over its content.
      *
-     * Made from a shape, implicitly: `window.setCursor(CursorShape::ibeam)`.
+     * Made from a kind, implicitly: `window.setCursor(CursorKind::ibeam)`.
      * A default-constructed cursor is the arrow.
      */
     class ASE_EXPORT Cursor
     {
     public:
-        Cursor(CursorShape shape = CursorShape::arrow);
+        Cursor(CursorKind kind = CursorKind::arrow);
 
-        CursorShape getShape() const;
+        CursorKind getKind() const;
 
         bool operator==(Cursor const& rhs) const;
         bool operator!=(Cursor const& rhs) const;
 
     private:
-        CursorShape shape_;
+        CursorKind kind_;
     };
 }

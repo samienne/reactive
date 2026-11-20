@@ -4,7 +4,6 @@
 
 #include <GL/glx.h>
 #undef Success
-#undef CursorShape
 
 #include <ostream>
 #include <mutex>

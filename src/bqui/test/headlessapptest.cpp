@@ -239,14 +239,14 @@ TEST(headlessApp, windowCursorDefaultsToArrowAndRoundTrips)
                 headless);
 
         EXPECT_TRUE(window.getCursor() == ase::Cursor());
-        EXPECT_TRUE(window.getCursor().getShape() == ase::CursorShape::arrow);
+        EXPECT_TRUE(window.getCursor().getKind() == ase::CursorKind::arrow);
 
-        window.setCursor(ase::CursorShape::ibeam);
-        EXPECT_TRUE(window.getCursor().getShape() == ase::CursorShape::ibeam);
+        window.setCursor(ase::CursorKind::ibeam);
+        EXPECT_TRUE(window.getCursor().getKind() == ase::CursorKind::ibeam);
 
-        window.setCursor(ase::CursorShape::hidden);
+        window.setCursor(ase::CursorKind::hidden);
         EXPECT_TRUE(window.getCursor() == ase::Cursor(
-                    ase::CursorShape::hidden));
+                    ase::CursorKind::hidden));
         EXPECT_TRUE(window.getCursor() != ase::Cursor());
     }
 }

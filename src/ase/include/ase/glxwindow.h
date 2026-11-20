@@ -30,9 +30,6 @@
 #include <X11/Xutil.h>
 #include <X11/X.h>
 
-// X.h defines CursorShape as a macro, which would shadow ase::CursorShape.
-#undef CursorShape
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -91,7 +88,7 @@ namespace ase
 
         void handleEvent(_XEvent const& e);
         Lock lockX() const;
-        ::Cursor getXCursor(CursorShape shape);
+        ::Cursor getXCursor(CursorKind kind);
 
         friend class GlxDispatchedContext;
         ::GLXWindow getGlxWindowId() const;
@@ -114,7 +111,7 @@ namespace ase
         //XComposeStatus composeStatus_;
 
         std::array<::Cursor,
-            static_cast<std::size_t>(CursorShape::hidden) + 1> xCursors_{};
+            static_cast<std::size_t>(CursorKind::hidden) + 1> xCursors_{};
 
         // Atoms
         Atom wmDelete_;
