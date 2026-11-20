@@ -30,8 +30,7 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         Window window, widget::AnyWidget widget, bool headless)
     : wakeTarget_(std::make_shared<WakeTarget>(this)),
     memoryPool_(pmr::new_delete_resource()),
-    memoryStatistics_(&memoryPool_),
-    memory_(&memoryStatistics_),
+    memory_(&memoryPool_),
     aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
     windowData_(window.data()),
     painter_(memory_, aseWindow.getRenderContext()),
@@ -233,14 +232,8 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
 
 WindowBridge::~WindowBridge()
 {
-    {
-        std::lock_guard<std::mutex> lock(wakeTarget_->mutex);
-        wakeTarget_->bridge = nullptr;
-    }
-
-    std::cout << "Maximum concurrent allocations: "
-        << memoryStatistics_.maximum_concurrent_bytes_allocated()
-        << std::endl;
+    std::lock_guard<std::mutex> lock(wakeTarget_->mutex);
+    wakeTarget_->bridge = nullptr;
 }
 
 void WindowBridge::wake()

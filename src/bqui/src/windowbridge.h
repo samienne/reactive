@@ -30,7 +30,6 @@
 #include <ase/keyevent.h>
 #include <ase/pointerbuttonevent.h>
 
-#include <pmr/statistics_resource.h>
 #include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/new_delete_resource.h>
 
@@ -39,7 +38,6 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -109,7 +107,6 @@ private:
 
     std::shared_ptr<WakeTarget> wakeTarget_;
     pmr::unsynchronized_pool_resource memoryPool_;
-    pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;
     ase::Window aseWindow;
 
