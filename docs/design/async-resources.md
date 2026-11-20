@@ -45,8 +45,8 @@ is not a staged plan.
   adapter*).
 - **OWNER: a default theme is always available** (*Theme*).
 - **OWNER: the app exits on a close, not on an empty window list**, and
-  `run(signal)` and `runUntil(signal)` leave the public interface (*App
-  exit and the first window*).
+  `run(signal)` leaves the public interface; `runUntil`, already private,
+  stays the internal mechanism (*App exit and the first window*).
 - **OWNER: `App::exitWhenAllWindowsClosed` is on by default**, and the
   window overload is `addWindow(Window, Future<AnyWidget>)`, a failed
   future rethrown from `run()` (*App exit and the first window*).
@@ -83,7 +83,8 @@ Read at `30b6727b`; nothing was built or run.
   failure fails the whole (`whenall.h:93-102`, `merge.h:57-67`). `join`
   (`join.h:17`) flattens a future of a future.
 - **The pool** is a process-wide static (`threadpool.h:204-206`);
-  `btl::async` posts to it (`async.h:13-21`).
+  `btl::async` (`async.h:21`) posts to it through `asyncJob`
+  (`:13-18`, `:44`).
 
 **Fonts** (`src/avg`, `src/bqui`):
 
@@ -122,8 +123,8 @@ Read at `30b6727b`; nothing was built or run.
   another thread).
 - **`run()` is a state test.** `run()` is `runUntil` of "the window list
   is not empty" and `run(signal)` is `runUntil(signal)`
-  (`app.cpp:309-321`); `runUntil` is public (`app.h:129`). An app that
-  starts with no windows stops at once.
+  (`app.cpp:309-321`); `runUntil` is private (`app.h:128-129`). An app
+  that starts with no windows stops at once.
   `App.runWithNoWindowsReturnsImmediately` (`apptest.cpp:547-551`) tests
   exactly that, and is the only test or example relying on it; every
   other caller of `run()` adds a window first. Read: the stop comes in
@@ -136,7 +137,7 @@ Read at `30b6727b`; nothing was built or run.
   runs, but no frame is drawn.
 - **The platform is made inside the run.** `runUntil` creates the
   platform (`app.cpp:323-338`) and then the render context
-  (`app.cpp:362`), so nothing can be uploaded before `run()`.
+  (`app.cpp:363`), so nothing can be uploaded before `run()`.
 - **The app has no exit.** Nothing ends `run()` other than its condition.
 - `run(signal)` has eight callers, all tests in `src/bqui/test`:
   `apptest.cpp` (six: `:166`, `:245`, `:315`, `:402`, `:482`, `:533`),
@@ -174,8 +175,6 @@ Read at `30b6727b`; nothing was built or run.
     `offscreenwindow.cpp:42-45`). Offscreen windows back headless
     windows on every backend, and macOS uses the dummy platform. There,
     inferred, an idle loop stays blocked until something else wakes it.
-    `windowbase.cpp:75-76` states that `requestFrame()` is thread-safe;
-    as read, that claim is too strong.
   - Inferred: a set landing between `onFrame`'s exchange of the atomic
     and `frame()` clearing the request is lost; and the window's wake
     captures the bridge's raw `this`, so a bridge torn down on the loop
@@ -195,17 +194,20 @@ Read at `30b6727b`; nothing was built or run.
   and `WindowBridge::onFrame` has no `catch` and no `noexcept`
   (`runloopimpl.h:42-46`, `platformbase.cpp:73-116`, `app.cpp:433-443`,
   `windowbridge.cpp:386`). The only `catch` in `src/bqui/src` is the
-  remote driver's: the `app.step` RPC swallows the exception into an
-  error reply and the app carries on from a half-updated frame
-  (`remotedriver.cpp:392-408`); its running-state tick does not catch.
+  remote driver's, around every RPC: under `app.step` it turns an
+  `RpcError` or a `std::exception` into an error reply and the app
+  carries on from a half-updated frame; any other exception still
+  escapes (`remote/remotedriver.cpp:393-408`). Its running-state tick
+  does not catch.
 - **What it leaves behind** (inferred from the code read):
   - an injected run loop stays marked running (`running_` is set with no
     guard, win32 `runloopimpl.cpp:121`, posix `:90`), so a second run on
     it throws; the owned default loop is destroyed, so no effect there;
-  - the platform's tick and step callbacks are cleared only on a normal
-    return and capture `run()`'s locals by reference
-    (`platformbase.cpp:147-148`), so they dangle; a later `requestFrame`
-    on a surviving platform is undefined behaviour if its loop runs;
+  - the platform's tick and step callbacks capture `run()`'s locals by
+    reference (`platformbase.cpp:75-76`, `:120-125`) and are cleared only
+    on a normal return (`:159-160`), so they dangle; a later
+    `requestFrame` on a surviving platform is undefined behaviour if its
+    loop runs;
   - if the render queue's `finish()` throws during the unwind
     (`app.cpp:161-169`), the process terminates; not determined whether
     it can.
@@ -319,8 +321,8 @@ step. The transformations below exist to keep that step short.
 - **Loud by default.** Code that handles only the happy path exits on a
   failure instead of showing nothing. As read, an exception thrown during
   signal evaluation leaves `App::run`, except under the remote `app.step`
-  RPC, which swallows it; the App is not safe to reuse afterwards
-  (*Where the code is*, exceptions).
+  RPC, which swallows a `std::exception`; the App is not safe to reuse
+  afterwards (*Where the code is*, exceptions).
 - This replaces the signal of an optional value that `image-brush.md`
   describes (*A placeholder*); its weak hold on the input stays.
 
@@ -361,11 +363,11 @@ An app with no windows yet keeps running.
   signal reads it; reached from a window, it needs the wake fixes in
   *Where the code is* (bq and other threads).
 
-**`run(signal)` and `runUntil(signal)` leave the public interface
-(OWNER).** They conflict with the exit methods above, and in practice the
-condition is an input of `bool` set to false, which is `exit()`. Only
-tests use them today (*Where the code is*); they move to `exit()` or to a
-non-public entry point. `runUntil` can stay as the internal mechanism.
+**`run(signal)` leaves the public interface (OWNER).** It conflicts with
+the exit methods above, and in practice the condition is an input of
+`bool` set to false, which is `exit()`. Only tests use it today (*Where
+the code is*); they move to `exit()` or to a non-public entry point.
+`runUntil` is already private and stays the internal mechanism (OWNER).
 Recorded loss: the app evaluated the condition in its own signal context
 even with no window open. An app-level observe can be added later if a
 real use appears.
