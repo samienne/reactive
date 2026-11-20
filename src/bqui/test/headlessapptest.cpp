@@ -20,8 +20,8 @@
 
 #include <gtest/gtest.h>
 
-#include <atomic>
 #include <chrono>
+#include <future>
 #include <optional>
 #include <thread>
 
@@ -139,33 +139,58 @@ TEST(headlessApp, requestFrameDuringAFrameIsNotLost)
     EXPECT_EQ(2, frames);
 }
 
-TEST(headlessApp, requestFrameIsSafeFromAnotherThread)
+TEST(headlessApp, requestFrameFromAnotherThreadWakesAnIdleLoop)
 {
     btl::RunLoop loop;
     auto platform = ase::makeDummyPlatform(loop);
     auto context = platform.makeRenderContext();
     auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
 
-    window.setFrameCallback([](ase::Frame const&)
+    int frames = 0;
+    window.setFrameCallback([&](ase::Frame const&)
             -> std::optional<std::chrono::microseconds>
             {
-                return std::chrono::microseconds(0);
+                ++frames;
+                return std::nullopt;
             });
 
-    std::atomic<bool> done{ false };
+    std::promise<void> idle;
+    std::promise<void> finished;
     std::thread requester([&]
             {
-                while (!done)
-                    window.requestFrame();
+                idle.get_future().wait();
+                window.requestFrame();
+
+                if (finished.get_future().wait_for(std::chrono::seconds(10))
+                        == std::future_status::timeout)
+                {
+                    loop.post([](btl::RunLoop::Controller& controller)
+                            {
+                                controller.stop();
+                            });
+                }
             });
 
-    int ticks = 0;
-    platform.run([&](ase::Frame const&) { return ++ticks < 20; });
+    bool idleSignalled = false;
+    platform.run([&](ase::Frame const&)
+            {
+                // The first tick after the quiescing frame schedules nothing
+                // more; a task posted from it runs once the loop has gone idle.
+                if (frames == 1 && !idleSignalled)
+                {
+                    idleSignalled = true;
+                    loop.post([&](btl::RunLoop::Controller&)
+                            {
+                                idle.set_value();
+                            });
+                }
+                return frames < 2;
+            });
 
-    done = true;
+    finished.set_value();
     requester.join();
 
-    EXPECT_EQ(20, ticks);
+    EXPECT_EQ(2, frames);
 }
 
 TEST(headlessApp, secondAppRunsInTheSameProcess)
