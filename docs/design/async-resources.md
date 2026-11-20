@@ -353,14 +353,14 @@ helper. The toolkit offers nothing else to wait with (OWNER).
 list is not empty"; it ends on a window closing, under the rules below.
 An app with no windows yet keeps running.
 
-- **PROPOSED: `Window::exitOnClose(true)`.** Closing that window ends
+- **OWNER: `Window::exitOnClose(true)`.** Closing that window ends
   `run()`; the other windows go with the app.
 - **`App::exitWhenAllWindowsClosed(bool)`.** When a close leaves no
   windows, `run()` ends. It can be changed at any time. OWNER: on by
   default.
-- **PROPOSED: `App::exit(int code = 0)`**, an explicit exit; the app has
-  none today. The details too: the exit code, and that it may be called
-  from any thread. If it sets a bq input internally, setting it from
+- **OWNER: `App::exit()`**, an explicit exit; the app has none today.
+  PROPOSED: the details, an `int code = 0` argument and that it may be
+  called from any thread. If it sets a bq input internally, setting it from
   another thread is safe and wakes the loop as long as only the app's
   running signal reads it; reached from a window, it needs the wake
   fixes in *Where the code is* (bq and other threads).
