@@ -18,9 +18,11 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <exception>
 #include <map>
 #include <mutex>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #pragma comment(lib, "ws2_32.lib")
@@ -275,6 +277,98 @@ namespace
 
             // The callback may remove this or other sources, so copy it out.
             Callback callback = it->second.callback;
+            {
+                PumpTimerScope scope(*this);
+                invoke(callback);
+            }
+            if (pumpError_)
+                std::rethrow_exception(std::exchange(pumpError_, nullptr));
+        }
+
+        /**
+         * Armed while the message-source callback runs. If that callback sits
+         * in DefWindowProc's modal move/size loop, the loop below is stuck;
+         * the modal loop still dispatches this timer, which runs due posts
+         * and timers so the app keeps rendering during the drag.
+         */
+        struct PumpTimerScope
+        {
+            explicit PumpTimerScope(Win32RunLoop& loop) :
+                loop_(loop),
+                previous_(pumpLoop_)
+            {
+                loop_.pumpError_ = nullptr;
+                loop_.pumpTimer_ = SetTimer(nullptr, 0, USER_TIMER_MINIMUM,
+                        &Win32RunLoop::onPumpTimer);
+                pumpLoop_ = &loop_;
+            }
+
+            ~PumpTimerScope()
+            {
+                if (loop_.pumpTimer_)
+                    KillTimer(nullptr, loop_.pumpTimer_);
+                loop_.pumpTimer_ = 0;
+                pumpLoop_ = previous_;
+            }
+
+            PumpTimerScope(PumpTimerScope const&) = delete;
+            PumpTimerScope& operator=(PumpTimerScope const&) = delete;
+
+            Win32RunLoop& loop_;
+            Win32RunLoop* previous_;
+        };
+
+        /** The id check drops a WM_TIMER already queued before KillTimer. */
+        static void CALLBACK onPumpTimer(HWND, UINT, UINT_PTR id, DWORD)
+        {
+            Win32RunLoop* loop = pumpLoop_;
+            if (loop && loop->pumpTimer_ && id == loop->pumpTimer_)
+                loop->pumpFromModalLoop();
+        }
+
+        /**
+         * Only inside a move/size loop: other modal loops under the message
+         * source (a dialog opened by an input handler) have app code on the
+         * stack. Exceptions must not cross the TIMERPROC; the first one is
+         * rethrown from fireMessage().
+         */
+        void pumpFromModalLoop()
+        {
+            if (!running_ || pumping_ || taskDepth_ > 0 || pumpError_)
+                return;
+
+            GUITHREADINFO info{};
+            info.cbSize = sizeof(info);
+            if (!GetGUIThreadInfo(GetCurrentThreadId(), &info)
+                    || !(info.flags & GUI_INMOVESIZE))
+                return;
+
+            ZoneScopedN("RunLoop modal pump");
+            pumping_ = true;
+            try
+            {
+                drainPosts();
+                if (running_)
+                    fireExpiredTimers();
+                if (running_)
+                    drainPosts();
+            }
+            catch (...)
+            {
+                pumpError_ = std::current_exception();
+            }
+            pumping_ = false;
+        }
+
+        void invokeTask(Callback const& callback)
+        {
+            struct Depth
+            {
+                int& depth;
+                ~Depth() { --depth; }
+            };
+            ++taskDepth_;
+            Depth depth{ taskDepth_ };
             invoke(callback);
         }
 
@@ -288,7 +382,7 @@ namespace
             }
             for (auto& task : tasks)
             {
-                invoke(task);
+                invokeTask(task);
                 if (!running_)
                     return;
             }
@@ -327,7 +421,7 @@ namespace
 
                 Callback callback = std::move(it->second.callback);
                 timers_.erase(it); // one-shot.
-                invoke(callback);
+                invokeTask(callback);
                 if (!running_)
                     return;
             }
@@ -341,7 +435,15 @@ namespace
         std::vector<Callback> posted_;
         std::uint64_t nextId_ = 1;
         std::atomic<bool> running_{ false };
+        UINT_PTR pumpTimer_ = 0;
+        bool pumping_ = false;
+        int taskDepth_ = 0;
+        std::exception_ptr pumpError_;
+
+        static thread_local Win32RunLoop* pumpLoop_;
     };
+
+    thread_local Win32RunLoop* Win32RunLoop::pumpLoop_ = nullptr;
 }
 
     std::shared_ptr<RunLoopImpl> makePlatformSpecificRunLoopImpl()
