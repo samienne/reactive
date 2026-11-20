@@ -143,6 +143,20 @@ are in the top-level `docs/`.
   keep-alive into the task so the window outlives it. `PresentStatus` is
   `Ok`-only on GL; it exists so a backend whose present can fail (a lost
   swapchain) is not a `void`-return retrofit.
+- **Cursor.** A window's pointer is a `Cursor` value (today only a
+  `CursorShape`; an image cursor would be another constructor) stored in
+  `GenericWindow`, and `WindowBase::setCursor`/`getCursor` forward to it, so the
+  dummy and offscreen windows only store it. It covers the client area only;
+  the frame and drag-resize pointers belong to the OS. WGL answers
+  `WM_SETCURSOR` for `HTCLIENT` with the mapped `IDC_*` cursor (shared system
+  handles, never destroyed) and lets `DefWindowProc` handle the rest;
+  `setCursor` also calls `SetCursor` at once when the pointer is in the client
+  area or captured, since `WM_SETCURSOR` waits for the next move and is not
+  sent during capture. GLX loads the theme cursor through libXcursor when the
+  optional `xcursor` dependency is found (`ASE_HAVE_XCURSOR`), falling back to
+  `XCreateFontCursor`; `hidden` is a blank 1x1 pixmap cursor. Cursors are
+  cached per window and freed in `destroy()`. `X.h` defines a `CursorShape`
+  macro, so every ase header that pulls in X `#undef`s it.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
