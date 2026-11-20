@@ -650,16 +650,35 @@ GL, or through `window.screenshot` once it lands.
 
 ## Lookups before implementation
 
-None remain. The one listed, what ase reports for a hidden, minimised or
-occluded window, is answered in *A hidden window*: nothing beyond the
-app's own `setVisible` flag. Work it found: ase tracking minimise and
-unmap in GLX and WGL and exposing it, as ase prework, before window-level
-hidden; and the zero-size resize on a Windows minimise.
+Done: what ase reports for a hidden, minimised or occluded window is
+answered in *A hidden window*: nothing beyond the app's own `setVisible`
+flag. Work it found: ase tracking minimise and unmap in GLX and WGL and
+exposing it, as ase prework, before window-level hidden; and the
+zero-size resize on a Windows minimise.
+
+Two remain, both unverified:
+
+- Whether the view walk can tell hidden beyond clipped out (*Visibility*).
+- That bq releases a removed subtree's build state in the update that
+  removes it (*Entering, leaving and hidden views*); a test in the layer
+  2 stage checks it.
 
 ## Open questions for the owner
 
-None are open; see *Lookups before implementation* and the open issue in
-*Later: an engine on its own ase queue*.
+Not decided; each needs the owner. See also the open issue in *Later: an
+engine on its own ase queue*.
+
+- **How a leaving node keeps a frozen image.** The view node reads the
+  current image from the view state when the `Drawing` is built
+  (*The model*), so as written a leaving node would follow later
+  presents. Either the node copies the image into itself when frame step
+  1 drops the view, or the view state keeps the image at removal for
+  leaving nodes to read.
+- **Where a handle runs with no view listed.** A handle runs in frames
+  of windows where its views are mounted, yet a request is honoured with
+  no view listed (*When it runs*). Either "no view listed" means views
+  mounted but none due, and a handle with no mounted view does not run,
+  or a viewless handle runs on the loop outside any window's frame.
 
 ## Non-goals
 
@@ -682,9 +701,9 @@ Each stage is one PR, after the backdrop / effect-brushes stack (#172-#177,
 2. **bqui: layer 1 in the frame.** The image source object, show the last
    image presented (no fence, no release notification), the configuration
    readable from any thread with its wake-up handler, the one-mount rule,
-   window hide and show updating the configuration (once ase reports
-   them; until then clipping only);
-   frame steps 1, 3 and 4; the `Drawing` rebuilt on an image change;
+   hidden as clipped out (window hide and show is deferred until the ase
+   prework reports them, *A hidden window*); frame steps 1, 3 and 4; the
+   `Drawing` rebuilt on an image change;
    presents from any thread waking the window. Depends on stage 1 and
    image-brush stage 4 (`App::getRenderContext()`, the thread-safe window
    frame request).

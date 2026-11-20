@@ -42,9 +42,10 @@ before the render view (`render-view.md`), which builds on it.
   context turns a fence into a btl future, which resolves on the thread
   pool, never the GL thread (*Fences*).
 - **The render context moves to App**, so it exists from App
-  construction and a theme built then can hold an image. It is the
-  default context, not the only one: an image belongs to the context its
-  texture came from.
+  construction and a theme built then can hold an image. bqui assumes
+  this single context (`render-architecture.md`, *One render context in
+  bqui*); ase still supports several, and in avg an image belongs to the
+  context its texture came from.
 - **The backend is an App constructor argument**; `App::platform()` as a
   later setter goes. Creating the context on first use was rejected: it
   makes a runtime error depend on call order.
@@ -170,10 +171,11 @@ two images of the same texture and rectangle are equal, two made from
 identical bytes are not, and two rectangles of one atlas are different
 images. Making an image from an existing texture needs no render context;
 a texture of another format asserts in debug and draws nothing in
-release. Windows carry their render context and may share one or use
-different ones (`render-architecture.md`), so an image belongs to the
-context its texture came from and can be drawn only in windows on that
-context. An image can be a signal value, a `std::optional`, a member of a
+release. In ase, windows carry their render context and may use
+different ones (`render-architecture.md`), so in avg an image belongs to
+the context its texture came from and draws only on that context; bqui
+uses the App's single context, so there every window can draw every
+image. An image can be a signal value, a `std::optional`, a member of a
 theme; there is no empty image, "no image" is `std::optional<Image>`.
 
 **The source rectangle** serves icon atlases and sprite sheets, and lets
@@ -489,7 +491,8 @@ past the App dangles.
 - **`widget::image(image, fit)`**: a rectangle filled with an image brush,
   whose natural size is the image's natural logical size, so an icon made
   at scale 2 is laid out at half its pixel size. The image may be a
-  signal, of optional images with a placeholder for one still uploading;
+  signal, of the future adapter's three-state value, with a placeholder
+  while it is pending (`async-resources.md`, *The future adapter*);
   a new image re-lays out only when its natural size changes. Fit
   defaults to contain, alignment to centre. A rounded image is a shape
   fill, not an option of the widget.
@@ -565,11 +568,12 @@ tests also wait for remote-screenshot.
    fence counting; the any-thread guarantee and the dummy queue's lock;
    the asynchronous image helper on the main queue; bq's signal from a
    future.
-4. **bqui: the widget.** `widget::image` with fit, alignment and optional
-   images, and the widget form of the future adapter; the render context
-   on App with `App::getRenderContext()`, the backend as a constructor
-   argument and the same-thread assert in run; the frame request on
-   `Window`, with the ase request made safe off the loop thread.
+4. **bqui: the widget.** `widget::image` with fit, alignment and the
+   adapter's three-state value, and the widget form of the future
+   adapter; the render context on App with `App::getRenderContext()`,
+   the backend as a constructor argument and the same-thread assert in
+   run; the frame request on `Window`, with the ase request made safe off
+   the loop thread.
    The transfer queue for uploads comes later, with the ase prework.
 5. **Later: the loader**, in its own optional library with its decoder.
 
