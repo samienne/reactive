@@ -157,11 +157,6 @@ void GlFramebuffer::setColorTarget(size_t index, Texture texture)
     dirty_ = true;
 }
 
-void GlFramebuffer::setColorTarget(size_t /*index*/, Renderbuffer /*texture*/)
-{
-    assert(false);
-}
-
 void GlFramebuffer::unsetColorTarget(size_t index)
 {
     colorTargets_.at(index) = std::nullopt;
@@ -181,16 +176,6 @@ void GlFramebuffer::unsetDepthTarget()
     depthTarget_.reset();
 
     dirty_ = true;
-}
-
-void GlFramebuffer::setStencilTarget(Renderbuffer /*buffer*/)
-{
-    assert(false);
-}
-
-void GlFramebuffer::unsetStencilTarget()
-{
-    assert(false);
 }
 
 Format GlFramebuffer::getColorFormat() const

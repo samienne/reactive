@@ -32,14 +32,11 @@ namespace ase
         /**
          * @brief The targets attached at one time.
          *
-         * A colour index holds a texture or a renderbuffer, never both.
          * `size` is the size of colour target 0, (0, 0) when there is none.
          */
         struct Attachments
         {
             std::array<std::optional<Texture>, maxColorTargets> color;
-            std::array<std::optional<Renderbuffer>, maxColorTargets>
-                colorBuffers;
             std::optional<Renderbuffer> depth;
             Vector2i size = Vector2i(0, 0);
         };
@@ -71,14 +68,11 @@ namespace ase
         AttachmentFramebuffer const* asAttachments() const noexcept override;
 
         void setColorTarget(size_t index, Texture texture) override;
-        void setColorTarget(size_t index, Renderbuffer buffer) override;
         void unsetColorTarget(size_t index) override;
 
         void setDepthTarget(Renderbuffer buffer) override;
         void unsetDepthTarget() override;
 
-        void setStencilTarget(Renderbuffer buffer) override;
-        void unsetStencilTarget() override;
 
         Format getColorFormat() const override;
         std::optional<Format> getDepthFormat() const override;

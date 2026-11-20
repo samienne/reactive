@@ -17,14 +17,11 @@ namespace ase
         DummyFramebuffer(Format colorFormat, std::optional<Format> depthFormat);
 
         void setColorTarget(size_t index, Texture texture) override;
-        void setColorTarget(size_t index, Renderbuffer texture) override;
         void unsetColorTarget(size_t index) override;
 
         void setDepthTarget(Renderbuffer buffer) override;
         void unsetDepthTarget() override;
 
-        void setStencilTarget(Renderbuffer buffer) override;
-        void unsetStencilTarget() override;
 
         Format getColorFormat() const override;
         std::optional<Format> getDepthFormat() const override;

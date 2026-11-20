@@ -28,14 +28,11 @@ namespace ase
         bool operator<(Framebuffer const& other) const;
 
         void setColorTarget(size_t index, Texture texture);
-        void setColorTarget(size_t index, Renderbuffer buffer);
         void unsetColorTarget(size_t index);
 
         void setDepthTarget(Renderbuffer buffer);
         void unsetDepthTarget();
 
-        void setStencilTarget(Renderbuffer buffer);
-        void unsetStencilTarget();
 
         /**
          * @brief The format of colour attachment 0, `FORMAT_UNKNOWN` when
