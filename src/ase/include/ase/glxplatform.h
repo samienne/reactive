@@ -11,6 +11,9 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
+// X.h defines CursorShape as a macro, which would shadow ase::CursorShape.
+#undef CursorShape
+
 #include <functional>
 #include <string>
 #include <mutex>

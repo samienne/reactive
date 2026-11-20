@@ -42,7 +42,9 @@ if target_machine.system() == 'linux'
   gldep = dependency('gl')
   x11dep = dependency('x11')
   xextdep = dependency('xext')
-  system_deps = [gldep, x11dep, xextdep]
+  xcursordep = dependency('xcursor', required : false)
+  system_deps = [gldep, x11dep, xextdep, xcursordep]
+  system_cpp_args = xcursordep.found() ? ['-DASE_HAVE_XCURSOR'] : []
   system_link_args = []
   system_incs = ['src/glx']
   system_src = [
@@ -60,6 +62,7 @@ elif target_machine.system() == 'windows'
   glheadersdep = glheaders.get_variable('glheaders_dep')
 
   system_deps = [glheadersdep, gldep]
+  system_cpp_args = []
   system_link_args = ['shcore.lib', 'winmm.lib']
   system_incs = []
   system_src = [
@@ -72,6 +75,7 @@ elif target_machine.system() == 'windows'
     ]
 else
   system_deps = []
+  system_cpp_args = []
   system_link_args = []
   system_incs = []
   system_src = [
@@ -127,7 +131,7 @@ libasesrc = [
 libase = library('ase',
   [system_src, dummysrcs, libasesrc],
   dependencies: [system_deps, asedep],
-  cpp_args: ['-DASE_EXPORT_SYMBOLS'],
+  cpp_args: ['-DASE_EXPORT_SYMBOLS', system_cpp_args],
   link_args: system_link_args,
   gnu_symbol_visibility: 'hidden',
   include_directories: incdir
