@@ -201,8 +201,8 @@ GlRenderState::~GlRenderState()
             vertexArrayObject_ = 0;
         }
 
-        if (dispatcher_.hasIdleFunc(d))
-            dispatcher_.unsetIdleFunc(d);
+        idlePeriod_.reset();
+        dispatcher_.unsetIdleFunc(d);
     });
 
     dispatcher_.wait();
@@ -224,7 +224,9 @@ void GlRenderState::submit(CommandBuffer&& commands)
             dispatchedRenderQueue(Dispatched(), gl, std::move(executed));
         }
 
-        sweepFramebufferObjects(Dispatched(), gl);
+        Dispatched d;
+        sweepFramebufferObjects(d, gl);
+        updateIdle(d);
     });
 }
 
@@ -593,7 +595,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
     checkFences(d, gl);
 }
 
-void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
+void GlRenderState::checkFences(Dispatched, GlFunctions const& gl)
 {
     ZoneScoped;
 
@@ -621,19 +623,6 @@ void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
         default:
             ++i;
         }
-    }
-
-    if (!fences_.empty() && !dispatcher_.hasIdleFunc(d))
-    {
-        dispatcher_.setIdleFunc(d, std::chrono::duration<float>(0.016f),
-                [this](GlFunctions const& gl)
-                {
-                    checkFences(Dispatched(), gl);
-                });
-    }
-    else if (fences_.empty() && dispatcher_.hasIdleFunc(d))
-    {
-        dispatcher_.unsetIdleFunc(d);
     }
 }
 
@@ -744,6 +733,36 @@ void GlRenderState::sweepFramebufferObjects(Dispatched d,
         {
             deleteFramebufferObject(d, gl, object);
         });
+}
+
+void GlRenderState::onIdle(Dispatched d, GlFunctions const& gl)
+{
+    checkFences(d, gl);
+    sweepFramebufferObjects(d, gl);
+    updateIdle(d);
+}
+
+void GlRenderState::updateIdle(Dispatched d)
+{
+    std::optional<std::chrono::milliseconds> period;
+    if (!fences_.empty())
+        period = std::chrono::milliseconds(16);
+    else if (!framebufferObjects_.empty())
+        period = std::chrono::seconds(1);
+
+    if (period == idlePeriod_)
+        return;
+
+    idlePeriod_ = period;
+    if (period)
+    {
+        dispatcher_.setIdleFunc(d, *period, [this](GlFunctions const& gl)
+            {
+                onIdle(Dispatched(), gl);
+            });
+    }
+    else
+        dispatcher_.unsetIdleFunc(d);
 }
 
 void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,

@@ -10,6 +10,7 @@
 
 #include <btl/future/promise.h>
 
+#include <chrono>
 #include <optional>
 
 namespace ase
@@ -64,6 +65,8 @@ namespace ase
         void deleteFramebufferObject(Dispatched, GlFunctions const& gl,
                 GlFramebufferObject const& object);
         void sweepFramebufferObjects(Dispatched, GlFunctions const& gl);
+        void onIdle(Dispatched, GlFunctions const& gl);
+        void updateIdle(Dispatched);
 
     private:
         GlDispatchedContext& dispatcher_;
@@ -78,6 +81,7 @@ namespace ase
         std::vector<WaitingFence> fences_;
 
         FramebufferObjectCache<GlFramebufferObject> framebufferObjects_;
+        std::optional<std::chrono::milliseconds> idlePeriod_;
 
         // Current state
         Vector2i viewportSize_ = Vector2i(0, 0);

@@ -55,6 +55,12 @@ namespace ase
         uint64_t getVersion() const noexcept;
 
         /**
+         * @brief The counter behind getVersion(); it outlives the framebuffer.
+         */
+        std::shared_ptr<std::atomic<uint64_t> const> getVersionCounter()
+            const;
+
+        /**
          * @brief The current attachments and the version they belong to.
          */
         Snapshot snapshot() const;
@@ -73,7 +79,7 @@ namespace ase
 
     private:
         uint64_t const id_;
-        std::atomic<uint64_t> version_;
+        std::shared_ptr<std::atomic<uint64_t>> const version_;
         mutable std::mutex mutex_;
         Attachments attachments_;
     };
