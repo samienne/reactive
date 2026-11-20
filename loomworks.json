@@ -10,6 +10,10 @@
         "headlesstest": {
           "working_dir": ".",
           "target": "bquiheadlesstest"
+        },
+        "gltest": {
+          "working_dir": ".",
+          "target": "asegltest"
         }
       },
       "meson": {
