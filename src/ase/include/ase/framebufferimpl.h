@@ -11,21 +11,27 @@ namespace ase
 {
     class Texture;
     class Renderbuffer;
+    class AttachmentFramebuffer;
 
     class ASE_EXPORT FramebufferImpl
     {
     public:
         virtual ~FramebufferImpl() = default;
 
+        /**
+         * @brief This framebuffer as a description of its attachments, null
+         * when it draws to a platform window's drawable.
+         */
+        virtual AttachmentFramebuffer const* asAttachments() const noexcept
+        {
+            return nullptr;
+        }
+
         virtual void setColorTarget(size_t index, Texture texture) = 0;
-        virtual void setColorTarget(size_t index, Renderbuffer texture) = 0;
         virtual void unsetColorTarget(size_t index) = 0;
 
         virtual void setDepthTarget(Renderbuffer buffer) = 0;
         virtual void unsetDepthTarget() = 0;
-
-        virtual void setStencilTarget(Renderbuffer buffer) = 0;
-        virtual void unsetStencilTarget() = 0;
 
         virtual Format getColorFormat() const = 0;
         virtual std::optional<Format> getDepthFormat() const = 0;

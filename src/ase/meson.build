@@ -12,7 +12,6 @@ glsrcs = [
   'src/gl/gltype.cpp',
   'src/gl/glblendmode.cpp',
   'src/gl/glrendercontext.cpp',
-  'src/gl/glframebuffer.cpp',
   'src/gl/glpipeline.cpp',
   'src/gl/globjectmanager.cpp',
   'src/gl/glrenderstate.cpp',
@@ -111,6 +110,7 @@ libasesrc = [
   'src/commandbuffer.cpp',
   'src/drawcommand.cpp',
   'src/texture.cpp',
+  'src/attachmentframebuffer.cpp',
   'src/framebuffer.cpp',
   'src/pipeline.cpp',
   'src/pipelinedesc.cpp',
@@ -145,6 +145,8 @@ libasedep = declare_dependency(
 
 asetest = executable('asetest',
   'test/commandbuffertest.cpp',
+  'test/dispatchertest.cpp',
+  'test/framebufferobjectcachetest.cpp',
   'test/framebuffertest.cpp',
   'test/genericwindowtest.cpp',
   'test/pipelinetest.cpp',
@@ -153,7 +155,17 @@ asetest = executable('asetest',
   'test/texturetest.cpp',
   'test/uniformtest.cpp',
   dependencies: [gtestdep, libasedep],
+  include_directories: include_directories('src'),
   )
+
+# Needs a real GL context, which CI lacks: built, not a test().
+if target_machine.system() in ['linux', 'windows']
+  executable('asegltest',
+    'test/glframebufferobjecttest.cpp',
+    dependencies: [gtestdep, libasedep, system_deps],
+    include_directories: incdir,
+    )
+endif
 
 test('ase', asetest, timeout: 1200,
   args: ['--gtest_output=xml:' + meson.current_build_dir() / 'test_detail.xml'],

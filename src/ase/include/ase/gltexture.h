@@ -51,7 +51,6 @@ namespace ase
 
     private:
         friend class GlRenderContext;
-        friend class GlFramebuffer;
         GlRenderContext& context_;
         Vector2i size_;
         GLuint texture_;

@@ -11,11 +11,16 @@
 #include "gltype.h"
 #include "glblendmode.h"
 #include "glpipeline.h"
+#include "glrenderbuffer.h"
+#include "glbaseframebuffer.h"
+#include "glformat.h"
 #include "gldispatchedcontext.h"
 #include "glrendercontext.h"
 
 #include "rendercommand.h"
 #include "commandbuffer.h"
+#include "texture.h"
+#include "renderbuffer.h"
 
 #include "debug.h"
 
@@ -182,16 +187,25 @@ GlRenderState::GlRenderState(GlDispatchedContext& dispatcher) :
 
 GlRenderState::~GlRenderState()
 {
-    if (vertexArrayObject_)
+    dispatcher_.dispatch([this](GlFunctions const& gl)
     {
-        dispatcher_.dispatch([this](GlFunctions const& gl)
+        Dispatched d;
+        framebufferObjects_.clear([&](GlFramebufferObject const& object)
+            {
+                deleteFramebufferObject(d, gl, object);
+            });
+
+        if (vertexArrayObject_)
         {
             gl.glDeleteVertexArrays(1, &vertexArrayObject_);
             vertexArrayObject_ = 0;
-        });
+        }
 
-        dispatcher_.wait();
-    }
+        idlePeriod_.reset();
+        dispatcher_.unsetIdleFunc(d);
+    });
+
+    dispatcher_.wait();
 }
 
 void GlRenderState::submit(CommandBuffer&& commands)
@@ -200,11 +214,19 @@ void GlRenderState::submit(CommandBuffer&& commands)
             (GlFunctions const& gl) mutable
     {
         {
-            ZoneScopedN("Sort commands");
-            sortDrawRuns(commands.begin(), commands.end(), compareCommand);
+            CommandBuffer executed = std::move(commands);
+
+            {
+                ZoneScopedN("Sort commands");
+                sortDrawRuns(executed.begin(), executed.end(), compareCommand);
+            }
+
+            dispatchedRenderQueue(Dispatched(), gl, std::move(executed));
         }
 
-        dispatchedRenderQueue(Dispatched(), gl, std::move(commands));
+        Dispatched d;
+        sweepFramebufferObjects(d, gl);
+        updateIdle(d);
     });
 }
 
@@ -270,7 +292,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         gl.glBindVertexArray(vertexArrayObject_);
     }
 
-    // Framebuffers are deleted outside this state, which rebinds 0 unseen.
+    // A framebuffer freed since the last submit may reuse a bound one's
+    // address.
     boundFramebuffer_ = nullptr;
     boundFramebufferObject_ = std::nullopt;
     for (auto i = commands.begin(); i != commands.end(); ++i)
@@ -283,20 +306,13 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             ClearCommand const& clearCommand = std::get<ClearCommand>(renderCommand);
 
-            GlBaseFramebuffer const& framebuffer = clearCommand.target.getImpl<
-                GlBaseFramebuffer>();
-
             GLbitfield mask =
                 (clearCommand.color ? GL_COLOR_BUFFER_BIT : 0)
                 | (clearCommand.depth ? GL_DEPTH_BUFFER_BIT : 0)
                 | (clearCommand.stencil ? GL_STENCIL_BUFFER_BIT : 0)
                 ;
 
-            if (boundFramebuffer_ != &framebuffer)
-            {
-                boundFramebuffer_ = &framebuffer;
-                framebuffer.makeCurrent(d, dispatcher_, *this, gl);
-            }
+            bindTarget(d, gl, clearCommand.target.getImpl<FramebufferImpl>());
 
             setScissor(d, clearCommand.scissor);
             glClearColor(clearCommand.r, clearCommand.g, clearCommand.b,
@@ -422,8 +438,6 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         auto& textures = command.getTextures();
         GlVertexBuffer const& vertexBuffer = command.getVertexBuffer()
             .getImpl<GlVertexBuffer>();
-        GlBaseFramebuffer const& framebuffer = command.getFramebuffer().getImpl<
-            GlBaseFramebuffer>();
         GlUniformSet const& uniformSet = command.getUniforms()
             .getImpl<GlUniformSet>();
 
@@ -434,11 +448,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
         assert(command.getPipeline().matchesTarget(command.getFramebuffer()));
 
-        if (boundFramebuffer_ != &framebuffer)
-        {
-            boundFramebuffer_ = &framebuffer;
-            framebuffer.makeCurrent(Dispatched(), dispatcher_, *this, gl);
-        }
+        bindTarget(d, gl, command.getFramebuffer().getImpl<FramebufferImpl>());
 
         setScissor(d, command.getScissor());
 
@@ -585,7 +595,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
     checkFences(d, gl);
 }
 
-void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
+void GlRenderState::checkFences(Dispatched, GlFunctions const& gl)
 {
     ZoneScoped;
 
@@ -614,19 +624,145 @@ void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
             ++i;
         }
     }
+}
 
-    if (!fences_.empty() && !dispatcher_.hasIdleFunc(d))
+void GlRenderState::bindTarget(Dispatched d, GlFunctions const& gl,
+        FramebufferImpl const& framebuffer)
+{
+    AttachmentFramebuffer const* attachments = framebuffer.asAttachments();
+    if (!attachments)
     {
-        dispatcher_.setIdleFunc(d, std::chrono::duration<float>(0.016f),
-                [this](GlFunctions const& gl)
-                {
-                    checkFences(Dispatched(), gl);
-                });
+        if (boundFramebuffer_ != &framebuffer)
+        {
+            boundFramebuffer_ = &framebuffer;
+            static_cast<GlBaseFramebuffer const&>(framebuffer).makeCurrent(d,
+                    dispatcher_, *this, gl);
+        }
+        return;
     }
-    else if (fences_.empty() && dispatcher_.hasIdleFunc(d))
+
+    uint64_t const version = attachments->getVersion();
+    if (boundFramebuffer_ == &framebuffer
+            && boundFramebufferVersion_ == version)
     {
+        return;
+    }
+
+    GlFramebufferObject const object = framebufferObjects_.get(*attachments,
+            [&](AttachmentFramebuffer::Snapshot const& snapshot)
+            {
+                return createFramebufferObject(d, gl, snapshot.attachments);
+            },
+            [&](GlFramebufferObject const& old)
+            {
+                deleteFramebufferObject(d, gl, old);
+            });
+
+    bindFramebuffer(d, gl, object.name);
+    setViewport(d, object.size);
+    boundFramebuffer_ = &framebuffer;
+    boundFramebufferVersion_ = version;
+}
+
+GlRenderState::GlFramebufferObject GlRenderState::createFramebufferObject(
+        Dispatched d, GlFunctions const& gl,
+        AttachmentFramebuffer::Attachments const& attachments)
+{
+    GlFramebufferObject object{ 0, Vector2i(0, 0) };
+    gl.glGenFramebuffers(1, &object.name);
+    bindFramebuffer(d, gl, object.name);
+
+    bool sized = false;
+    GLenum index = 0;
+    for (std::optional<Texture> const& target : attachments.color)
+    {
+        if (target.has_value())
+        {
+            GlTexture& texture = const_cast<GlTexture&>(
+                    target->getImpl<GlTexture>());
+            texture.allocate(d, gl);
+
+            gl.glFramebufferTexture2D(GL_FRAMEBUFFER,
+                    GL_COLOR_ATTACHMENT0 + index, GL_TEXTURE_2D,
+                    texture.getGlObject(), 0);
+
+            if (!sized)
+            {
+                object.size = texture.getSize();
+                sized = true;
+            }
+        }
+
+        ++index;
+    }
+
+    if (attachments.depth.has_value())
+    {
+        GlRenderbuffer& depth = const_cast<GlRenderbuffer&>(
+                attachments.depth->getImpl<GlRenderbuffer>());
+        depth.makeCurrent(d, gl);
+
+        gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                formatToGlDepthAttachment(depth.getFormat()),
+                GL_RENDERBUFFER, depth.getGlObject());
+
+        if (!sized)
+            object.size = depth.getSize();
+    }
+
+    return object;
+}
+
+void GlRenderState::deleteFramebufferObject(Dispatched, GlFunctions const& gl,
+        GlFramebufferObject const& object)
+{
+    gl.glDeleteFramebuffers(1, &object.name);
+
+    // Deleting the bound object binds 0.
+    if (boundFramebufferObject_ == object.name)
+    {
+        boundFramebufferObject_ = std::nullopt;
+        boundFramebuffer_ = nullptr;
+    }
+}
+
+void GlRenderState::sweepFramebufferObjects(Dispatched d,
+        GlFunctions const& gl)
+{
+    framebufferObjects_.sweep([&](GlFramebufferObject const& object)
+        {
+            deleteFramebufferObject(d, gl, object);
+        });
+}
+
+void GlRenderState::onIdle(Dispatched d, GlFunctions const& gl)
+{
+    checkFences(d, gl);
+    sweepFramebufferObjects(d, gl);
+    updateIdle(d);
+}
+
+void GlRenderState::updateIdle(Dispatched d)
+{
+    std::optional<std::chrono::milliseconds> period;
+    if (!fences_.empty())
+        period = std::chrono::milliseconds(16);
+    else if (!framebufferObjects_.empty())
+        period = std::chrono::seconds(1);
+
+    if (period == idlePeriod_)
+        return;
+
+    idlePeriod_ = period;
+    if (period)
+    {
+        dispatcher_.setIdleFunc(d, *period, [this](GlFunctions const& gl)
+            {
+                onIdle(Dispatched(), gl);
+            });
+    }
+    else
         dispatcher_.unsetIdleFunc(d);
-    }
 }
 
 void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,

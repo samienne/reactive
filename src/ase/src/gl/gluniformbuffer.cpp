@@ -1,5 +1,6 @@
 #include "gluniformbuffer.h"
 #include "glrendercontext.h"
+#include "dispatcher.h"
 
 #include <iostream>
 

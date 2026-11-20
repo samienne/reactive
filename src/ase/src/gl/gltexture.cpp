@@ -1,6 +1,7 @@
 #include "gltexture.h"
 
 #include "glrendercontext.h"
+#include "dispatcher.h"
 #include "glplatform.h"
 #include "glformat.h"
 #include "glfunctions.h"

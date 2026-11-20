@@ -3,13 +3,15 @@
 #include "glrenderstate.h"
 #include "renderqueueimpl.h"
 
+#include "asevisibility.h"
+
 #include <memory>
 
 namespace ase
 {
     class GlDispatchedContext;
 
-    class GlRenderQueue : public RenderQueueImpl
+    class ASE_EXPORT GlRenderQueue : public RenderQueueImpl
     {
     public:
         GlRenderQueue(std::shared_ptr<GlDispatchedContext> context);
@@ -27,7 +29,6 @@ namespace ase
 
     private:
         std::shared_ptr<GlDispatchedContext> dispatcher_;
-        std::shared_ptr<GlDispatchedContext> context_;
         GlRenderState renderState_;
     };
 } // namespace ase

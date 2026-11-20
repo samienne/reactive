@@ -1,6 +1,7 @@
 #include "glrenderbuffer.h"
 
 #include "glrendercontext.h"
+#include "dispatcher.h"
 #include "glformat.h"
 #include "glfunctions.h"
 

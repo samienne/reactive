@@ -7,7 +7,9 @@
 pipeline state and target format notes against `28b2afb6` (2026-11-12); the
 submission contract, clip-space, texture and format notes against `28b2afb6`
 (2026-11-12); the `UniformValues` equality note against `0666a8d5`
-(2026-11-14).*
+(2026-11-14); the framebuffer, FBO deletion and `asegltest` notes, and the
+framebuffer sentences of the format and declared-format notes, against
+`3436b0ea` (2026-11-20).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -177,13 +179,46 @@ are in the top-level `docs/`.
   `FORMAT_RGBA16F` -> `GL_RGBA16F` (uploaded as `GL_HALF_FLOAT`, linear,
   8 bytes a pixel). Depth formats make renderbuffers only: `FORMAT_DEPTH16`,
   `_DEPTH24`, `_DEPTH32`, `_DEPTH32F` attach at `GL_DEPTH_ATTACHMENT` and
-  `FORMAT_DEPTH24_STENCIL8` at `GL_DEPTH_STENCIL_ATTACHMENT`; `GlFramebuffer`
+  `FORMAT_DEPTH24_STENCIL8` at `GL_DEPTH_STENCIL_ATTACHMENT`; a framebuffer
   has no separate stencil target. `getBytes` is the upload pixel size the
   buffer checks use. Every switch over `Format` lists each enumerator with no
   `default`, so adding a format fails to compile until it is placed in each
   of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
   covers only the public contract, not the GL mapping. There is no
   three-byte RGB format.
+- **Framebuffers are attachment descriptions; each GL queue builds its own
+  objects.** `makeFramebuffer()` returns an `AttachmentFramebuffer` on the
+  GL and dummy backends alike. It records the attached textures and depth
+  renderbuffer under a mutex, with a process-unique id and a version that
+  every set or unset bumps, and holds no backend state. A backend reaches
+  it through `FramebufferImpl::asAttachments()` (null for a WGL/GLX/dummy
+  window's framebuffer, which binds the drawable's framebuffer 0; an
+  offscreen window's is an `AttachmentFramebuffer`); that and
+  `snapshot()` are the seam a non-GL backend builds its own objects on.
+  `GlRenderState` keeps a `FramebufferObjectCache`
+  (`src/framebufferobjectcache.h`, backend-neutral and unit-tested with
+  fake handles) of FBOs by framebuffer id. A bind builds one from a locked
+  snapshot when there is none or the version has moved, deleting the old
+  one first, so an unset target is never left attached. The cache is per
+  queue because FBOs are not shared between contexts: the GLX transfer
+  queue has its own context, the WGL one is the main queue. Only colour
+  attachment 0 is drawn (`glDrawBuffers` is never set), and nothing checks
+  completeness (`glCheckFramebufferStatus` is not in `GlFunctions`).
+- **FBOs are deleted only on their queue's thread.** The cache holds a
+  weak reference to each framebuffer and a shared one to its version
+  counter, never the framebuffer itself, so dropping a framebuffer makes no
+  GL call on its thread.
+  `GlRenderState` sweeps - deletes the FBOs of framebuffers that are gone
+  or have changed since - after every submit and from the dispatcher's one
+  idle callback, and clears the cache in its destructor. `updateIdle` keeps
+  that callback installed while fences are pending (every 16 ms; `onIdle`
+  also polls them) or FBOs are cached (every second), and removes it
+  otherwise. The period counts from the queue's last task, so a busy queue
+  sweeps only after submits. The callback runs with the dispatcher's mutex
+  held: it must never dispatch or wait, nor drop the last reference to
+  anything whose destructor does (a texture's dispatches to the transfer
+  queue), which is why the sweep reads the version counter instead of
+  locking the framebuffer.
 - **Submission executes now or later; no backend thread is promised.**
   `RenderQueue::submit` promises only that the commands execute in order.
   The GL queue runs them on a dedicated thread (`GlRenderQueue::dispatch`)
@@ -277,14 +312,13 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
 - **Declared formats are checked at draw time, in debug builds.** Every
   framebuffer reports `getColorFormat()` (attachment 0, `FORMAT_UNKNOWN`
   when empty) and `getDepthFormat()` (unset when there is none);
-  `GlFramebuffer` reads them off its attachments, the WGL/GLX window
+  `AttachmentFramebuffer` reads them off its attachments, the WGL/GLX window
   framebuffers answer with their platform's pixel-format request, and the
   dummy window's framebuffer answers `FORMAT_SRGBA` over
   `FORMAT_DEPTH24_STENCIL8`. `Pipeline::matchesTarget(framebuffer)` is the
   predicate: colour formats equal, depth present on both sides or neither,
   and equal when the target's is known (a target reporting
-  `FORMAT_UNKNOWN` depth, as the context-level `GlFramebuffer` for
-  framebuffer 0 does, accepts any declared depth). `GlRenderState` and
+  `FORMAT_UNKNOWN` depth accepts any declared depth). `GlRenderState` and
   `DummyRenderQueue` `assert` it for every draw command, so the check costs
   nothing once `NDEBUG` is defined; note Meson's default `b_ndebug=false`
   leaves asserts on in every buildtype unless the option is set. Tests
@@ -294,6 +328,12 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   flags, but no GL context runs in CI: the scissor and depth switches in
   `glrenderstate.cpp` have only been compiled. A change there needs a
   manual run of an app or `bquiheadlesstest` on a machine with a driver.
+  `asegltest` (`test/glframebufferobjecttest.cpp`) covers the FBO cache,
+  sweep and attachments against a real context made without a visible window
+  (a hidden dummy window under WGL, a pbuffer under GLX). It is built
+  wherever there is a GL backend but is not a meson `test()`; run it by
+  hand with `lw run gltest`. Its idle test sleeps a few seconds, and it
+  counts FBOs by probing names 1 to 4096 with `glIsFramebuffer`.
 
 ## Shader interface and uniforms
 

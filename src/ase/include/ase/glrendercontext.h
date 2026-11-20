@@ -1,6 +1,5 @@
 #pragma once
 
-#include "glframebuffer.h"
 #include "globjectmanager.h"
 #include "glrenderstate.h"
 #include "glrenderqueue.h"
@@ -40,8 +39,6 @@ namespace ase
         std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
         std::shared_ptr<RenderQueueImpl> getTransferQueue() override;
 
-        GlFramebuffer const& getDefaultFramebuffer() const;
-
     protected:
         friend class GlProgram;
         friend class GlTexture;
@@ -49,7 +46,6 @@ namespace ase
         friend class GlShader;
         friend class GlPlatform;
         friend class GlPipeline;
-        friend class GlFramebuffer;
         friend class GlObjectManager;
         friend class GlUniformBuffer;
         friend class GlRenderbuffer;
@@ -58,8 +54,6 @@ namespace ase
         void dispatchBg(std::function<void(GlFunctions const&)> f);
         void wait() const;
         void waitBg() const;
-
-        GlFramebuffer& getSharedFramebuffer(Dispatched);
 
         // From RenderContextImpl
         std::vector<ShaderLanguage> const& getShaderLanguages()
@@ -112,8 +106,6 @@ namespace ase
         std::shared_ptr<GlRenderQueue> mainQueue_;
         std::shared_ptr<GlRenderQueue >transferQueue_;
         GlObjectManager objectManager_;
-        GlFramebuffer defaultFramebuffer_;
-        GlFramebuffer sharedFramebuffer_;
         Vector2i viewportSize_;
         size_t uniformBufferOffsetAlignment_ = 0;
     };
