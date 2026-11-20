@@ -32,6 +32,41 @@ namespace ase
 
 namespace
 {
+    HCURSOR loadSystemCursor(CursorShape shape)
+    {
+        switch (shape)
+        {
+        case CursorShape::arrow:
+            return LoadCursor(nullptr, IDC_ARROW);
+        case CursorShape::ibeam:
+            return LoadCursor(nullptr, IDC_IBEAM);
+        case CursorShape::hand:
+            return LoadCursor(nullptr, IDC_HAND);
+        case CursorShape::crosshair:
+            return LoadCursor(nullptr, IDC_CROSS);
+        case CursorShape::move:
+            return LoadCursor(nullptr, IDC_SIZEALL);
+        case CursorShape::resizeHorizontal:
+            return LoadCursor(nullptr, IDC_SIZEWE);
+        case CursorShape::resizeVertical:
+            return LoadCursor(nullptr, IDC_SIZENS);
+        case CursorShape::resizeNwSe:
+            return LoadCursor(nullptr, IDC_SIZENWSE);
+        case CursorShape::resizeNeSw:
+            return LoadCursor(nullptr, IDC_SIZENESW);
+        case CursorShape::notAllowed:
+            return LoadCursor(nullptr, IDC_NO);
+        case CursorShape::wait:
+            return LoadCursor(nullptr, IDC_WAIT);
+        case CursorShape::progress:
+            return LoadCursor(nullptr, IDC_APPSTARTING);
+        case CursorShape::hidden:
+            return nullptr;
+        }
+
+        return LoadCursor(nullptr, IDC_ARROW);
+    }
+
     float getWindowScalingFactor(HWND hwnd)
     {
         int dpi = GetDpiForWindow(hwnd);
@@ -501,6 +536,16 @@ std::string const& WglWindow::getTitle() const
     return title_;
 }
 
+void WglWindow::setCursor(Cursor cursor)
+{
+    WindowBase::setCursor(cursor);
+
+    // WM_SETCURSOR only arrives on the next pointer move, and never while the
+    // pointer is captured.
+    if (GetCapture() == hwnd_ || isPointerInClientArea())
+        SetCursor(loadSystemCursor(cursor.getShape()));
+}
+
 Framebuffer& WglWindow::getDefaultFramebuffer()
 {
     return defaultFramebuffer_;
@@ -636,6 +681,15 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
         case WM_SIZE:
             syncClientArea(hwnd_, genericWindow_);
             break;
+
+        case WM_SETCURSOR:
+            if (LOWORD(lParam) == HTCLIENT)
+            {
+                SetCursor(loadSystemCursor(
+                            genericWindow_.getCursor().getShape()));
+                return TRUE;
+            }
+            break;
     }
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -646,6 +700,18 @@ void WglWindow::capturePointer()
     ++captureCount_;
     if (captureCount_ == 1)
         SetCapture(hwnd_);
+}
+
+bool WglWindow::isPointerInClientArea() const
+{
+    POINT p;
+    if (!GetCursorPos(&p) || WindowFromPoint(p) != hwnd_)
+        return false;
+
+    RECT client;
+    GetClientRect(hwnd_, &client);
+    ScreenToClient(hwnd_, &p);
+    return PtInRect(&client, p) != FALSE;
 }
 
 void WglWindow::releasePointer()
