@@ -98,8 +98,8 @@ are in the top-level `docs/`.
   concrete forwarders on `WindowBase`; a backend overrides only what genuinely
   differs (`present`, framebuffer, visibility, scaling-aware title/requestFrame,
   `frame`). `nextFrameTime` reads `genericWindow_` on `WindowBase` itself, so
-  backends do not reimplement it. `GenericWindow` keeps its frame state behind
-  a mutex, so `requestFrame` is safe from any thread, and a request made while
+  backends do not reimplement it. `GenericWindow` is loop-thread only except
+  `requestFrame`, which just sets an atomic flag, and a request made while
   the frame callback runs outranks the delay the callback returns. Every
   backend's `requestFrame` also wakes its platform loop through
   `PlatformBase::requestFrame`, which is why the dummy and offscreen windows
