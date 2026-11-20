@@ -111,5 +111,9 @@ namespace ase
         // The earliest frame time a renderable window wants its next frame at,
         // or nullopt if none does; the loop schedules its next tick to this.
         std::optional<std::chrono::microseconds> earliestFrameTime();
+
+        // When the scheduled wait for the pending tick ends. A wake that cuts
+        // the timer short keeps it; a pause clears it.
+        std::optional<std::chrono::steady_clock::time_point> scheduledWaitEnd_;
     };
 }

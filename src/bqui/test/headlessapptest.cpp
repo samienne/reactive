@@ -246,25 +246,30 @@ TEST(headlessApp, requestFrameCutsALongWaitShort)
     auto context = platform.makeRenderContext();
     auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
 
+    constexpr std::chrono::milliseconds kRequest{ 300 };
+
     btl::RunLoop::Timer request;
     std::chrono::steady_clock::time_point firstFrame;
     std::chrono::steady_clock::time_point secondFrame;
+    std::chrono::microseconds firstFrameTime{ 0 };
+    std::chrono::microseconds secondFrameTime{ 0 };
 
     int frames = 0;
-    window.setFrameCallback([&](ase::Frame const&)
+    window.setFrameCallback([&](ase::Frame const& frame)
             -> std::optional<std::chrono::microseconds>
             {
                 if (++frames != 1)
                 {
                     secondFrame = std::chrono::steady_clock::now();
+                    secondFrameTime = frame.time;
                     return std::nullopt;
                 }
 
                 firstFrame = std::chrono::steady_clock::now();
+                firstFrameTime = frame.time;
                 loop.post([&](btl::RunLoop::Controller& controller)
                         {
-                            request = controller.addTimer(
-                                    std::chrono::milliseconds(100),
+                            request = controller.addTimer(kRequest,
                                     [&](btl::RunLoop::Controller&)
                                     {
                                         window.requestFrame();
@@ -278,6 +283,63 @@ TEST(headlessApp, requestFrameCutsALongWaitShort)
     ASSERT_EQ(2, frames);
     EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(
                 secondFrame - firstFrame).count(), 2000);
+    EXPECT_GE((secondFrameTime - firstFrameTime).count(),
+            std::chrono::microseconds(kRequest).count() - 1000);
+}
+
+TEST(headlessApp, aPauseDuringALongWaitIsNotCounted)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
+
+    constexpr std::chrono::milliseconds kPause{ 400 };
+
+    btl::RunLoop::Timer pause;
+    btl::RunLoop::Timer resume;
+    std::optional<ase::PauseToken> token;
+    bool resumed = false;
+
+    auto pauseFor = [&](btl::RunLoop::Controller& controller)
+    {
+        token = platform.pause();
+        resume = controller.addTimer(kPause, [&](btl::RunLoop::Controller&)
+                {
+                    resumed = true;
+                    token.reset();
+                });
+    };
+
+    int frames = 0;
+    window.setFrameCallback([&](ase::Frame const&)
+            -> std::optional<std::chrono::microseconds>
+            {
+                if (++frames == 1)
+                {
+                    loop.post([&](btl::RunLoop::Controller& controller)
+                            {
+                                pause = controller.addTimer(
+                                        std::chrono::milliseconds(100),
+                                        pauseFor);
+                            });
+                }
+                return std::chrono::seconds(5);
+            });
+
+    std::optional<std::chrono::microseconds> dtAfterResume;
+    platform.run([&](ase::Frame const& frame)
+            {
+                if (!resumed)
+                    return true;
+
+                dtAfterResume = frame.dt;
+                return false;
+            });
+
+    ASSERT_TRUE(dtAfterResume.has_value());
+    EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(
+                *dtAfterResume).count(), 200);
 }
 
 TEST(headlessApp, aLongWaitEndsOnTime)

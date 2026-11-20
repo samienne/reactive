@@ -25,6 +25,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     // Cadence frozen at startup; also read by earliestFrameTime().
     frameStep_ = config.frameStep;
+    scheduledWaitEnd_ = std::nullopt;
 
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
@@ -101,6 +102,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             auto delay = *earliest - frameTime;
             tickTimer = controller.addTimer(delay, tick);
             tickTimerDue = clock.now() + delay;
+            scheduledWaitEnd_ = tickTimerDue;
         }
     };
 
@@ -108,14 +110,15 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             &lastFrame, &frameCallback, &frameTime, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
-        auto waited = tickTimerDue
+        auto waited = scheduledWaitEnd_
             ? std::chrono::duration_cast<std::chrono::microseconds>(
-                    *tickTimerDue - lastFrame)
+                    *scheduledWaitEnd_ - lastFrame)
             : std::chrono::microseconds(0);
 
         tickScheduled = false;
         tickTimer.detach();
         tickTimerDue = std::nullopt;
+        scheduledWaitEnd_ = std::nullopt;
 
         if (pauseCount_ != 0)
             return;
@@ -127,10 +130,10 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
                 thisFrame - lastFrame);
         lastFrame = thisFrame;
 
-        // Discard elapsed beyond the clamp so a long stall or pause drops
-        // frames at the correct speed rather than jumping the animation clock.
-        // A timer's own wait is not a stall: without this, a window due D
-        // ahead would advance only the clamp per wake and arrive far late.
+        // Time spent in a scheduled wait counts in full, also when a wake
+        // ended it early; elapsed time beyond the scheduled wait, or beyond
+        // four frame steps when nothing was scheduled, is a stall or a pause
+        // and is dropped.
         auto const maxDt = std::max(4 * frameStep_, waited);
         auto dt = realElapsed > maxDt ? maxDt : realElapsed;
 
@@ -264,6 +267,7 @@ PlatformBase::earliestFrameTime()
 void PlatformBase::pauseFrames()
 {
     ++pauseCount_;
+    scheduledWaitEnd_ = std::nullopt;
 }
 
 void PlatformBase::resumeFrames()
