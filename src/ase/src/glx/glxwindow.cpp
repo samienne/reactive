@@ -237,6 +237,9 @@ void GlxWindow::handleEvent(_XEvent const& e)
         }
         break;
     case ConfigureNotify:
+        if (event.xconfigure.window != xWin_)
+            break;
+
         defaultFramebuffer_.getImpl<GlxFramebuffer>().setPixelSize(Vector2i(
                 event.xconfigure.width, event.xconfigure.height));
         genericWindow_.resize(
