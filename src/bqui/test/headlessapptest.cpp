@@ -79,6 +79,77 @@ namespace
         ADD_FAILURE() << "the window never stopped drawing";
         return frames;
     }
+
+    struct PauseResult
+    {
+        std::chrono::microseconds waitedBeforePause{ 0 };
+        std::optional<std::chrono::microseconds> advance;
+    };
+
+    /** Runs a window that waits `wait` after its first frame, pauses `pauseAt`
+     * into that wait for `pauseFor`, and reports how far the frame clock has
+     * advanced from the first frame to the first tick after the resume.
+     */
+    PauseResult pauseDuringAWait(std::chrono::milliseconds wait,
+            std::chrono::milliseconds pauseAt,
+            std::chrono::milliseconds pauseFor)
+    {
+        btl::RunLoop loop;
+        auto platform = ase::makeDummyPlatform(loop);
+        auto context = platform.makeRenderContext();
+        auto window = platform.makeWindow(context, ase::Vector2i(200, 100),
+                false);
+
+        btl::RunLoop::Timer pause;
+        btl::RunLoop::Timer resume;
+        std::optional<ase::PauseToken> token;
+        bool resumed = false;
+        std::chrono::steady_clock::time_point firstFrame;
+        std::chrono::microseconds firstFrameTime{ 0 };
+        PauseResult result;
+
+        auto pauseNow = [&](btl::RunLoop::Controller& controller)
+        {
+            result.waitedBeforePause = std::chrono::duration_cast<
+                std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - firstFrame);
+            token = platform.pause();
+            resume = controller.addTimer(pauseFor,
+                    [&](btl::RunLoop::Controller&)
+                    {
+                        resumed = true;
+                        token.reset();
+                    });
+        };
+
+        int frames = 0;
+        window.setFrameCallback([&](ase::Frame const& frame)
+                -> std::optional<std::chrono::microseconds>
+                {
+                    if (++frames == 1)
+                    {
+                        firstFrame = std::chrono::steady_clock::now();
+                        firstFrameTime = frame.time;
+                        loop.post([&](btl::RunLoop::Controller& controller)
+                                {
+                                    pause = controller.addTimer(pauseAt,
+                                            pauseNow);
+                                });
+                    }
+                    return wait;
+                });
+
+        platform.run([&](ase::Frame const& frame)
+                {
+                    if (!resumed)
+                        return true;
+
+                    result.advance = frame.time - firstFrameTime;
+                    return false;
+                });
+
+        return result;
+    }
 } // namespace
 
 TEST(headlessApp, runsAndExitsWithNoWindow)
@@ -289,57 +360,34 @@ TEST(headlessApp, requestFrameCutsALongWaitShort)
 
 TEST(headlessApp, aPauseDuringALongWaitIsNotCounted)
 {
-    btl::RunLoop loop;
-    auto platform = ase::makeDummyPlatform(loop);
-    auto context = platform.makeRenderContext();
-    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
-
     constexpr std::chrono::milliseconds kPause{ 400 };
+    auto r = pauseDuringAWait(std::chrono::seconds(5),
+            std::chrono::milliseconds(100), kPause);
 
-    btl::RunLoop::Timer pause;
-    btl::RunLoop::Timer resume;
-    std::optional<ase::PauseToken> token;
-    bool resumed = false;
+    ASSERT_TRUE(r.advance.has_value());
+    EXPECT_LT(r.advance->count(), (r.waitedBeforePause + kPause / 2).count());
+}
 
-    auto pauseFor = [&](btl::RunLoop::Controller& controller)
-    {
-        token = platform.pause();
-        resume = controller.addTimer(kPause, [&](btl::RunLoop::Controller&)
-                {
-                    resumed = true;
-                    token.reset();
-                });
-    };
+TEST(headlessApp, aWaitBeforeAShortPauseCounts)
+{
+    constexpr std::chrono::milliseconds kPause{ 300 };
+    auto r = pauseDuringAWait(std::chrono::seconds(5),
+            std::chrono::milliseconds(600), kPause);
 
-    int frames = 0;
-    window.setFrameCallback([&](ase::Frame const&)
-            -> std::optional<std::chrono::microseconds>
-            {
-                if (++frames == 1)
-                {
-                    loop.post([&](btl::RunLoop::Controller& controller)
-                            {
-                                pause = controller.addTimer(
-                                        std::chrono::milliseconds(100),
-                                        pauseFor);
-                            });
-                }
-                return std::chrono::seconds(5);
-            });
+    ASSERT_TRUE(r.advance.has_value());
+    EXPECT_GE(r.advance->count(), r.waitedBeforePause.count());
+    EXPECT_LT(r.advance->count(), (r.waitedBeforePause + kPause / 2).count());
+}
 
-    std::optional<std::chrono::microseconds> dtAfterResume;
-    platform.run([&](ase::Frame const& frame)
-            {
-                if (!resumed)
-                    return true;
+TEST(headlessApp, aWaitThatEndsDuringAPauseCountsUpToThePause)
+{
+    constexpr std::chrono::milliseconds kPause{ 1000 };
+    auto r = pauseDuringAWait(std::chrono::seconds(1),
+            std::chrono::milliseconds(400), kPause);
 
-                dtAfterResume = frame.dt;
-                return false;
-            });
-
-    ASSERT_TRUE(dtAfterResume.has_value());
-    EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(
-                *dtAfterResume).count(), 200);
+    ASSERT_TRUE(r.advance.has_value());
+    EXPECT_GE(r.advance->count(), r.waitedBeforePause.count());
+    EXPECT_LT(r.advance->count(), (r.waitedBeforePause + kPause / 2).count());
 }
 
 TEST(headlessApp, aLongWaitEndsOnTime)

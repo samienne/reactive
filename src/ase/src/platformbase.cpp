@@ -103,18 +103,18 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             &lastFrame, &frameCallback, &frameTime, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
+        tickScheduled = false;
+        tickTimer.detach();
+        tickTimerDue = std::nullopt;
+
+        if (pauseCount_ != 0)
+            return;
+
         auto waited = scheduledWaitEnd_
             ? std::chrono::duration_cast<std::chrono::microseconds>(
                     *scheduledWaitEnd_ - lastFrame)
             : std::chrono::microseconds(0);
-
-        tickScheduled = false;
-        tickTimer.detach();
-        tickTimerDue = std::nullopt;
         scheduledWaitEnd_ = std::nullopt;
-
-        if (pauseCount_ != 0)
-            return;
 
         ZoneScopedN("frameTick");
 
@@ -258,7 +258,10 @@ PlatformBase::earliestFrameTime()
 void PlatformBase::pauseFrames()
 {
     ++pauseCount_;
-    scheduledWaitEnd_ = std::nullopt;
+
+    auto const now = std::chrono::steady_clock::now();
+    if (scheduledWaitEnd_ && *scheduledWaitEnd_ > now)
+        scheduledWaitEnd_ = now;
 }
 
 void PlatformBase::resumeFrames()

@@ -112,8 +112,8 @@ namespace ase
         // or nullopt if none does; the loop schedules its next tick to this.
         std::optional<std::chrono::microseconds> earliestFrameTime();
 
-        // When the scheduled wait for the pending tick ends. A wake that cuts
-        // the timer short keeps it; a pause clears it.
+        // When the scheduled wait for the next tick ends. A wake that cuts
+        // the timer short keeps it; a pause ends the wait at the pause.
         std::optional<std::chrono::steady_clock::time_point> scheduledWaitEnd_;
     };
 }
