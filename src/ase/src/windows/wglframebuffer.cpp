@@ -30,7 +30,7 @@ void WglFramebuffer::makeCurrent(Dispatched dispatched,
 
     Vector2i size;
     {
-        std::lock_guard lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         size = pixelSize_;
     }
 
@@ -39,7 +39,7 @@ void WglFramebuffer::makeCurrent(Dispatched dispatched,
 
 void WglFramebuffer::setPixelSize(Vector2i size)
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     pixelSize_ = size;
 }
 

@@ -20,7 +20,9 @@ namespace ase
         WglFramebuffer& operator=(WglFramebuffer const&) = delete;
         WglFramebuffer& operator=(WglFramebuffer&&) = delete;
 
-        /** Sets the client area in pixels; may be called from any thread. */
+        /**
+         * Sets the client area in pixels; may be called from any thread.
+         */
         void setPixelSize(Vector2i size);
 
         // From GlBaseFramebuffer
