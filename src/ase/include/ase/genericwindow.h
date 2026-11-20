@@ -11,7 +11,7 @@
 #include <functional>
 #include <string>
 #include <optional>
-#include <mutex>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 
@@ -46,6 +46,7 @@ namespace ase
          */
         std::chrono::microseconds lastFrameTime() const;
 
+        /** @brief The only member callable off the loop thread. */
         void requestFrame();
 
         void setFrameCallback(
@@ -96,12 +97,11 @@ namespace ase
         float scalingFactor_;
 
         std::optional<Vector2f> pointerPos_;
-        mutable std::mutex frameMutex_;
         // A new window wants its first frame immediately. Parenthesised to dodge
         // the Windows min() macro.
         std::optional<std::chrono::microseconds> nextFrame_ =
             (std::chrono::microseconds::min)();
-        bool frameRequested_ = false;
+        std::atomic<bool> frameRequested_{ false };
         std::chrono::microseconds lastFrameTime_{ 0 };
         bool hover_ = false;
 
