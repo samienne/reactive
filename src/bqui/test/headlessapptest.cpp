@@ -2,9 +2,9 @@
 #include <bqui/window.h>
 #include <bqui/withanimation.h>
 #include <bqui/widget/label.h>
+#include <bqui/widget/introspection.h>
 #include <bqui/widget/vbox.h>
 #include <bqui/modifier/transition.h>
-#include <bqui/widget/introspection.h>
 
 #include <bq/signal/collection.h>
 #include <bq/signal/collectionsignal.h>
@@ -42,8 +42,6 @@ namespace
     // the run completes cleanly, not its timing.
     constexpr std::chrono::microseconds kFrameStep{ 16667 };
 
-    // Runs a one-window app showing @p content with frames paused, hands
-    // @p script the pause token on the loop thread, and stops when it returns.
     void runScript(AnyWidget content,
             std::function<void(App&, ase::PauseToken&)> script)
     {
@@ -66,7 +64,7 @@ namespace
         app.run();
     }
 
-    std::uint64_t stepUntilIdle(App& app, ase::PauseToken& token)
+    std::uint64_t stepUntilNoFrame(App& app, ase::PauseToken& token)
     {
         auto frames = test::FrameDriver::windowFrames(app, 0);
         for (int i = 0; i < 100; ++i)
@@ -77,7 +75,7 @@ namespace
                 return now;
             frames = now;
         }
-        ADD_FAILURE() << "the window never went idle";
+        ADD_FAILURE() << "the window never stopped drawing";
         return frames;
     }
 } // namespace
@@ -356,7 +354,7 @@ TEST(headlessApp, oneChangeDrawsOneFrame)
 
     runScript(label(text.signal), [&](App& app, ase::PauseToken& token)
             {
-                idleFrames = stepUntilIdle(app, token);
+                idleFrames = stepUntilNoFrame(app, token);
 
                 text.handle.set("b");
                 for (int i = 0; i < 10; ++i)
@@ -378,7 +376,7 @@ TEST(headlessApp, changeInsideWithAnimationIsDrawn)
 
     runScript(label(text.signal), [&](App& app, ase::PauseToken& token)
             {
-                idleFrames = stepUntilIdle(app, token);
+                idleFrames = stepUntilNoFrame(app, token);
 
                 {
                     auto guard = app.withAnimation(avg::AnimationOptions{
@@ -387,7 +385,7 @@ TEST(headlessApp, changeInsideWithAnimationIsDrawn)
                     text.handle.set("b");
                 }
 
-                frames = stepUntilIdle(app, token);
+                frames = stepUntilNoFrame(app, token);
 
                 for (int i = 0; i < 10; ++i)
                     token.step(kFrameStep);
@@ -428,7 +426,7 @@ namespace
         runScript(vbox(std::move(rows)),
                 [&](App& app, ase::PauseToken& token)
                 {
-                    stepUntilIdle(app, token);
+                    stepUntilNoFrame(app, token);
                     shownBefore = test::WindowInput::findText(app, 0,
                             "leaves", x, y);
 
@@ -440,7 +438,7 @@ namespace
                         transaction.erase(transaction.items().begin() + 1);
                     }
 
-                    stepUntilIdle(app, token);
+                    stepUntilNoFrame(app, token);
                     shownAfter = test::WindowInput::findText(app, 0,
                             "leaves", x, y);
                 });
