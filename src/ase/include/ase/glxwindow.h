@@ -30,6 +30,8 @@
 #include <X11/Xutil.h>
 #include <X11/X.h>
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -70,6 +72,8 @@ namespace ase
         void setTitle(std::string&& title) override;
         std::string const& getTitle() const override;
 
+        void setCursor(Cursor cursor) override;
+
         Framebuffer& getDefaultFramebuffer() override;
 
         void requestFrame() override;
@@ -84,6 +88,7 @@ namespace ase
 
         void handleEvent(_XEvent const& e);
         Lock lockX() const;
+        ::Cursor getXCursor(CursorKind kind);
 
         friend class GlxDispatchedContext;
         ::GLXWindow getGlxWindowId() const;
@@ -103,6 +108,9 @@ namespace ase
 
         // Text input handling
         //XComposeStatus composeStatus_;
+
+        std::array<::Cursor,
+            static_cast<std::size_t>(CursorKind::hidden) + 1> xCursors_{};
 
         // Atoms
         Atom wmDelete_;

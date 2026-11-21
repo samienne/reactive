@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cursor.h"
 #include "textevent.h"
 #include "keyevent.h"
 #include "hoverevent.h"
@@ -52,6 +53,20 @@ namespace ase
 
         void setTitle(std::string title);
         std::string const& getTitle() const;
+
+        /**
+         * @brief Set the pointer shown while it is over the window's content.
+         *
+         * Loop thread only. The window frame keeps the system's own pointers.
+         */
+        void setCursor(Cursor cursor);
+
+        /**
+         * @brief The cursor last set, or the arrow if none was.
+         *
+         * Loop thread only.
+         */
+        Cursor getCursor() const;
 
         Vector2i getSize() const;
         Vector2i getScaledSize() const;

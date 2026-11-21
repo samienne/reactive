@@ -33,6 +33,8 @@ namespace ase
         void setTitle(std::string&& title) override;
         std::string const& getTitle() const override;
 
+        void setCursor(Cursor cursor) override;
+
         Framebuffer& getDefaultFramebuffer() override;
 
         void requestFrame() override;
@@ -46,6 +48,7 @@ namespace ase
 
         void capturePointer();
         void releasePointer();
+        bool isPointerInClientArea() const;
 
     private:
         WglPlatform& platform_;

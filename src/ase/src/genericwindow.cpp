@@ -60,6 +60,16 @@ void GenericWindow::setTitle(std::string title)
     title_ = title;
 }
 
+Cursor GenericWindow::getCursor() const
+{
+    return cursor_;
+}
+
+void GenericWindow::setCursor(Cursor cursor)
+{
+    cursor_ = cursor;
+}
+
 void GenericWindow::notifyClose()
 {
     if (closeCallback_)

@@ -8,6 +8,11 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <X11/cursorfont.h>
+#ifdef ASE_HAVE_XCURSOR
+#include <X11/Xcursor/Xcursor.h>
+#endif
+
 #include <cstdint>
 #include <stdexcept>
 
@@ -44,6 +49,84 @@ void printAll(std::ostream& stream)
     }
 }
 #endif
+
+struct XCursorNames
+{
+    char const* themeNames[4];
+    unsigned int fontShape;
+};
+
+XCursorNames getXCursorNames(CursorKind kind)
+{
+    switch (kind)
+    {
+    case CursorKind::arrow:
+    case CursorKind::hidden:
+        return { { "default", "left_ptr", nullptr }, XC_left_ptr };
+    case CursorKind::ibeam:
+        return { { "text", "xterm", nullptr }, XC_xterm };
+    case CursorKind::hand:
+        return { { "pointer", "hand2", "hand1", nullptr }, XC_hand2 };
+    case CursorKind::crosshair:
+        return { { "crosshair", "cross", nullptr }, XC_crosshair };
+    case CursorKind::move:
+        return { { "move", "fleur", "all-scroll", nullptr }, XC_fleur };
+    case CursorKind::resizeHorizontal:
+        return { { "ew-resize", "sb_h_double_arrow", "h_double_arrow",
+            nullptr }, XC_sb_h_double_arrow };
+    case CursorKind::resizeVertical:
+        return { { "ns-resize", "sb_v_double_arrow", "v_double_arrow",
+            nullptr }, XC_sb_v_double_arrow };
+    case CursorKind::resizeNwSe:
+        return { { "nwse-resize", "size_fdiag", "bd_double_arrow", nullptr },
+            XC_bottom_right_corner };
+    case CursorKind::resizeNeSw:
+        return { { "nesw-resize", "size_bdiag", "fd_double_arrow", nullptr },
+            XC_bottom_left_corner };
+    case CursorKind::notAllowed:
+        return { { "not-allowed", "crossed_circle", "forbidden", nullptr },
+            XC_X_cursor };
+    case CursorKind::wait:
+        return { { "wait", "watch", nullptr }, XC_watch };
+    case CursorKind::progress:
+        return { { "progress", "left_ptr_watch", "half-busy", nullptr },
+            XC_watch };
+    }
+
+    return { { "default", "left_ptr", nullptr }, XC_left_ptr };
+}
+
+::Cursor createBlankXCursor(Display* dpy, ::Window win)
+{
+    char data = 0;
+    XColor black{};
+    Pixmap pixmap = XCreateBitmapFromData(dpy, win, &data, 1, 1);
+    ::Cursor cursor = XCreatePixmapCursor(dpy, pixmap, pixmap, &black, &black,
+            0, 0);
+    XFreePixmap(dpy, pixmap);
+    return cursor;
+}
+
+::Cursor createXCursor(Display* dpy, ::Window win, CursorKind kind)
+{
+    if (kind == CursorKind::hidden)
+        return createBlankXCursor(dpy, win);
+
+    XCursorNames names = getXCursorNames(kind);
+
+#ifdef ASE_HAVE_XCURSOR
+    for (char const* name : names.themeNames)
+    {
+        if (!name)
+            break;
+
+        if (::Cursor cursor = XcursorLibraryLoadCursor(dpy, name))
+            return cursor;
+    }
+#endif
+
+    return XCreateFontCursor(dpy, names.fontShape);
+}
 
 } // anonymous namespace
 
@@ -112,6 +195,8 @@ GlxWindow::GlxWindow(GlxPlatform& platform, RenderContext& context,
 
         if (!xWin_)
             throw std::runtime_error("Unable to create X window");
+
+        XDefineCursor(dpy, xWin_, getXCursor(CursorKind::arrow));
 
         xim_ = XOpenIM(dpy, NULL, NULL, NULL);
         if (!xim_)
@@ -182,6 +267,15 @@ void GlxWindow::destroy()
     GlxWindow::Lock lock(platform_.lockX());
 
     Display* dpy = platform_.getDisplay();
+
+    for (::Cursor& cursor : xCursors_)
+    {
+        if (cursor)
+        {
+            XFreeCursor(dpy, cursor);
+            cursor = 0;
+        }
+    }
 
     if (syncCounter_)
     {
@@ -447,6 +541,28 @@ void GlxWindow::setTitle(std::string&& title)
 std::string const& GlxWindow::getTitle() const
 {
     return genericWindow_.getTitle();
+}
+
+void GlxWindow::setCursor(Cursor cursor)
+{
+    if (genericWindow_.getCursor() == cursor)
+        return;
+
+    WindowBase::setCursor(cursor);
+
+    Lock lock(platform_.lockX());
+    XDefineCursor(platform_.getDisplay(), xWin_,
+            getXCursor(cursor.getKind()));
+    XFlush(platform_.getDisplay());
+}
+
+::Cursor GlxWindow::getXCursor(CursorKind kind)
+{
+    ::Cursor& cursor = xCursors_[static_cast<std::size_t>(kind)];
+    if (!cursor)
+        cursor = createXCursor(platform_.getDisplay(), xWin_, kind);
+
+    return cursor;
 }
 
 Framebuffer& GlxWindow::getDefaultFramebuffer()
