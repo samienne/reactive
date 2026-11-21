@@ -23,7 +23,7 @@ GlRenderbuffer::~GlRenderbuffer()
         GLuint object = glObject_;
         glObject_ = 0;
 
-        context_.dispatchBg([object](GlFunctions const& gl)
+        context_.dispatchBg([object](Dispatched, GlFunctions const& gl)
             {
                 gl.glDeleteRenderbuffers(1, &object);
             });

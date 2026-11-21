@@ -159,7 +159,7 @@ WglDispatchedContext::WglDispatchedContext(WglPlatform& platform,
     if (!context_)
         return;
 
-    dispatcher_.run([this]()
+    dispatcher_.run([this](Dispatched)
     {
         wglMakeCurrent(platform_.getDummyDc(), context_);
         setGlFunctions(getGlFunctionPointers());

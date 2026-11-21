@@ -465,7 +465,7 @@ PresentStatus WglWindow::present()
 {
     auto keepAlive = shared_from_this();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
-        [this, keepAlive](GlFunctions const&)
+        [this, keepAlive](Dispatched, GlFunctions const&)
         {
             ZoneScopedN("SwapBuffers");
             SwapBuffers(hdc_);
@@ -520,9 +520,10 @@ std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
     auto keepAlive = shared_from_this();
     auto& framebuffer = defaultFramebuffer_.getImpl<WglFramebuffer>();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
-        [&framebuffer, keepAlive, size = pixelSize_](GlFunctions const&)
+        [&framebuffer, keepAlive, size = pixelSize_]
+        (Dispatched d, GlFunctions const&)
         {
-            framebuffer.setPixelSize(Dispatched(), size);
+            framebuffer.setPixelSize(d, size);
         });
 
     return genericWindow_.frame(frame);

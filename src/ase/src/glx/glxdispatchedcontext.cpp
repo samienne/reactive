@@ -137,9 +137,9 @@ GlxDispatchedContext::GlxDispatchedContext(GlxPlatform& platform) :
     context_(platform),
     currentWindow_(0)
 {
-    dispatcher_.run([this]()
+    dispatcher_.run([this](Dispatched d)
     {
-        context_.makeCurrent(Dispatched(), platform_.lockX(), 0);
+        context_.makeCurrent(d, platform_.lockX(), 0);
         setGlFunctions(getGlFunctionPointers());
     });
 

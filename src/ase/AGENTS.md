@@ -150,15 +150,17 @@ are in the top-level `docs/`.
   framebuffer's size is render-thread-only state that `makeCurrent` reads
   without a lock. GlxWindow's present task likewise captures the
   `_NET_WM_SYNC_REQUEST` counter value by value.
-- **Render-thread-only GL functions take the `Dispatched` tag.** A dispatched
-  task constructs one and passes it down (the window tasks above, the render
-  state's queue), so a call from the loop thread does not compile by accident.
-  Nothing restricts who constructs it: it marks intent, it does not enforce
-  it. It belongs to the GL backend, the only one with a thread of its own
-  (the `GlDispatchedContext` dispatcher), so only GL, GLX and WGL classes take
-  it and backend-neutral interfaces stay free of it. A backend-neutral
-  virtual such as `present` therefore has no tag; where its dispatched task
-  calls a GL-side helper, as GLX's does, the helper takes it.
+- **Render-thread-only GL functions take the `Dispatched` tag.** Its
+  constructor is private and only `Dispatcher` is a friend: the dispatcher
+  creates the tag on its thread and passes it to every task and idle callback
+  it runs, and the task passes it down (the window tasks above, the render
+  state's queue). Code that is not running as a dispatched task cannot get
+  one, so a call from the loop thread does not compile. It belongs to the GL
+  backend, the only one with a thread of its own (the `GlDispatchedContext`
+  dispatcher), so only GL, GLX and WGL classes take it and backend-neutral
+  interfaces stay free of it. A backend-neutral virtual such as `present`
+  therefore has no tag; where its dispatched task calls a GL-side helper, as
+  GLX's does, the helper takes it.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

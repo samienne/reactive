@@ -54,8 +54,8 @@ namespace ase
         friend class GlUniformBuffer;
         friend class GlRenderbuffer;
 
-        void dispatch(std::function<void(GlFunctions const&)> f);
-        void dispatchBg(std::function<void(GlFunctions const&)> f);
+        void dispatch(std::function<void(Dispatched, GlFunctions const&)> f);
+        void dispatchBg(std::function<void(Dispatched, GlFunctions const&)> f);
         void wait() const;
         void waitBg() const;
 

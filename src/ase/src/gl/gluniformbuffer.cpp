@@ -38,9 +38,9 @@ GlBuffer const& GlUniformBuffer::getBuffer() const
 void GlUniformBuffer::setData(Buffer buffer, Usage usage)
 {
     context_.dispatchBg([this, buffer=std::move(buffer), usage]
-        (GlFunctions const& gl) mutable
+        (Dispatched d, GlFunctions const& gl) mutable
         {
-            setData(Dispatched(), gl, std::move(buffer), usage);
+            setData(d, gl, std::move(buffer), usage);
             glFlush();
         });
 

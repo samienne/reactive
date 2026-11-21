@@ -211,9 +211,10 @@ std::optional<std::chrono::microseconds> GlxWindow::frame(Frame const& frame)
     auto keepAlive = shared_from_this();
     auto& framebuffer = defaultFramebuffer_.getImpl<GlxFramebuffer>();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
-        [&framebuffer, keepAlive, size = pixelSize_](GlFunctions const&)
+        [&framebuffer, keepAlive, size = pixelSize_]
+        (Dispatched d, GlFunctions const&)
         {
-            framebuffer.setPixelSize(Dispatched(), size);
+            framebuffer.setPixelSize(d, size);
         });
 
     return genericWindow_.frame(frame);
@@ -395,11 +396,11 @@ PresentStatus GlxWindow::present()
 {
     auto keepAlive = shared_from_this();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
-        [this, keepAlive, counterValue = counterValue_](GlFunctions const&)
+        [this, keepAlive, counterValue = counterValue_]
+        (Dispatched dispatched, GlFunctions const&)
         {
             ZoneScopedN("SwapBuffers");
 
-            Dispatched dispatched;
             ++frames_;
             auto lock = platform_.lockX();
             auto dpy = platform_.getDisplay();

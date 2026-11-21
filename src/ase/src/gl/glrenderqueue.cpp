@@ -18,7 +18,8 @@ GlRenderQueue::~GlRenderQueue()
 {
 }
 
-void GlRenderQueue::dispatch(std::function<void(GlFunctions const&)> f)
+void GlRenderQueue::dispatch(
+        std::function<void(Dispatched, GlFunctions const&)> f)
 {
     dispatcher_->dispatch(std::move(f));
 }
@@ -41,7 +42,7 @@ void GlRenderQueue::flush()
 
 void GlRenderQueue::finish()
 {
-    dispatcher_->dispatch([](GlFunctions const&)
+    dispatcher_->dispatch([](Dispatched, GlFunctions const&)
             {
                 glFinish();
             });

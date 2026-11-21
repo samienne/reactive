@@ -62,7 +62,7 @@ void GlBuffer::destroy()
         buffer_ = 0;
 
         context_.dispatchBg([buffer, validate=context_.isValidationEnabled()]
-                (GlFunctions const& gl)
+                (Dispatched, GlFunctions const& gl)
                 {
                     gl.glDeleteBuffers(1, &buffer);
                     //DBG("Deleted GlBuffer %1", buffer);

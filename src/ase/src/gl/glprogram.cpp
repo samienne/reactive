@@ -24,7 +24,7 @@ GlProgram::GlProgram(GlRenderContext& context, GlVertexShader const& vertexShade
         bool failed = false;
         std::string logStr;
 
-        context_.dispatchBg([&, this](GlFunctions const& gl)
+        context_.dispatchBg([&, this](Dispatched, GlFunctions const& gl)
             {
                 program_ = gl.glCreateProgram();
                 gl.glAttachShader(program_, vertexShader.shader_.shader_);
@@ -102,7 +102,7 @@ void GlProgram::destroy()
     {
         GLuint program = program_;
 
-        context_.dispatchBg([program](GlFunctions const& gl)
+        context_.dispatchBg([program](Dispatched, GlFunctions const& gl)
             {
                 gl.glDeleteProgram(program);
             });

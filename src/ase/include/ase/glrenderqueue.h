@@ -15,7 +15,7 @@ namespace ase
         GlRenderQueue(std::shared_ptr<GlDispatchedContext> context);
         ~GlRenderQueue();
 
-        void dispatch(std::function<void(GlFunctions const&)> f);
+        void dispatch(std::function<void(Dispatched, GlFunctions const&)> f);
 
         GlDispatchedContext& getDispatcher();
         GlDispatchedContext const& getDispatcher() const;

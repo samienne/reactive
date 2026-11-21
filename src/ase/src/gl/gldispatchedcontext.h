@@ -14,9 +14,10 @@ namespace ase
         template <typename TFunc>
         void dispatch(TFunc&& fn)
         {
-            dispatcher_.run([this, fn=std::forward<TFunc>(fn)]() mutable
+            dispatcher_.run([this, fn=std::forward<TFunc>(fn)](Dispatched d)
+                    mutable
             {
-                fn(gl_);
+                fn(d, gl_);
             });
         }
 
@@ -27,9 +28,9 @@ namespace ase
                 TFunc&& callback)
         {
             dispatcher_.setIdleFunc(d, period,
-                    [this, fn=std::forward<TFunc>(callback)]()
+                    [this, fn=std::forward<TFunc>(callback)](Dispatched idle)
                     {
-                        fn(gl_);
+                        fn(idle, gl_);
                     });
         }
 
