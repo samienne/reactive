@@ -156,9 +156,9 @@ are in the top-level `docs/`.
   Nothing restricts who constructs it: it marks intent, it does not enforce
   it. It belongs to the GL backend, the only one with a thread of its own
   (the `GlDispatchedContext` dispatcher), so only GL, GLX and WGL classes take
-  it and backend-neutral interfaces stay free of it; a render-thread function
-  reached through a backend-neutral virtual (such as `present`) puts the tag
-  on a GL-side helper the dispatched task calls.
+  it and backend-neutral interfaces stay free of it. A backend-neutral
+  virtual such as `present` therefore has no tag; where its dispatched task
+  calls a GL-side helper, as GLX's does, the helper takes it.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
