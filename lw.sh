@@ -47,6 +47,12 @@ case "$version" in
     echo "lw: invalid pinned version '$version'" >&2; exit 1 ;;
 esac
 want=$(printf '%s' "$want" | tr 'A-Z' 'a-z')
+# The repository the pinned version is published in: lw below 0.2 lives in
+# samienne/loomworks.nvim, 0.2 and later in samienne/loomworks (no fallback).
+case "$version" in
+  0.0.*|0.1.*) repo=samienne/loomworks.nvim ;;
+  *) repo=samienne/loomworks ;;
+esac
 
 cache="$here/.nvim/cache"
 bin="$cache/lw-$version-$asset"
@@ -121,7 +127,7 @@ if [ ! -f "$bin" ] || [ "$(sha_of "$bin" | tr 'A-Z' 'a-z')" != "$want" ]; then
   if [ -n "${LOOMWORKS_RELEASE_URL:-}" ]; then
     url="$LOOMWORKS_RELEASE_URL/$asset"
   else
-    url="https://github.com/samienne/loomworks.nvim/releases/download/v$version/$asset"
+    url="https://github.com/$repo/releases/download/v$version/$asset"
   fi
   echo "lw: fetching pinned lw $version ($asset) for $pin..." >&2
   tmp="$bin.dl.$$"
@@ -139,7 +145,7 @@ fi
 # --- optional stronger provenance check (never required) ------------------
 if [ "$do_verify" = "1" ]; then
   if command -v gh >/dev/null 2>&1; then
-    gh attestation verify "$bin" --repo samienne/loomworks.nvim \
+    gh attestation verify "$bin" --repo "$repo" \
       || { echo "lw: gh attestation verify failed" >&2; exit 1; }
   else
     echo "lw: --verify: gh not found; skipping attestation (sha256 already verified)" >&2

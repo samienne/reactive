@@ -44,6 +44,11 @@ rem reject a malicious pinned version before it reaches a URL (a repo must not
 rem be able to redirect the fetch): forbid anything outside [-0-9A-Za-z._+] or `..`
 echo(!version!| "%SystemRoot%\System32\findstr.exe" /r /c:"[^-0-9A-Za-z._+]" >nul && ( 1>&2 echo lw: invalid pinned version !version!& exit /b 1 )
 echo(!version!| "%SystemRoot%\System32\findstr.exe" /c:".." >nul && ( 1>&2 echo lw: invalid pinned version !version!& exit /b 1 )
+rem the repository the pinned version is published in: lw below 0.2 lives in
+rem samienne/loomworks.nvim, 0.2 and later in samienne/loomworks (no fallback)
+set "repo=samienne/loomworks"
+if "!version:~0,4!"=="0.0." set "repo=samienne/loomworks.nvim"
+if "!version:~0,4!"=="0.1." set "repo=samienne/loomworks.nvim"
 
 set "cache=%here%.nvim\cache"
 set "bin=%cache%\lw-!version!-%asset%"
@@ -66,7 +71,7 @@ if not exist "%cache%" mkdir "%cache%"
 if defined LOOMWORKS_RELEASE_URL (
   set "url=%LOOMWORKS_RELEASE_URL%/%asset%"
 ) else (
-  set "url=https://github.com/samienne/loomworks.nvim/releases/download/v!version!/%asset%"
+  set "url=https://github.com/!repo!/releases/download/v!version!/%asset%"
 )
 1>&2 echo lw: fetching pinned lw !version! ^(%asset%^) for %pin%...
 set "tmp=%bin%.dl"
@@ -119,7 +124,7 @@ if "!do_verify!"=="1" (
   if errorlevel 1 (
     1>&2 echo lw: --verify: gh not found; skipping attestation ^(sha256 already verified^)
   ) else (
-    gh attestation verify "%bin%" --repo samienne/loomworks.nvim || exit /b 1
+    gh attestation verify "%bin%" --repo !repo! || exit /b 1
   )
 )
 rem Forward args with delayed expansion OFF so a forwarded arg containing `!`
