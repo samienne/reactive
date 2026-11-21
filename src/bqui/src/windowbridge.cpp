@@ -1,5 +1,7 @@
 #include "windowbridge.h"
 
+#include "windowsizing.h"
+
 #include <tracy/Tracy.hpp>
 
 #include <algorithm>
@@ -22,20 +24,40 @@ struct WindowBridge::WakeTarget
     WindowBridge* bridge;
 };
 
+namespace
+{
+
+// The root is the outermost region, fed the window size.
+auto makeRootContext(widget::AnyWidget widget,
+        bq::signal::AnySignal<avg::Vector2f> size)
+{
+    widget::PureRegion region = widget::buildPureRegion(
+            widget::AnyWidget(std::move(widget) | modifier::background()),
+            std::move(size), BuildParams());
+
+    return bq::signal::makeSignalContext(
+            std::move(region.element).getInstance(),
+            std::move(region.band));
+}
+
+// The opening size of an axis the root states no natural for.
+ase::Vector2i const fallbackWindowSize(800, 600);
+
+} // namespace
+
 WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         Window window, widget::AnyWidget widget, bool headless)
     : wakeTarget_(std::make_shared<WakeTarget>(this)),
     memoryPool_(pmr::new_delete_resource()),
     memory_(&memoryPool_),
-    aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
     windowData_(window.data()),
+    size_(bq::signal::makeInput(fallbackWindowSize.cast<float>().eval())),
+    widgetInstanceSignal_(makeRootContext(std::move(widget),
+                bq::signal::AnySignal<avg::Vector2f>(std::move(size_.signal)))),
+    rootBand_(widgetInstanceSignal_.evaluate<1>().get<0>()),
+    layoutSize_(fallbackWindowSize.cast<float>()),
+    aseWindow(platform.makeWindow(context, openingSize(), headless)),
     painter_(memory_, aseWindow.getRenderContext()),
-    size_(bq::signal::makeInput(
-                ase::Vector2f(aseWindow.getSize().cast<float>()))),
-    widgetInstanceSignal_((std::move(widget)
-                | modifier::background())(
-                BuildParams{}
-                )(std::move(size_.signal)).getInstance()),
     widgetInstance_(widgetInstanceSignal_.evaluate<0>().get<0>()),
     titleSignal_(windowData_->getTitle()),
     drawing_(memory_)
@@ -71,7 +93,8 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     });
     aseWindow.setResizeCallback([this]()
             {
-                size_.handle.set(aseWindow.getSize().cast<float>());
+                layoutSize_ = getWindowSize();
+                size_.handle.set(layoutSize_);
                 resized_ = true;
                 animating_ = true;
             });
@@ -253,15 +276,12 @@ void WindowBridge::makeTransaction(
 
     bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-    widgetInstanceSignal_.update(frameInfo);
+    bool instanceChanged = std::exchange(firstTransaction_, false);
+    updateRoot(frameInfo, instanceChanged);
     titleSignal_.update(frameInfo);
-
 
     if (titleSignal_.didChange<0>())
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
-
-    bool const instanceChanged = std::exchange(firstTransaction_, false)
-        || widgetInstanceSignal_.didChange<0>();
 
     if (instanceChanged)
     {
@@ -422,6 +442,57 @@ std::string WindowBridge::getTitle() const
 widget::Instance const& WindowBridge::getWidgetInstance() const
 {
     return widgetInstance_;
+}
+
+widget::RegionBand const& WindowBridge::getRootBand() const
+{
+    return rootBand_;
+}
+
+ase::Vector2f WindowBridge::getWindowSize() const
+{
+    return aseWindow.getSize().cast<float>();
+}
+
+ase::Vector2f WindowBridge::getLayoutSize() const
+{
+    return layoutSize_;
+}
+
+ase::Vector2i WindowBridge::openingSize()
+{
+    auto layOut = [this](ase::Vector2f size)
+    {
+        bool instanceChanged = false;
+        layoutSize_ = size;
+        size_.handle.set(size);
+        updateRoot(bq::signal::FrameInfo(getNextFrameId(), {}),
+                instanceChanged);
+        return rootBand_;
+    };
+
+    ase::Vector2i size = initialWindowSize(rootBand_.width,
+            [&](float width)
+            {
+                return layOut(ase::Vector2f(width,
+                            static_cast<float>(fallbackWindowSize[1]))).height;
+            },
+            windowData_->getInitialSize(),
+            fallbackWindowSize);
+
+    layOut(size.cast<float>());
+
+    return size;
+}
+
+bq::signal::UpdateResult WindowBridge::updateRoot(
+        bq::signal::FrameInfo const& frameInfo, bool& instanceChanged)
+{
+    auto result = widgetInstanceSignal_.update(frameInfo);
+    instanceChanged = instanceChanged || widgetInstanceSignal_.didChange<0>();
+    if (widgetInstanceSignal_.didChange<1>())
+        rootBand_ = widgetInstanceSignal_.evaluate<1>().get<0>();
+    return result;
 }
 
 widget::Introspection WindowBridge::getResolvedIntrospection() const

@@ -19,8 +19,11 @@ auto ui = widget::vbox({
 });
 ```
 
-Layout is a size-hint negotiation (minimum / natural / stretch per axis), with
-**gravity** aligning a widget within its allocated space.
+Layout is solved by constraints: each widget states min / max / natural / flex
+per axis, and every window's content is solved as one region. Flexible children
+share the slack by weight; fixed-size children keep their size and overflow
+rather than being squeezed. **Gravity** aligns a widget within its allocated
+space.
 
 ## Modifiers
 

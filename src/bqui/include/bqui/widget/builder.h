@@ -5,8 +5,8 @@
 #include "bqui/provider/paramprovider.h"
 
 #include "bqui/buildparams.h"
-#include "bqui/simplesizehint.h"
-#include "bqui/sizehint.h"
+#include "bqui/widget/boxvariables.h"
+#include "bqui/widget/layoutspec.h"
 
 #include <bq/signal/signal.h>
 
@@ -19,46 +19,95 @@
 
 namespace bqui::widget
 {
-    template <typename TFunc, typename TSizeHint>
+    template <typename TFunc>
     class Builder;
 
     struct AnyBuilder;
 
     using BuilderBase = Builder<
         std::function<widget::AnyElement(BuildParams params,
-                bq::signal::AnySignal<avg::Vector2f>)>,
-        bq::signal::AnySignal<SizeHint>
+                bq::signal::AnySignal<avg::Vector2f>,
+                bq::signal::AnySignal<LayoutSolution>)>
         >;
 
     template <typename T>
     using IsBuilder = typename std::is_convertible<T, AnyBuilder>::type;
 
-    template <typename TFunc, typename TSizeHint, typename = std::enable_if_t<
-        std::is_invocable_r_v<
-            widget::AnyElement, TFunc, BuildParams, bq::signal::AnySignal<avg::Vector2f>>
+    namespace detail
+    {
+        // A build function is either the ordinary two-argument shape
+        // (BuildParams, size) or, for a pure-solver container that must place
+        // its children from the region solution, the three-argument shape with
+        // the solution appended. invokeBuild() calls whichever it is, so a leaf
+        // that ignores the solution needs no editing. The two-argument shape is
+        // tested first: a bindArguments-bound build accepts extra trailing
+        // arguments, so only ruling out the two-argument call keeps the solution
+        // from colliding with a bound argument.
+        template <typename TFunc, typename TSize>
+        auto invokeBuild(TFunc& func, BuildParams params, TSize size,
+                bq::signal::AnySignal<LayoutSolution> solution)
+        {
+            if constexpr (std::is_invocable_v<TFunc&, BuildParams, TSize>)
+                return std::invoke(func, std::move(params), std::move(size));
+            else
+                return std::invoke(func, std::move(params), std::move(size),
+                        std::move(solution));
+        }
+
+        // Widens any build function to the three-argument shape the type-erased
+        // BuilderBase stores, dropping the solution for the two-argument ones.
+        template <typename TFunc>
+        auto adaptBuild(TFunc func)
+        {
+            return [func = std::move(func)](BuildParams params,
+                    bq::signal::AnySignal<avg::Vector2f> size,
+                    bq::signal::AnySignal<LayoutSolution> solution) mutable
+                    -> widget::AnyElement
+            {
+                return invokeBuild(func, std::move(params), std::move(size),
+                        std::move(solution));
+            };
+        }
+
+        // Whether TFunc is a build function of either shape. Tested lazily: a
+        // build that takes the solution is only accepted when it does not also
+        // take the two-argument call, and -- crucially -- the three-argument test
+        // is never instantiated for a build that does, since a bindArguments-bound
+        // build would hard-error deducing the return type of a solution
+        // mis-bound as one of its arguments.
+        template <typename TFunc>
+        using IsBuildFunc = std::disjunction<
+            std::is_invocable<TFunc, BuildParams,
+                bq::signal::AnySignal<avg::Vector2f>>,
+            std::conjunction<
+                std::negation<std::is_invocable<TFunc, BuildParams,
+                    bq::signal::AnySignal<avg::Vector2f>>>,
+                std::is_invocable<TFunc, BuildParams,
+                    bq::signal::AnySignal<avg::Vector2f>,
+                    bq::signal::AnySignal<LayoutSolution>>>>;
+    } // namespace detail
+
+    template <typename TFunc, typename = std::enable_if_t<
+        detail::IsBuildFunc<TFunc>::value
         >
     >
-    auto makeBuilder(TFunc&& func, TSizeHint&& sizeHint,
-            BuildParams params, bq::signal::AnySignal<avg::Vector2f> gravity)
+    auto makeBuilder(TFunc&& func, BuildParams params,
+            bq::signal::AnySignal<avg::Vector2f> gravity)
     {
-        return Builder<std::decay_t<TFunc>, std::decay_t<TSizeHint>>(
+        return Builder<std::decay_t<TFunc>>(
                 std::forward<TFunc>(func),
-                std::forward<TSizeHint>(sizeHint),
                 std::move(params),
                 std::move(gravity)
                 );
     }
 
-    template <typename TFunc, typename TSizeHint>
+    template <typename TFunc>
     class Builder
     {
     public:
-        using SizeHintType = std::decay_t<TSizeHint>;
-
-        Builder(TFunc func, TSizeHint sizeHint, BuildParams params,
+        Builder(TFunc func, BuildParams params,
                 bq::signal::AnySignal<avg::Vector2f> gravity) :
             func_(std::move(func)),
-            sizeHint_(std::move(sizeHint)),
             buildParams_(std::move(params)),
             gravity_(std::move(gravity))
         {
@@ -76,38 +125,68 @@ namespace bqui::widget
         Builder& operator=(Builder&&) noexcept = default;
 
         template <typename T>
-        auto operator()(bq::signal::Signal<T, avg::Vector2f> size) &&
+        auto operator()(bq::signal::Signal<T, avg::Vector2f> size,
+                bq::signal::AnySignal<LayoutSolution> solution) &&
         {
-            return std::invoke(*func_, std::move(buildParams_), std::move(size));
+            return detail::invokeBuild(*func_, std::move(buildParams_),
+                    std::move(size), std::move(solution));
         }
 
-        template <typename TSignalSizeHint>
-        auto setSizeHint(TSignalSizeHint sizeHint) &&
+        /**
+         * @brief This widget's accumulated pure-solver constraints, composed up
+         * from its children; empty on a builder minted without one. Preserved
+         * across a copy and type erasure, exactly as the box variables
+         * are.
+         */
+        PureLayout const& getPureLayout() const
         {
-            return makeBuilder(
-                    std::move(*func_),
-                    std::move(sizeHint),
-                    std::move(buildParams_),
-                    std::move(gravity_)
-                    );
+            return pureLayout_;
         }
 
-        SizeHintType getSizeHint() const
+        /**
+         * @brief Replaces this widget's composed pure-solver constraints, used to
+         * carry them across a rebuild that mints a fresh builder.
+         */
+        void setPureLayout(PureLayout pureLayout)
         {
-            return sizeHint_->clone();
+            pureLayout_ = std::move(pureLayout);
+        }
+
+        /**
+         * @brief The four edge variables that name this widget's box to the
+         * constraint solver. Stable for the builder's lifetime and preserved
+         * across a copy and type erasure.
+         */
+        BoxVariables const& getBoxVariables() const
+        {
+            return box_;
+        }
+
+        /**
+         * @brief Adopts @p box as this widget's solver box, so a transformed
+         * builder keeps the identity of the one it came from.
+         */
+        void setBoxVariables(BoxVariables box)
+        {
+            box_ = std::move(box);
         }
 
         auto setBuildParams(BuildParams params) &&
         {
-            return makeBuilder([params=std::move(buildParams_),
-                    func=std::move(func_)](BuildParams oldParams, auto size)
+            auto builder = makeBuilder([params=std::move(buildParams_),
+                    func=std::move(func_)](BuildParams oldParams,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<LayoutSolution> solution)
                 {
-                    return (*func)(params, std::move(size)).setParams(oldParams);
+                    return detail::invokeBuild(*func, params, std::move(size),
+                            std::move(solution)).setParams(oldParams);
                 },
-                std::move(*sizeHint_),
                 std::move(params),
                 std::move(gravity_)
                 );
+            builder.setBoxVariables(box_);
+            builder.setPureLayout(pureLayout_);
+            return builder;
         }
 
         BuildParams const& getBuildParams() const
@@ -129,45 +208,38 @@ namespace bqui::widget
 
         operator BuilderBase() &&
         {
-            return BuilderBase(
-                    std::move(*func_),
-                    std::move(*sizeHint_),
+            BuilderBase base(
+                    detail::adaptBuild(std::move(*func_)),
                     std::move(buildParams_),
                     std::move(gravity_)
                     );
+            base.setBoxVariables(box_);
+            base.setPureLayout(pureLayout_);
+            return base;
         }
 
     protected:
         btl::CloneOnCopy<TFunc> func_;
-        btl::CloneOnCopy<TSizeHint> sizeHint_;
         BuildParams buildParams_;
         bq::signal::AnySignal<avg::Vector2f> gravity_ =
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
+        BoxVariables box_;
+        PureLayout pureLayout_ = emptyPureLayout();
     };
 
     struct AnyBuilder : Builder<std::function<widget::AnyElement(
-            BuildParams, bq::signal::AnySignal<avg::Vector2f>)>,
-            bq::signal::AnySignal<SizeHint>>
+            BuildParams, bq::signal::AnySignal<avg::Vector2f>,
+            bq::signal::AnySignal<LayoutSolution>)>>
     {
-        template <typename TFunc, typename TSizeHint>
-        static auto castBuilder(Builder<TFunc, TSizeHint> base)
-        {
-            auto sizeHint = base.getSizeHint();
-
-            return std::move(base)
-                .setSizeHint(std::move(sizeHint).template cast<SizeHint>())
-                ;
-        }
-
         AnyBuilder(AnyBuilder const&) = default;
         AnyBuilder(AnyBuilder&&) noexcept = default;
 
         AnyBuilder& operator=(AnyBuilder const&) = default;
         AnyBuilder& operator=(AnyBuilder&&) noexcept = default;
 
-        template <typename TFunc, typename TSizeHint>
-        AnyBuilder(Builder<TFunc, TSizeHint> base) :
-            BuilderBase(castBuilder(std::move(base)))
+        template <typename TFunc>
+        AnyBuilder(Builder<TFunc> base) :
+            BuilderBase(std::move(base))
         {
         }
 
@@ -176,26 +248,6 @@ namespace bqui::widget
             return *this;
         }
     };
-
-    template <typename TFunc, typename T, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyBuilder, TFunc, bq::signal::AnySignal<avg::Vector2f>,
-        provider::ParamProviderTypeT<Ts>...>
-    >>
-    auto makeBuilderWithSize(TFunc&& func, Ts&&... ts)
-    {
-        return makeBuilder(btl::bindArguments(
-            [func=std::forward<TFunc>(func)](BuildParams const& params,
-                bq::signal::Signal<T, avg::Vector2f> size, auto&&... ts)
-            {
-                auto sharedSize = size.share();
-                auto builder = func(sharedSize,
-                        provider::invokeParamProvider(ts, params)...);
-
-                return builder(sharedSize);
-            },
-            std::forward<Ts>(ts)...
-            ));
-    }
 
     inline auto makeBuilder()
     {
@@ -206,7 +258,6 @@ namespace bqui::widget
                         .setParams(std::move(params))
                         ;
                 },
-                bq::signal::constant(defaultSizeHint()),
                 BuildParams{},
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
@@ -215,22 +266,22 @@ namespace bqui::widget
     template <typename T>
     auto makeBuilderFromElement(Element<T> element)
     {
-        auto size = element.getSize().clone();
+        auto size = element.getSize().clone().share();
         auto buildParams = element.getParams();
 
-        return makeBuilder(
+        auto builder = makeBuilder(
                 [element](BuildParams params, auto const& /*size*/)
                 {
                     return btl::clone(element)
                         .setParams(params);
                 },
-                std::move(size).map([](auto size)
-                    {
-                        return simpleSizeHint(size[0], size[1]);
-                    }),
                 std::move(buildParams),
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
+
+        builder.setPureLayout(pureLayoutFromSize(
+                    bq::signal::AnySignal<avg::Vector2f>(std::move(size))));
+        return builder;
     }
 
     template <typename TBuilder, typename = typename std::enable_if

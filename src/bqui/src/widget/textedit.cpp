@@ -1,5 +1,6 @@
 #include "bqui/widget/textedit.h"
 
+#include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/margin.h"
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/clip.h"
@@ -9,7 +10,6 @@
 #include "bqui/modifier/onkeyevent.h"
 #include "bqui/modifier/ontextevent.h"
 #include "bqui/modifier/onclick.h"
-#include "bqui/modifier/setsizehint.h"
 #include "bqui/modifier/setwidgetintrospection.h"
 
 #include "bqui/widget/introspection.h"
@@ -17,7 +17,6 @@
 
 #include "bqui/provider/providetheme.h"
 
-#include "bqui/simplesizehint.h"
 #include "bqui/clickevent.h"
 #include "bqui/send.h"
 
@@ -238,13 +237,11 @@ namespace
                             return InputResult::handled;
                         }))
             | modifier::onTextEvent(sendKeysTo(keyStream.handle))
-            | modifier::setSizeHint(
-                    bq::signal::constant(simpleSizeHint(250.0f, 40.0f))
-                    )
             | modifier::setRole("TextEdit")
             | modifier::setData("text", std::move(textData))
             | modifier::addCapability(widget::Capability::Editable)
             | modifier::addCapability(widget::Capability::Focusable)
+            | modifier::defaultSize(avg::Vector2f(250.0f, 40.0f))
             ;
     }
 
