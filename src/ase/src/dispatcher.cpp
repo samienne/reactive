@@ -106,6 +106,9 @@ void Dispatcher::runThread()
             (*i)();
         }
 
+        // Release the tasks' captures before wait() can return.
+        funcs.clear();
+
         {
             ZoneScopedN("Dispatcher notify");
             std::unique_lock<std::mutex> lock(mutex_);

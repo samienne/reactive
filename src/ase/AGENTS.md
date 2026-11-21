@@ -143,6 +143,14 @@ are in the top-level `docs/`.
   keep-alive into the task so the window outlives it. `PresentStatus` is
   `Ok`-only on GL; it exists so a backend whose present can fail (a lost
   swapchain) is not a `void`-return retrofit.
+- **The GL viewport size travels with the frame.** WglWindow and GlxWindow keep
+  the pixel size on the loop thread (set at creation and on WM_SIZE,
+  WM_DPICHANGED or ConfigureNotify), and `frame()` first dispatches a task
+  carrying it, with the same keep-alive, that sets it on the default
+  framebuffer. The FIFO runs it before that frame's draws, so the
+  framebuffer's size is render-thread-only state that `makeCurrent` reads
+  without a lock. GlxWindow's present task likewise captures the
+  `_NET_WM_SYNC_REQUEST` counter value by value.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

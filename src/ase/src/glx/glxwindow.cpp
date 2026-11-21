@@ -73,6 +73,8 @@ GlxWindow::GlxWindow(GlxPlatform& platform, RenderContext& context,
     unsigned int width = static_cast<unsigned int>((float)size[0] * scalingFactor);
     unsigned int height = static_cast<unsigned int>((float)size[1] * scalingFactor);
 
+    pixelSize_ = Vector2i(static_cast<int>(width), static_cast<int>(height));
+
     Display* dpy = platform_.getDisplay();
 
     /*std::ofstream stream("keys.txt");
@@ -204,6 +206,14 @@ void GlxWindow::destroy()
 
 std::optional<std::chrono::microseconds> GlxWindow::frame(Frame const& frame)
 {
+    auto keepAlive = shared_from_this();
+    auto& framebuffer = defaultFramebuffer_.getImpl<GlxFramebuffer>();
+    getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
+        [&framebuffer, keepAlive, size = pixelSize_](GlFunctions const&)
+        {
+            framebuffer.setPixelSize(size);
+        });
+
     return genericWindow_.frame(frame);
 }
 
@@ -234,6 +244,10 @@ void GlxWindow::handleEvent(_XEvent const& e)
         }
         break;
     case ConfigureNotify:
+        if (event.xconfigure.window != xWin_)
+            break;
+
+        pixelSize_ = Vector2i(event.xconfigure.width, event.xconfigure.height);
         genericWindow_.resize(
                 Vector2i(
                     (float)event.xconfigure.width / genericWindow_.getScalingFactor(),
@@ -379,7 +393,7 @@ PresentStatus GlxWindow::present()
 {
     auto keepAlive = shared_from_this();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
-        [this, keepAlive](GlFunctions const&)
+        [this, keepAlive, counterValue = counterValue_](GlFunctions const&)
         {
             ZoneScopedN("SwapBuffers");
 
@@ -389,7 +403,7 @@ PresentStatus GlxWindow::present()
 
             platform_.swapGlxBuffers(lock, glxWin_);
 
-            setSyncCounter(dpy, syncCounter_, counterValue_);
+            setSyncCounter(dpy, syncCounter_, counterValue);
             XSync(dpy, false);
         });
 

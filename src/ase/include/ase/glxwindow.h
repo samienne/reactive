@@ -98,6 +98,7 @@ namespace ase
         int64_t counterValue_ = 0;
 
         Framebuffer defaultFramebuffer_;
+        Vector2i pixelSize_ = Vector2i::Zero();
 
         bool visible_ = false;
 
