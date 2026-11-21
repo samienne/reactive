@@ -15,7 +15,8 @@ PauseToken::PauseToken(std::shared_ptr<PlatformImpl> platform) :
 }
 
 PauseToken::PauseToken(PauseToken&& other) noexcept :
-    platform_(std::move(other.platform_))
+    platform_(std::move(other.platform_)),
+    wake_(std::move(other.wake_))
 {
     other.platform_ = nullptr;
 }
@@ -24,10 +25,10 @@ PauseToken& PauseToken::operator=(PauseToken&& other) noexcept
 {
     if (this != &other)
     {
-        if (platform_)
-            platform_->resumeFrames();
+        release();
 
         platform_ = std::move(other.platform_);
+        wake_ = std::move(other.wake_);
         other.platform_ = nullptr;
     }
 
@@ -36,13 +37,36 @@ PauseToken& PauseToken::operator=(PauseToken&& other) noexcept
 
 PauseToken::~PauseToken()
 {
-    if (platform_)
-        platform_->resumeFrames();
+    release();
 }
 
 bool PauseToken::step(std::chrono::microseconds dt)
 {
     return platform_ ? platform_->stepFrame(dt) : false;
+}
+
+bool PauseToken::finishStep()
+{
+    return platform_ ? platform_->finishStepFrame() : true;
+}
+
+void PauseToken::setWakeCallback(std::function<void()> callback)
+{
+    if (!platform_)
+        return;
+
+    wake_ = std::make_shared<std::function<void()>>(std::move(callback));
+    platform_->setWakeCallback(wake_);
+}
+
+void PauseToken::release()
+{
+    if (!platform_)
+        return;
+
+    wake_.reset();
+    platform_->resumeFrames();
+    platform_ = nullptr;
 }
 
 Platform::Platform(std::shared_ptr<PlatformImpl> impl) :

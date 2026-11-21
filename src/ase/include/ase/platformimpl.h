@@ -80,6 +80,25 @@ namespace ase
          */
         virtual bool stepFrame(std::chrono::microseconds dt) = 0;
 
+        /**
+         * @brief Render the windows the last `stepFrame` left unrendered.
+         *
+         * A step skips a due window that has no free in-flight slot. Reports
+         * whether every one of them has rendered by now. Called on the loop
+         * thread.
+         */
+        virtual bool finishStepFrame() = 0;
+
+        /**
+         * @brief Call `callback` on the loop thread each time the loop is
+         * woken while frames are paused, as a freed in-flight slot wakes it.
+         *
+         * Holds one callback, weakly: setting one replaces the last, and it
+         * stops once its owner lets go of it.
+         */
+        virtual void setWakeCallback(
+                std::weak_ptr<std::function<void()>> callback) = 0;
+
         /** @brief Wake the frame loop so it runs a tick and re-evaluates.
          *
          * Safe to call off the loop thread. A decorator that drives frames

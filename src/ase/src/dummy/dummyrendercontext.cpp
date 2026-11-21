@@ -37,6 +37,16 @@ std::shared_ptr<RenderQueueImpl> DummyRenderContext::getTransferQueue()
     return std::make_shared<DummyRenderQueue>();
 }
 
+void DummyRenderContext::holdFences()
+{
+    mainQueue_->holdFences();
+}
+
+void DummyRenderContext::releaseFences()
+{
+    mainQueue_->releaseFences();
+}
+
 std::shared_ptr<ProgramImpl> DummyRenderContext::makeProgramImpl(
         VertexShader const& /*vertexShader*/,
         FragmentShader const& /*fragmentShader*/)

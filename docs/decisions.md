@@ -197,6 +197,30 @@ parallel `runSession` loop over a wrapped platform. Folding remote onto the same
 keeps the frame path identical local and remote — no `RemoteWindowImpl`, no
 decorator, no second driving path.
 
+## Remote requests take effect in order; their replies may overtake
+
+A remote method handler may answer later than it returns (a `Responder` it
+keeps). Requests are still dispatched in arrival order, and a handler whose
+effect on the app is unfinished holds a dispatch gate that queues the requests
+behind it, so what a client did happens in the order it asked. Replies are not
+held to that order: one that is slow to produce is overtaken, and the `id`
+correlates. `app.step` is the first deferred method: it answers only after
+every window due in its frames has rendered, where it used to answer even when
+a window without a free in-flight slot had been skipped. A step whose frames
+stop completing fails after a deadline (5 s without progress), so a stuck GPU
+cannot hold the session's later requests, `app.shutdown` among them, for good.
+A client that half-closes still gets the pending step's reply and those behind
+it.
+
+**Why:** strictly serial replies would be simpler for a naive client, but would
+make everything wait behind one slow answer (a screenshot's readback and
+encode). Ordering the effects is what a client's script relies on (inject,
+step, observe); the order of replies carries no meaning that the ids do not.
+The deadline is an inactivity bound rather than a limit on the whole step, so
+a long multi-frame step on a slow GPU still completes; a one-shot script that
+sends its requests and half-closes is the common client, so ending its input
+must not end the answers it is owed.
+
 ## `present` returns `PresentStatus`, not `void`
 
 Present is modelled as a surface operation on the render queue, sequenced behind
