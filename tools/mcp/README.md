@@ -18,6 +18,24 @@ pulls the blob in `blob.read` chunks, releases it, and returns its content: text
 for text and JSON types, image content for `image/*`. The reply's other fields,
 such as a screenshot's size and region, follow as JSON text.
 
+## Client module
+
+The bridge builds on `bqui_remote.py`, a client for the protocol that needs only
+the standard library, so other tools can drive an app without MCP. It listens,
+launches the app, frames and correlates requests, passes on notifications, and
+pulls a blob to bytes, releasing it even when the pull fails. An error reply
+raises an exception carrying its code, message and data. A dropped connection,
+or a frame that breaks the protocol, fails pending and later requests with
+`ConnectionLost` and the reason. A failed launch stops the app it started, and
+closing waits a bounded time for the app to shut down before terminating it.
+`SyncConnection` wraps it for blocking callers; its notification callback runs
+on the connection's own thread and must not call back into it. Its tests use a
+fake app and need no build:
+
+```sh
+python -m unittest discover -s tools/mcp
+```
+
 ## How it runs
 
 The app *connects* to an endpoint the client *listens* on. The bridge therefore
@@ -32,7 +50,8 @@ On the dummy platform everything but `window.screenshot` works, and
 
 ## Requirements
 
-- Python 3.10+ and the `mcp` package: `pip install -r tools/mcp/requirements.txt`
+- Python 3.10+ and, for the bridge, the `mcp` package:
+  `pip install -r tools/mcp/requirements.txt`
 - A built tree containing `inspectorapp` (Meson/Ninja — see the top-level
   `AGENTS.md`).
 
@@ -53,7 +72,8 @@ Launches the app, prints the generated tools, queries `window.list` /
 `window.introspect`, pulls `window.renderTree` as a blob and checks it against
 the inline reply, and exits. When the window can capture it also takes a
 `window.screenshot`, decodes the PNG, and checks its size against the reply and
-that it is not one flat colour; `--save-screenshot <path>` writes it out.
+that it is not one flat colour. `--save-screenshot <path>` writes it out, and
+fails the self-test when no screenshot could be taken.
 
 ## Register with Claude Code
 
