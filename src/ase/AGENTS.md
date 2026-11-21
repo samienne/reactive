@@ -154,13 +154,14 @@ are in the top-level `docs/`.
   constructor is private and only `Dispatcher` is a friend: the dispatcher
   creates the tag on its thread and passes it to every task and idle callback
   it runs, and the task passes it down (the window tasks above, the render
-  state's queue). Code that is not running as a dispatched task cannot get
-  one, so a call from the loop thread does not compile. It belongs to the GL
-  backend, the only one with a thread of its own (the `GlDispatchedContext`
-  dispatcher), so only GL, GLX and WGL classes take it and backend-neutral
-  interfaces stay free of it. A backend-neutral virtual such as `present`
-  therefore has no tag; where its dispatched task calls a GL-side helper, as
-  GLX's does, the helper takes it.
+  state's queue). Code that is not running as a dispatched task cannot make
+  one, so a call from the loop thread does not compile. The tag is copyable:
+  never store one or capture it into something that runs elsewhere. It
+  belongs to the GL backend, the only one with a thread of its own (the
+  `GlDispatchedContext` dispatcher), so only GL, GLX and WGL classes take it
+  and backend-neutral interfaces stay free of it. A backend-neutral virtual
+  such as `present` therefore has no tag; where its dispatched task calls a
+  GL-side helper, as GLX's does, the helper takes it.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
