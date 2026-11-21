@@ -21,7 +21,7 @@ namespace ase
         /**
          * Sets the client area in pixels; render thread only.
          */
-        void setPixelSize(Vector2i size);
+        void setPixelSize(Dispatched, Vector2i size);
 
         // From GlBaseFramebuffer
         void makeCurrent(Dispatched, GlDispatchedContext& context,

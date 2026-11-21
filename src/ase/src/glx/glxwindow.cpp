@@ -4,6 +4,7 @@
 
 #include "glrenderqueue.h"
 #include "renderqueue.h"
+#include "dispatcher.h"
 #include "debug.h"
 
 #include <tracy/Tracy.hpp>
@@ -23,7 +24,8 @@ static Bool waitForNotify(Display* /*dpy*/, XEvent *event, XPointer arg)
 }
 #endif
 
-void setSyncCounter(Display* dpy, XSyncCounter counter, int64_t value)
+void setSyncCounter(Dispatched, Display* dpy, XSyncCounter counter,
+        int64_t value)
 {
     XSyncValue syncValue;
     XSyncIntsToValue(&syncValue, value & 0xffffffff, value >> 32);
@@ -211,7 +213,7 @@ std::optional<std::chrono::microseconds> GlxWindow::frame(Frame const& frame)
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
         [&framebuffer, keepAlive, size = pixelSize_](GlFunctions const&)
         {
-            framebuffer.setPixelSize(size);
+            framebuffer.setPixelSize(Dispatched(), size);
         });
 
     return genericWindow_.frame(frame);
@@ -397,13 +399,14 @@ PresentStatus GlxWindow::present()
         {
             ZoneScopedN("SwapBuffers");
 
+            Dispatched dispatched;
             ++frames_;
             auto lock = platform_.lockX();
             auto dpy = platform_.getDisplay();
 
-            platform_.swapGlxBuffers(lock, glxWin_);
+            platform_.swapGlxBuffers(dispatched, lock, glxWin_);
 
-            setSyncCounter(dpy, syncCounter_, counterValue);
+            setSyncCounter(dispatched, dpy, syncCounter_, counterValue);
             XSync(dpy, false);
         });
 

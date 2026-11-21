@@ -31,7 +31,7 @@ void WglFramebuffer::makeCurrent(Dispatched dispatched,
     renderState.setViewport(dispatched, pixelSize_);
 }
 
-void WglFramebuffer::setPixelSize(Vector2i size)
+void WglFramebuffer::setPixelSize(Dispatched, Vector2i size)
 {
     pixelSize_ = size;
 }

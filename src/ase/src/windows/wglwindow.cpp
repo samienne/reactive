@@ -4,6 +4,7 @@
 #include "wglframebuffer.h"
 #include "glrenderqueue.h"
 #include "renderqueue.h"
+#include "dispatcher.h"
 
 // windows.h must precede the GL headers below: <GL/gl.h> and <GL/wglext.h>
 // rely on WINGDIAPI/APIENTRY from windows.h.
@@ -521,7 +522,7 @@ std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
         [&framebuffer, keepAlive, size = pixelSize_](GlFunctions const&)
         {
-            framebuffer.setPixelSize(size);
+            framebuffer.setPixelSize(Dispatched(), size);
         });
 
     return genericWindow_.frame(frame);

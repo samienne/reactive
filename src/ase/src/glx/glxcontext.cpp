@@ -2,6 +2,7 @@
 
 #include "glxwindow.h"
 #include "glxplatform.h"
+#include "dispatcher.h"
 
 #include "debug.h"
 
@@ -50,9 +51,10 @@ GlxContext& GlxContext::operator=(GlxContext&& other)
     return *this;
 }
 
-void GlxContext::makeCurrent(Lock const& lock, GLXDrawable drawable) const
+void GlxContext::makeCurrent(Dispatched dispatched, Lock const& lock,
+        GLXDrawable drawable) const
 {
-    platform_->makeGlxContextCurrent(lock, context_, drawable);
+    platform_->makeGlxContextCurrent(dispatched, lock, context_, drawable);
 }
 
 std::ostream& operator<<(std::ostream& stream, ase::GlxContext const& context)

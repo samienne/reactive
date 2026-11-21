@@ -134,8 +134,7 @@ are in the top-level `docs/`.
   same GL dispatcher its draws went through (reached via its own
   `getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(...)`), so the swap
   runs FIFO after the submitted draws on the render thread; `present()` returns
-  immediately without blocking. The swap body — the only place the GL-only
-  `Dispatched` tag legitimately appears — is what GlxWindow (swaps its GLX
+  immediately without blocking. The swap body is what GlxWindow (swaps its GLX
   drawable with the X lock held inside) and WglWindow (`SwapBuffers`es its
   `hdc_`) run there; OffscreenWindow and DummyWindow are the no-op a future
   pixel readback hooks into and name no GL types. Because the dispatched swap
@@ -151,6 +150,15 @@ are in the top-level `docs/`.
   framebuffer's size is render-thread-only state that `makeCurrent` reads
   without a lock. GlxWindow's present task likewise captures the
   `_NET_WM_SYNC_REQUEST` counter value by value.
+- **Render-thread-only GL functions take the `Dispatched` tag.** A dispatched
+  task constructs one and passes it down (the window tasks above, the render
+  state's queue), so a call from the loop thread does not compile by accident.
+  Nothing restricts who constructs it: it marks intent, it does not enforce
+  it. It belongs to the GL backend, the only one with a thread of its own
+  (the `GlDispatchedContext` dispatcher), so only GL, GLX and WGL classes take
+  it and backend-neutral interfaces stay free of it; a render-thread function
+  reached through a backend-neutral virtual (such as `present`) puts the tag
+  on a GL-side helper the dispatched task calls.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

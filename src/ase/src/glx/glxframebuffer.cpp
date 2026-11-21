@@ -30,7 +30,7 @@ void GlxFramebuffer::makeCurrent(
     renderState.setViewport(dispatched, pixelSize_);
 }
 
-void GlxFramebuffer::setPixelSize(Vector2i size)
+void GlxFramebuffer::setPixelSize(Dispatched, Vector2i size)
 {
     pixelSize_ = size;
 }

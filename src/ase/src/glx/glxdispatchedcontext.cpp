@@ -139,7 +139,7 @@ GlxDispatchedContext::GlxDispatchedContext(GlxPlatform& platform) :
 {
     dispatcher_.run([this]()
     {
-        context_.makeCurrent(platform_.lockX(), 0);
+        context_.makeCurrent(Dispatched(), platform_.lockX(), 0);
         setGlFunctions(getGlFunctionPointers());
     });
 
@@ -156,12 +156,13 @@ GlxContext& GlxDispatchedContext::getGlxContext()
     return context_;
 }
 
-void GlxDispatchedContext::makeCurrent(Dispatched, GlxWindow const& window)
+void GlxDispatchedContext::makeCurrent(Dispatched dispatched,
+        GlxWindow const& window)
 {
     if (currentWindow_ != window.getGlxWindowId())
     {
         currentWindow_ = window.getGlxWindowId();
-        context_.makeCurrent(platform_.lockX(), currentWindow_);
+        context_.makeCurrent(dispatched, platform_.lockX(), currentWindow_);
     }
 }
 
