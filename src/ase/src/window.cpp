@@ -47,6 +47,20 @@ std::string const& Window::getTitle() const
     return d()->getTitle();
 }
 
+void Window::setCursor(Cursor cursor)
+{
+    if (d())
+        d()->setCursor(cursor);
+}
+
+Cursor Window::getCursor() const
+{
+    if (!d())
+        return Cursor();
+
+    return d()->getCursor();
+}
+
 Vector2i Window::getSize() const
 {
     return d()->getSize();

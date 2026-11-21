@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cursor.h"
 #include "textevent.h"
 #include "pointerdragevent.h"
 #include "pointerbuttonevent.h"
@@ -31,6 +32,9 @@ namespace ase
 
         std::string const& getTitle() const;
         void setTitle(std::string title);
+
+        Cursor getCursor() const;
+        void setCursor(Cursor cursor);
 
         void notifyClose();
         void resize(Vector2i size);
@@ -115,6 +119,7 @@ namespace ase
         std::array<Vector2f, 15> buttonDownPos_;
 
         std::string title_;
+        Cursor cursor_;
     };
 } // namespace ase
 

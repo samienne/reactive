@@ -13,6 +13,7 @@
 #include <bq/signal/signalcontext.h>
 
 #include <ase/platform.h>
+#include <ase/cursor.h>
 #include <ase/dummyplatform.h>
 #include <ase/rendercontext.h>
 #include <ase/window.h>
@@ -224,6 +225,30 @@ TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
     EXPECT_EQ(ase::ButtonState::down, gotButton->state);
     EXPECT_EQ(ase::Vector2f(20.0f, 30.0f), gotButton->pos);
     EXPECT_EQ("hi", gotText);
+}
+
+TEST(headlessApp, windowCursorDefaultsToArrowAndRoundTrips)
+{
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+    auto context = platform.makeRenderContext();
+
+    for (bool headless : { false, true })
+    {
+        auto window = platform.makeWindow(context, ase::Vector2i(200, 100),
+                headless);
+
+        EXPECT_TRUE(window.getCursor() == ase::Cursor());
+        EXPECT_TRUE(window.getCursor().getKind() == ase::CursorKind::arrow);
+
+        window.setCursor(ase::CursorKind::ibeam);
+        EXPECT_TRUE(window.getCursor().getKind() == ase::CursorKind::ibeam);
+
+        window.setCursor(ase::CursorKind::hidden);
+        EXPECT_TRUE(window.getCursor() == ase::Cursor(
+                    ase::CursorKind::hidden));
+        EXPECT_TRUE(window.getCursor() != ase::Cursor());
+    }
 }
 
 TEST(headlessApp, requestFrameDuringAFrameIsNotLost)

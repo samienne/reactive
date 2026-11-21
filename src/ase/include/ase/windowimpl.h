@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cursor.h"
 #include "textevent.h"
 #include "keyevent.h"
 #include "hoverevent.h"
@@ -64,6 +65,9 @@ namespace ase
 
         virtual void setTitle(std::string&& title) = 0;
         virtual std::string const& getTitle() const = 0;
+
+        virtual void setCursor(Cursor cursor) = 0;
+        virtual Cursor getCursor() const = 0;
 
         virtual Vector2i getSize() const = 0;
         virtual float getScalingFactor() const = 0;
