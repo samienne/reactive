@@ -69,8 +69,9 @@ Platform notes that will bite you:
 - **Each library builds into its own directory**, so the test/app executables
   can't find their sibling DLLs on PATH by themselves. Use `meson devenv -C
   build` (which puts them on PATH) to run, or add the per-target dirs manually
-  (`src/ase`, `src/avg`, `src/bq`, `src/bqui`, and the freetype/tracy subproject
-  dirs). Running an exe directly usually fails with a missing-DLL error.
+  (`src/ase`, `src/avg`, `src/bq`, `src/bqui`, and the arrange/freetype/tracy
+  subproject dirs). Running an exe directly usually fails with a missing-DLL
+  error.
 - A `vswhere.exe ... not recognized` line during vcvars import is harmless.
 
 ## Workflow
