@@ -4,6 +4,7 @@
 #include "glxcontext.h"
 #include "glxwindow.h"
 #include "offscreenwindow.h"
+#include "dispatcher.h"
 
 #include "commandbuffer.h"
 #include "rendercontext.h"
@@ -505,8 +506,9 @@ void GlxPlatform::destroyGlxContext(GlxPlatform::Lock const& /*lock*/,
     DBG("GlxPlatform: Destroyed context %1", context);
 }
 
-void GlxPlatform::makeGlxContextCurrent(GlxPlatform::Lock const& /*lock*/,
-        GLXContext context, GLXDrawable drawable)
+void GlxPlatform::makeGlxContextCurrent(Dispatched,
+        GlxPlatform::Lock const& /*lock*/, GLXContext context,
+        GLXDrawable drawable)
 {
     ZoneScoped;
     if (!drawable && context)
@@ -515,7 +517,8 @@ void GlxPlatform::makeGlxContextCurrent(GlxPlatform::Lock const& /*lock*/,
     glXMakeContextCurrent(d()->dpy_, drawable, drawable, context);
 }
 
-void GlxPlatform::swapGlxBuffers(Lock const& /*lock*/, GLXDrawable drawable)
+void GlxPlatform::swapGlxBuffers(Dispatched, Lock const& /*lock*/,
+        GLXDrawable drawable)
 {
     ZoneScoped;
     glXSwapBuffers(d()->dpy_, drawable);

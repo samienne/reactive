@@ -4,6 +4,7 @@
 #include "wglframebuffer.h"
 #include "glrenderqueue.h"
 #include "renderqueue.h"
+#include "dispatcher.h"
 
 // windows.h must precede the GL headers below: <GL/gl.h> and <GL/wglext.h>
 // rely on WINGDIAPI/APIENTRY from windows.h.
@@ -39,11 +40,13 @@ namespace
         return scale;
     }
 
-    void syncClientArea(HWND hwnd, GenericWindow& window)
+    void syncClientArea(HWND hwnd, GenericWindow& window, Vector2i& pixelSize)
     {
         RECT rect;
         if (!GetClientRect(hwnd, &rect))
             return;
+
+        pixelSize = Vector2i(rect.right, rect.bottom);
 
         float const scale = getWindowScalingFactor(hwnd);
         window.setScalingFactor(scale);
@@ -438,7 +441,7 @@ WglWindow::WglWindow(WglPlatform& platform, RenderContext& context,
 
     // The HWND is not yet routed to this window, so the WM_SIZE above went
     // unseen.
-    syncClientArea(hwnd_, genericWindow_);
+    syncClientArea(hwnd_, genericWindow_, pixelSize_);
 }
 
 WglWindow::~WglWindow()
@@ -462,7 +465,7 @@ PresentStatus WglWindow::present()
 {
     auto keepAlive = shared_from_this();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
-        [this, keepAlive](GlFunctions const&)
+        [this, keepAlive](Dispatched, GlFunctions const&)
         {
             ZoneScopedN("SwapBuffers");
             SwapBuffers(hdc_);
@@ -514,6 +517,15 @@ void WglWindow::requestFrame()
 
 std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
 {
+    auto keepAlive = shared_from_this();
+    auto& framebuffer = defaultFramebuffer_.getImpl<WglFramebuffer>();
+    getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
+        [&framebuffer, keepAlive, size = pixelSize_]
+        (Dispatched d, GlFunctions const&)
+        {
+            framebuffer.setPixelSize(d, size);
+        });
+
     return genericWindow_.frame(frame);
 }
 
@@ -543,26 +555,22 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
 
         case WM_LBUTTONDOWN:
         case WM_LBUTTONUP:
-        {
-            if (uMsg == WM_LBUTTONDOWN)
-                capturePointer();
-            else
-                releasePointer();
-
-            float scale = genericWindow_.getScalingFactor();
-            float x = (float)GET_X_LPARAM(lParam) / scale;
-            float y = genericWindow_.getHeight() - (float)GET_Y_LPARAM(lParam)
-                / scale;
-
-            genericWindow_.injectPointerButtonEvent(0, 1, Vector2f(x, y),
-                    uMsg == WM_LBUTTONDOWN ? ButtonState::down : ButtonState::up);
-
-            break;
-        }
+        case WM_MBUTTONDOWN:
+        case WM_MBUTTONUP:
         case WM_RBUTTONDOWN:
         case WM_RBUTTONUP:
         {
-            if (uMsg == WM_RBUTTONDOWN)
+            bool const isDown = uMsg == WM_LBUTTONDOWN
+                || uMsg == WM_MBUTTONDOWN
+                || uMsg == WM_RBUTTONDOWN;
+
+            unsigned int button = 1;
+            if (uMsg == WM_MBUTTONDOWN || uMsg == WM_MBUTTONUP)
+                button = 2;
+            else if (uMsg == WM_RBUTTONDOWN || uMsg == WM_RBUTTONUP)
+                button = 3;
+
+            if (isDown)
                 capturePointer();
             else
                 releasePointer();
@@ -572,8 +580,8 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
             float y = genericWindow_.getHeight() - (float)GET_Y_LPARAM(lParam)
                 / scale;
 
-            genericWindow_.injectPointerButtonEvent(0, 2, Vector2f(x, y),
-                    uMsg == WM_LBUTTONDOWN ? ButtonState::down : ButtonState::up);
+            genericWindow_.injectPointerButtonEvent(0, button, Vector2f(x, y),
+                    isDown ? ButtonState::down : ButtonState::up);
 
             break;
         }
@@ -629,12 +637,12 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
 
             // SetWindowPos skips WM_SIZE if the suggested rect keeps the
             // client size.
-            syncClientArea(hwnd_, genericWindow_);
+            syncClientArea(hwnd_, genericWindow_, pixelSize_);
             return 0;
         }
 
         case WM_SIZE:
-            syncClientArea(hwnd_, genericWindow_);
+            syncClientArea(hwnd_, genericWindow_, pixelSize_);
             break;
     }
 

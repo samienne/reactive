@@ -11,7 +11,19 @@
 
 namespace ase
 {
-    struct ASE_EXPORT Dispatched {};
+    /**
+     * Proof that the code runs on a dispatcher thread.
+     *
+     * Only the Dispatcher creates one and hands it to the tasks it runs.
+     */
+    struct ASE_EXPORT Dispatched
+    {
+    private:
+        // User-provided, so that Dispatched{} is not aggregate init.
+        Dispatched() {}
+
+        friend class Dispatcher;
+    };
 
     class ASE_EXPORT Dispatcher
     {
@@ -22,11 +34,11 @@ namespace ase
 
         Dispatcher& operator=(Dispatcher const& other) = delete;
 
-        void run(std::function<void()>&& func);
+        void run(std::function<void(Dispatched)>&& func);
         void wait() const;
 
         void setIdleFunc(Dispatched, std::chrono::duration<float> period,
-                std::function<void()> cb);
+                std::function<void(Dispatched)> cb);
         void unsetIdleFunc(Dispatched);
         bool hasIdleFunc(Dispatched);
 
@@ -39,8 +51,8 @@ namespace ase
         mutable std::condition_variable condition_;
         std::string name_;
         std::thread thread_;
-        std::vector<std::function<void()> > funcs_;
-        std::optional<std::function<void()>> idleCallback_;
+        std::vector<std::function<void(Dispatched)> > funcs_;
+        std::optional<std::function<void(Dispatched)>> idleCallback_;
         std::chrono::duration<float> idlePeriod_;
         bool running_;
         bool idle_;

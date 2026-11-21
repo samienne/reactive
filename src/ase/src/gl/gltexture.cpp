@@ -103,7 +103,7 @@ void GlTexture::destroy()
         GLuint texture = texture_;
         texture_ = 0;
 
-        context_.dispatchBg([texture](GlFunctions const&)
+        context_.dispatchBg([texture](Dispatched, GlFunctions const&)
             {
                 glDeleteTextures(1, &texture);
                 DBG("Texture %1 deleted", texture);

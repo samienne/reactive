@@ -134,8 +134,7 @@ are in the top-level `docs/`.
   same GL dispatcher its draws went through (reached via its own
   `getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(...)`), so the swap
   runs FIFO after the submitted draws on the render thread; `present()` returns
-  immediately without blocking. The swap body — the only place the GL-only
-  `Dispatched` tag legitimately appears — is what GlxWindow (swaps its GLX
+  immediately without blocking. The swap body is what GlxWindow (swaps its GLX
   drawable with the X lock held inside) and WglWindow (`SwapBuffers`es its
   `hdc_`) run there; OffscreenWindow and DummyWindow are the no-op a future
   pixel readback hooks into and name no GL types. Because the dispatched swap
@@ -143,6 +142,26 @@ are in the top-level `docs/`.
   keep-alive into the task so the window outlives it. `PresentStatus` is
   `Ok`-only on GL; it exists so a backend whose present can fail (a lost
   swapchain) is not a `void`-return retrofit.
+- **The GL viewport size travels with the frame.** WglWindow and GlxWindow keep
+  the pixel size on the loop thread (set at creation and on WM_SIZE,
+  WM_DPICHANGED or ConfigureNotify), and `frame()` first dispatches a task
+  carrying it, with the same keep-alive, that sets it on the default
+  framebuffer. The FIFO runs it before that frame's draws, so the
+  framebuffer's size is render-thread-only state that `makeCurrent` reads
+  without a lock. GlxWindow's present task likewise captures the
+  `_NET_WM_SYNC_REQUEST` counter value by value.
+- **Render-thread-only GL functions take the `Dispatched` tag.** Its
+  constructor is private and only `Dispatcher` is a friend: the dispatcher
+  creates the tag on its thread and passes it to every task and idle callback
+  it runs, and the task passes it down (the window tasks above, the render
+  state's queue). Code that is not running as a dispatched task cannot make
+  one, so a call from the loop thread does not compile. The tag is copyable:
+  never store one or capture it into something that runs elsewhere. It
+  belongs to the GL backend, the only one with a thread of its own (the
+  `GlDispatchedContext` dispatcher), so only GL, GLX and WGL classes take it
+  and backend-neutral interfaces stay free of it. A backend-neutral virtual
+  such as `present` therefore has no tag; where its dispatched task calls a
+  GL-side helper, as GLX's does, the helper takes it.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

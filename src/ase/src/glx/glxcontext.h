@@ -10,6 +10,7 @@
 
 namespace ase
 {
+    struct Dispatched;
     class GlxWindow;
     class GlxPlatform;
 
@@ -31,7 +32,8 @@ namespace ase
         GlxContext& operator=(GlxContext const&) = delete;
         GlxContext& operator=(GlxContext&& other);
 
-        void makeCurrent(Lock const& lock, GLXDrawable drawable) const;
+        void makeCurrent(Dispatched, Lock const& lock,
+                GLXDrawable drawable) const;
 
     private:
         friend std::ostream& operator<<(std::ostream& stream,

@@ -105,7 +105,7 @@ namespace
 GlRenderState::GlRenderState(GlDispatchedContext& dispatcher) :
     dispatcher_(dispatcher)
 {
-    dispatcher_.dispatch([](GlFunctions const& gl)
+    dispatcher_.dispatch([](Dispatched, GlFunctions const& gl)
     {
         glEnable(GL_DEPTH_TEST);
 
@@ -165,7 +165,7 @@ GlRenderState::~GlRenderState()
 {
     if (vertexArrayObject_)
     {
-        dispatcher_.dispatch([this](GlFunctions const& gl)
+        dispatcher_.dispatch([this](Dispatched, GlFunctions const& gl)
         {
             gl.glDeleteVertexArrays(1, &vertexArrayObject_);
             vertexArrayObject_ = 0;
@@ -178,7 +178,7 @@ GlRenderState::~GlRenderState()
 void GlRenderState::submit(CommandBuffer&& commands)
 {
     dispatcher_.dispatch([this, commands=std::move(commands)]
-            (GlFunctions const& gl) mutable
+            (Dispatched d, GlFunctions const& gl) mutable
     {
         auto b = commands.begin();
         auto e = b;
@@ -200,7 +200,7 @@ void GlRenderState::submit(CommandBuffer&& commands)
             }
         }
 
-        dispatchedRenderQueue(Dispatched(), gl, std::move(commands));
+        dispatchedRenderQueue(d, gl, std::move(commands));
     });
 }
 
@@ -372,7 +372,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         if (boundFramebuffer_ != &framebuffer)
         {
             boundFramebuffer_ = &framebuffer;
-            framebuffer.makeCurrent(Dispatched(), dispatcher_, *this, gl);
+            framebuffer.makeCurrent(d, dispatcher_, *this, gl);
         }
 
         vbo = vertexBuffer.getBuffer().getBuffer();
@@ -464,7 +464,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             if (vbo)
             {
-                pushSpec(Dispatched(), gl, pipeline.getVertexSpec(),
+                pushSpec(d, gl, pipeline.getVertexSpec(),
                         activeAttribs_);
             }
 
@@ -552,9 +552,9 @@ void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
     if (!fences_.empty() && !dispatcher_.hasIdleFunc(d))
     {
         dispatcher_.setIdleFunc(d, std::chrono::duration<float>(0.016f),
-                [this](GlFunctions const& gl)
+                [this](Dispatched idle, GlFunctions const& gl)
                 {
-                    checkFences(Dispatched(), gl);
+                    checkFences(idle, gl);
                 });
     }
     else if (fences_.empty() && dispatcher_.hasIdleFunc(d))

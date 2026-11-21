@@ -46,7 +46,8 @@ GlRenderContext::GlRenderContext(
     defaultFramebuffer_(*this, nullptr),
     sharedFramebuffer_(*this)
 {
-    dispatch([bgEnabled=platform.isBackgroundQueueEnabled()](GlFunctions const&)
+    dispatch([bgEnabled=platform.isBackgroundQueueEnabled()]
+            (Dispatched, GlFunctions const&)
     {
         std::cout << "GlVendor: " << glGetString(GL_VENDOR) << std::endl;
         std::cout << "GlRenderer: " << glGetString(GL_RENDERER) << std::endl;
@@ -111,12 +112,14 @@ GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
     return defaultFramebuffer_;
 }
 
-void GlRenderContext::dispatch(std::function<void(GlFunctions const&)> f)
+void GlRenderContext::dispatch(
+        std::function<void(Dispatched, GlFunctions const&)> f)
 {
     mainQueue_->dispatch(std::move(f));
 }
 
-void GlRenderContext::dispatchBg(std::function<void(GlFunctions const&)> f)
+void GlRenderContext::dispatchBg(
+        std::function<void(Dispatched, GlFunctions const&)> f)
 {
     transferQueue_->dispatch(std::move(f));
 }

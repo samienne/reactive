@@ -1,6 +1,7 @@
 #pragma once
 
 #include "glbaseframebuffer.h"
+#include "vector.h"
 
 namespace ase
 {
@@ -17,6 +18,11 @@ namespace ase
 
         GlxFramebuffer& operator=(GlxFramebuffer const&) = delete;
         GlxFramebuffer& operator=(GlxFramebuffer&&) = delete;
+
+        /**
+         * Sets the window size in pixels; render thread only.
+         */
+        void setPixelSize(Dispatched, Vector2i size);
 
         // From GlBaseFramebuffer
         void makeCurrent(
@@ -39,6 +45,7 @@ namespace ase
 
     private:
         GlxWindow& window_;
+        Vector2i pixelSize_ = Vector2i::Zero();
     };
 } // namespace ase
 

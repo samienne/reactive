@@ -36,7 +36,7 @@ GlFramebuffer::~GlFramebuffer()
 {
     if (framebuffer_)
     {
-        context_.dispatchBg([this](GlFunctions const& gl)
+        context_.dispatchBg([this](Dispatched, GlFunctions const& gl)
             {
                 gl.glDeleteFramebuffers(1, &framebuffer_);
                 framebuffer_ = 0;

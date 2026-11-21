@@ -17,6 +17,7 @@
 
 namespace ase
 {
+    struct Dispatched;
     class GlxWindow;
     class GlxContext;
     class GlxPlatformDeferred;
@@ -59,9 +60,9 @@ namespace ase
 
         GLXContext createGlxContext(Lock const& lock);
         void destroyGlxContext(Lock const& lock, GLXContext context);
-        void makeGlxContextCurrent(Lock const& lock, GLXContext context,
-                GLXDrawable drawable);
-        void swapGlxBuffers(Lock const& lock, GLXDrawable drawable);
+        void makeGlxContextCurrent(Dispatched, Lock const& lock,
+                GLXContext context, GLXDrawable drawable);
+        void swapGlxBuffers(Dispatched, Lock const& lock, GLXDrawable drawable);
 
         friend class GlxWindow;
         friend class GlxWindowDeferred;

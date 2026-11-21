@@ -1,6 +1,7 @@
 #pragma once
 
 #include "glbaseframebuffer.h"
+#include "vector.h"
 
 namespace ase
 {
@@ -16,6 +17,11 @@ namespace ase
 
         WglFramebuffer& operator=(WglFramebuffer const&) = delete;
         WglFramebuffer& operator=(WglFramebuffer&&) = delete;
+
+        /**
+         * Sets the client area in pixels; render thread only.
+         */
+        void setPixelSize(Dispatched, Vector2i size);
 
         // From GlBaseFramebuffer
         void makeCurrent(Dispatched, GlDispatchedContext& context,
@@ -35,6 +41,7 @@ namespace ase
 
     private:
         WglWindow& window_;
+        Vector2i pixelSize_ = Vector2i::Zero();
     };
 } // namespace ase
 

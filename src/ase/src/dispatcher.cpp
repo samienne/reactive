@@ -28,7 +28,7 @@ Dispatcher::~Dispatcher()
     thread_.join();
 }
 
-void Dispatcher::run(std::function<void()>&& func)
+void Dispatcher::run(std::function<void(Dispatched)>&& func)
 {
     std::unique_lock<std::mutex> lock(mutex_);
     funcs_.push_back(func);
@@ -44,7 +44,7 @@ void Dispatcher::wait() const
 
 void Dispatcher::setIdleFunc(Dispatched,
         std::chrono::duration<float> period,
-        std::function<void()> cb)
+        std::function<void(Dispatched)> cb)
 {
     idleCallback_ = std::move(cb);
     idlePeriod_ = period;
@@ -73,7 +73,7 @@ void Dispatcher::runThread()
     while (running_)
     {
         ZoneScopedN("Dispatcher main loop");
-        std::vector<std::function<void()> > funcs;
+        std::vector<std::function<void(Dispatched)> > funcs;
 
         {
             ZoneScopedN("Dispatcher handle idle");
@@ -86,7 +86,7 @@ void Dispatcher::runThread()
                     if (!condition_.wait_for(lock, idlePeriod_, predicate))
                     {
                         ZoneScopedN("Dispatcher idle callback");
-                        (*idleCallback_)();
+                        (*idleCallback_)(Dispatched());
                     }
                 }
                 else
@@ -103,8 +103,11 @@ void Dispatcher::runThread()
         for (auto i = funcs.begin(); i != funcs.end(); ++i)
         {
             ZoneScopedN("Dispatcher run task");
-            (*i)();
+            (*i)(Dispatched());
         }
+
+        // Release the tasks' captures before wait() can return.
+        funcs.clear();
 
         {
             ZoneScopedN("Dispatcher notify");

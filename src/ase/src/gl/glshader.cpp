@@ -23,7 +23,7 @@ GlShader::GlShader(GlRenderContext& context, std::string const& source,
         std::string logStr;
 
         context.dispatchBg([this, &logStr, &source, &failed,
-                shaderType](GlFunctions const& gl)
+                shaderType](Dispatched, GlFunctions const& gl)
             {
                 shader_ = gl.glCreateShader(shaderType);
 
@@ -82,7 +82,7 @@ void GlShader::destroy()
         GLuint shader = shader_;
         shader_ = 0;
 
-        context_.dispatchBg([shader](GlFunctions const& gl)
+        context_.dispatchBg([shader](Dispatched, GlFunctions const& gl)
             {
                 gl.glDeleteShader(shader);
             });
