@@ -23,12 +23,8 @@
 #include <bq/signal/input.h>
 #include <bq/signal/constant.h>
 
-#include <ase/platform.h>
-#include <ase/dummyplatform.h>
-
-#include <btl/runloop.h>
-
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <string>
 
@@ -68,13 +64,26 @@ int main(int argc, char** argv)
         })
         | modifier::focusGroup();
 
-    btl::RunLoop loop;
-
-    return App()
-        .platform(ase::makeDummyPlatform(loop))
-        .setRemoteEndpoint(endpoint)
-        .addWindow(
-                window(bq::signal::constant<std::string>("Inspector Demo")),
-                std::move(content))
-        .run();
+    try
+    {
+        return App()
+            .headless(true)
+            .setRemoteEndpoint(endpoint)
+            .addWindow(
+                    window(bq::signal::constant<std::string>("Inspector Demo")),
+                    std::move(content))
+            .run();
+    }
+    catch (std::exception const& e)
+    {
+        std::cerr << "inspectorapp: " << e.what() << "\n";
+        char const* platform = std::getenv("REACTIVE_PLATFORM");
+        if (!platform || std::string(platform) != "dummy")
+        {
+            std::cerr << "inspectorapp: if the graphics backend failed to "
+                         "start, set REACTIVE_PLATFORM=dummy to run without "
+                         "one.\n";
+        }
+        return 1;
+    }
 }
