@@ -1,4 +1,6 @@
 libbquisrc = [
+  'src/remote/base64.cpp',
+  'src/remote/blobstore.cpp',
   'src/remote/dispatcher.cpp',
   'src/remote/introspectionjson.cpp',
   'src/remote/overlappedwriter.cpp',
@@ -110,6 +112,7 @@ libbquidep = declare_dependency(
 
 bquitestsrc = [
   'test/apptest.cpp',
+  'test/base64test.cpp',
   'test/dispatchertest.cpp',
   'test/headlessapptest.cpp',
   'test/inputreentrancytest.cpp',
