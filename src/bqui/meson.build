@@ -1,6 +1,14 @@
 libbquisrc = [
+  'src/remote/base64.cpp',
+  'src/remote/blobstore.cpp',
+  'src/remote/capture.cpp',
+  'src/remote/dispatcher.cpp',
   'src/remote/introspectionjson.cpp',
+  'src/remote/overlappedwriter.cpp',
+  'src/remote/png.cpp',
   'src/remote/remotedriver.cpp',
+  'src/remote/screenshot.cpp',
+  'src/remote/screenshotencoder.cpp',
   'src/remote/streamtransport.cpp',
   'src/remote/pipetransport.cpp',
   'src/remote/pipelistener.cpp',
@@ -82,6 +90,12 @@ bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 nlohmanndep = dependency('nlohmann_json', include_type: 'system',
     default_options: subproject_warnings)
 
+# Deflate for the PNG encoder. Built static where it falls back to the wrap, so
+# it lands inside the bqui library rather than as one more DLL beside it.
+zlibdep = dependency('zlib', include_type: 'system',
+    default_options: subproject_warnings
+      + ['default_library=static', 'tests=disabled'])
+
 # The TCP transport uses Winsock, which needs an explicit link to ws2_32 on
 # Windows; POSIX sockets need no extra link.
 bqui_link_args = []
@@ -93,7 +107,7 @@ libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
-  dependencies: bquidep + [nlohmanndep],
+  dependencies: bquidep + [nlohmanndep, zlibdep],
   cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
   link_args: bqui_link_args,
   gnu_symbol_visibility: 'hidden'
@@ -108,26 +122,33 @@ libbquidep = declare_dependency(
 
 bquitestsrc = [
   'test/apptest.cpp',
+  'test/base64test.cpp',
+  'test/dispatchertest.cpp',
   'test/headlessapptest.cpp',
   'test/inputreentrancytest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
+  'test/pngtest.cpp',
   'test/rendertreetest.cpp',
+  'test/screenshottest.cpp',
+  'test/scriptedtransport.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
+  'test/windowcapturetest.cpp',
   'test/windowtest.cpp',
   ]
 
 # The remote tests speak framed JSON-RPC and exercise the introspection->json
 # adapter directly, so the test binary sees nlohmann and the library's private
-# src headers (the adapter is a private header, not part of the public surface).
+# src headers (the adapter is a private header, not part of the public surface),
+# and zlib to inflate what the PNG encoder writes.
 bquitest =  executable('bquitest',
   bquitestsrc,
-  dependencies: [gtestdep, libbquidep, nlohmanndep],
+  dependencies: [gtestdep, libbquidep, nlohmanndep, zlibdep],
   include_directories: include_directories('src'),
   )
 

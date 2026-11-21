@@ -26,6 +26,8 @@ namespace ase
                 GlFunctions const& gl
                 ) const override;
 
+        Vector2i getSize() const override;
+
         // From FramebufferImpl
         void setColorTarget(size_t index, Texture texture) override;
         void setColorTarget(size_t index, Renderbuffer texture) override;

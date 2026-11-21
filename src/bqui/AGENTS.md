@@ -1,6 +1,8 @@
 # bqui — agent notes
 
-*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework.*
+*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework;
+the remote capture paragraph against `19e8c214` (2026-11-16); the remote
+screenshot paragraph against `e2bb7232` (2026-11-16).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -108,6 +110,163 @@ glue (`WindowBridge`) itself implements `remote::RemoteWindow`, so introspection
 event injection are a capability of the glue — available for any window — and the
 driver addresses each glue by its `UniqueId`. The transport and JSON-RPC protocol
 are reused unchanged (see `docs/decisions.md`).
+
+**The driver never blocks the loop thread on the client, in either direction.**
+Reads are a readable source; sends go through an outgoing queue the transport
+owns (`Transport::enqueue` / `flushReady`, implemented once in `StreamTransport`
+over a per-transport `writeReady`). Replies and notifications share that one
+queue, so frames leave in the order they were produced, and a frame cut short
+resumes where it stopped. The driver registers a writable source only while
+`flushReady` reports bytes left, and drops it when the queue empties. Traps:
+
+- On Windows both the pipe and the TCP socket write through `OverlappedWriter`
+  (`src/remote/overlappedwriter.h`) and wait on its completion event, not on
+  socket writability: the Win32 run loop uses `WSAEventSelect`, and a second
+  selection on a socket replaces the first, so a readable and a writable source
+  on one socket cannot coexist.
+- The queue is capped (`kMaxQueuedBytes`). Passing the cap, like a write error,
+  drops the queue and ends the session with a logged reason; nothing is dropped
+  silently to make room. A single frame larger than the cap ends the session
+  too. Once its queue is dropped, a transport takes no more frames, since the
+  peer may be left mid-frame.
+- An orderly end (`app.shutdown`, the app finishing, or the client closing its
+  sending side) keeps flushing queued replies until the queue drains, a write
+  fails, or the client takes nothing for `kShutdownFlushTimeout`; commands
+  arriving meanwhile are discarded. End of input alone does not end the
+  writing: a half-closed client still reads.
+- Queue and driver tests script the channel with `testkit::ScriptedTransport`
+  (`test/scriptedtransport.h`), so ordering, short writes, the cap, write
+  errors and the shutdown bound need no real channel or large payloads.
+- The blocking `send`/`receive` remain for the client role and tests. A
+  transport is used one way or the other, never both.
+
+**A remote method answers now or later.** The JSON-RPC side of the driver is
+`Dispatcher` (`src/remote/dispatcher.h`, private but exported for the tests):
+the method registry, request parsing and reply framing. A handler gets its
+params and a `Responder`. The usual one ignores the responder and returns its
+result. A deferred one moves the responder out, returns `pending`, and calls
+`resolve` or `reject` once it has the answer, on the loop thread. What holds:
+
+- **Effects are in request order; replies are not.** Requests are dispatched in
+  arrival order, one handler returning before the next runs, but a deferred
+  reply can be overtaken by later ones. The reply `id` is the only correlation.
+- **A `DispatchGate` keeps effects ordered across a deferral.** While a handler
+  holds one (`Dispatcher::holdGate`), later requests queue undispatched;
+  releasing it dispatches them. A handler holds it for as long as its effect on
+  the app is unfinished, which can be shorter than the wait for its reply.
+- **A responder refers to the session weakly.** After the session ended
+  (`Dispatcher::end`, from end of input, a shutdown or the driver's
+  destructor) resolving is a no-op and gated requests are discarded. Destroying
+  an unanswered responder while the session lives sends an internal error, so
+  a lost handler cannot hang a client. A request without an `id` is never
+  answered, deferred or not.
+- **A responder is resolved inside a driver callback.** The driver has a
+  `Controller` only there, and `safeSend` needs it to register the flush; the
+  deferred `app.step` resumes through a posted task and its deadline timer,
+  both of which are driver callbacks.
+
+**`app.step` is deferred when a frame cannot render yet.** A stepped frame
+skips a due window that has no free in-flight slot (`PauseToken::step`), and
+the driver does not step on or answer until `PauseToken::finishStep` reports
+that window rendered. It holds the gate meanwhile, so nothing else is
+dispatched between the frames of one step. The platform's paused wake
+(`PauseToken::setWakeCallback`, fired when a fence frees a slot) resumes it
+through a posted task that checks the driver is still alive. On the dummy
+backend fences complete inline, so the step answers synchronously as before;
+the tests reach the deferred path with `DummyRenderContext::holdFences`.
+
+- **A pending step has a deadline.** When none of its frames completes for
+  `kStepTimeout` (5 s; the `RemoteDriver` constructor takes it so tests can
+  shorten it), the step answers with an internal error, releases the gate so
+  the requests behind it (`app.pause`, `app.shutdown`) go ahead, and is
+  forgotten, so a later wake does nothing. Each completed frame restarts the
+  deadline. This also bounds what the gate holds back: requests queue only
+  while a step is pending, so there is no separate cap on them.
+- **A half-close does not lose a pending step.** When input ends while a step
+  is pending, the session stays up: the step and the requests already queued
+  behind it are answered once its frame renders or its deadline passes, and
+  the session ends then. Replies already queued still reach a half-closed
+  client either way.
+
+**A bulk result can be a blob the client pulls.** The driver owns a per-session
+`BlobStore` (`src/remote/blobstore.h`). A producing method hands it bytes and a
+content type and replies with the descriptor it gets back (`id`, `size`,
+`contentType`); `window.renderTree` does so when asked with `asBlob`, and its
+blob holds exactly the inline result. The client reads ranges with `blob.read`
+(base64 chunks, any offset, repeatable) and frees the blob with
+`blob.release`. What holds:
+
+- **Ids count up per session and are never reused within it.** Releasing,
+  reading or re-releasing an id the session does not hold is `kUnknownBlob`
+  (-32001). Nothing is released implicitly, not even by reading the last byte;
+  the session's end frees whatever is left.
+- **The limits are a `BlobLimits` the `RemoteDriver` constructor takes**, so
+  tests shrink them. A producer whose blob would take the unreleased bytes past
+  `maxOutstanding` fails with `kBlobCapReached` (-32002) and the bytes in use
+  and the cap in the error data. A read is clamped to `maxRead`, and is
+  `defaultRead` long when it names no length; a bad offset or length,
+  including a zero length, is invalid params. The constructor throws
+  `std::invalid_argument` for limits under which a read could make no progress
+  or a `maxRead` reply could not fit the outgoing queue.
+- **A blob request is an ordinary request**, so a `blob.read` queues behind a
+  pending `app.step` like any other.
+- **`system.describe` carries both**: each method's `returnsBlob` marker
+  (`Method::returnsBlob`) and a top-level `limits.blob` object with the three
+  limits and the chunk encodings. The MCP bridge reads them to hide `blob.*`
+  and pull marked methods' blobs itself.
+- **`base64Encode` (`src/remote/base64.h`) is the chunk encoding**, exported
+  for its tests.
+
+**A capture result comes back on the render thread, not the loop.** The
+driver arms captures through `captureOnLoop` (`src/remote/capture.h`, exported
+for its tests), which posts the result to the loop and drops it if the driver
+is gone by then. `window.list` reports `canCapture` from the same `RemoteWindow`
+seam. Two traps for the handler that arms one:
+
+- **The completion runs outside the driver's `ControllerScope`.** It is a loop
+  callback and is handed a `Controller&`, but the driver's controller slot,
+  which `safeSend` asserts, is unset there. Resolving a responder from it needs
+  a `ControllerScope` first, as `window.screenshot`'s completion opens.
+- **A capture waits for the next present and schedules none.** The handler
+  must cause a frame; a paused or idle app never completes it.
+
+**`window.screenshot` gets a frame rendered for it.** The handler arms a
+capture, marks the window due (`RemoteWindow::requestFrame`, since an idle
+window would not render) and, while paused, steps with zero elapsed time:
+input injected since the last step applies, but time and the driver's frame
+index do not move. Running, the next tick serves it; `app.pause` with a capture
+whose frame has not rendered yet renders the zero-time frame then. What holds:
+
+- **The zero-time frame holds the gate** while a window waits for a free slot,
+  resumed by the same paused wake as a pending step and released after
+  `stepTimeout` at the latest. Once the frame has rendered, later requests go
+  ahead while the pixels are read and encoded.
+- **Each screenshot has a deadline**: no capture within `stepTimeout` answers
+  with an internal error, and a capture arriving later is dropped unencoded.
+  The capture stays armed in the window until it next presents or goes away,
+  so the driver counts each window's armed captures until they complete. At
+  most `kMaxScreenshotsInFlight` (`src/remote/errors.h`) are unanswered at
+  once, and a window holds at most as many armed; beyond either is
+  `kCaptureBusy` (-32011). A window that cannot capture is
+  `kCaptureUnsupported` (-32010), checked at request time and mapped again from
+  the capture result; `Cancelled` and `Failed` are internal errors with the
+  reason in the error data.
+- **Encoding runs on the btl thread pool.** The loop plans the crop
+  (`planScreenshot`, `src/remote/screenshot.h`, beside the request parsing);
+  `ScreenshotEncoder` (`src/remote/screenshotencoder.h`) runs the job, which
+  crops and scales with `renderScreenshot`, encodes (`encodePng`,
+  `src/remote/png.h`, zlib with a hand-written container) and posts the bytes
+  back; the blob is added on the loop, so the outstanding cap is checked after
+  the encode. Destroying the encoder waits for the jobs that have started,
+  since each posts to the loop; one that starts later does nothing.
+- **A screenshot's geometry is read right after the frame it captures**: after
+  each frame the driver renders, a screenshot whose window's
+  `RemoteWindow::presentCount` has moved since it was armed takes the widget
+  bounds and scaling factor then, so later frames cannot move its crop. A
+  window that does not count presents has them read when the capture arrives.
+- **A pending screenshot keeps a half-closed session up**, like a pending step;
+  a session that finishes, as when the app quits in the zero-time frame,
+  answers it with an internal error.
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and

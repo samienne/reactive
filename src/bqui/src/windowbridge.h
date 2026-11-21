@@ -99,6 +99,11 @@ public:
     void injectText(std::string text) override;
     widget::Introspection introspect() const override;
     avg::Snapshot snapshot() const override;
+    bool canCapture() const override;
+    void captureNextFrame(ase::CaptureCallback callback) override;
+    void requestFrame() override;
+    float scalingFactor() const override;
+    std::uint64_t presentCount() const override;
 
 private:
     struct WakeTarget;

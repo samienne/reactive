@@ -1,7 +1,8 @@
 # bqui MCP bridge
 
 `bqui_mcp.py` bridges the bqui **inspector protocol** (JSON-RPC 2.0 over a
-framed stream, see [`docs/design/inspector-protocol.md`](../../docs/design/inspector-protocol.md))
+framed stream; the app lists its methods with `system.describe`, and
+[`src/bqui/AGENTS.md`](../../src/bqui/AGENTS.md) covers the driver side)
 to **MCP**, so an MCP client such as Claude Code can drive a headless bqui app
 as a set of tools: list windows, read a window's widget tree, inject input, and
 step frames.
@@ -11,15 +12,46 @@ MCP. This bridge owns the socket (framing, request-id correlation, app
 notifications) and generates one MCP tool per protocol method from the app's own
 `system.describe`, so the tool list never drifts from the protocol.
 
+The `blob.*` methods are plumbing, not tools. When a method that
+`system.describe` marks `returnsBlob` answers with a blob descriptor, the bridge
+pulls the blob in `blob.read` chunks, releases it, and returns its content: text
+for text and JSON types, image content for `image/*`. The reply's other fields,
+such as a screenshot's size and region, follow as JSON text.
+
+## Client module
+
+The bridge builds on `bqui_remote.py`, a client for the protocol that needs only
+the standard library, so other tools can drive an app without MCP. It listens,
+launches the app, frames and correlates requests, passes on notifications, and
+pulls a blob to bytes, releasing it even when the pull fails. An error reply
+raises an exception carrying its code, message and data. A dropped connection,
+or a frame that breaks the protocol, fails pending and later requests with
+`ConnectionLost` and the reason. A failed launch stops the app it started, and
+closing waits a bounded time for the app to shut down before terminating it.
+`SyncConnection` wraps it for blocking callers; its notification callback runs
+on the connection's own thread and must not call back into it. Its tests use a
+fake app and need no build:
+
+```sh
+python -m unittest discover -s tools/mcp
+```
+
 ## How it runs
 
 The app *connects* to an endpoint the client *listens* on. The bridge therefore
 opens a loopback TCP listener, launches `inspectorapp` pointed at it, accepts the
 connection, calls `system.describe`, and serves MCP over stdio.
 
+On Windows and Linux, `inspectorapp` renders offscreen on the OpenGL backend,
+so screenshots work. Other systems (e.g. macOS) get the dummy platform by
+default; on a machine with no GPU, set `REACTIVE_PLATFORM=dummy` to get it too.
+On the dummy platform everything but `window.screenshot` works, and
+`window.list` reports `canCapture` false. The app's stderr goes to the bridge's.
+
 ## Requirements
 
-- Python 3.10+ and the `mcp` package: `pip install -r tools/mcp/requirements.txt`
+- Python 3.10+ and, for the bridge, the `mcp` package:
+  `pip install -r tools/mcp/requirements.txt`
 - A built tree containing `inspectorapp` (Meson/Ninja — see the top-level
   `AGENTS.md`).
 
@@ -37,7 +69,11 @@ connection, calls `system.describe`, and serves MCP over stdio.
 BQUI_BUILD_DIR=/path/to/build python tools/mcp/bqui_mcp.py --selftest
 ```
 Launches the app, prints the generated tools, queries `window.list` /
-`window.introspect`, and exits.
+`window.introspect`, pulls `window.renderTree` as a blob and checks it against
+the inline reply, and exits. When the window can capture it also takes a
+`window.screenshot`, decodes the PNG, and checks its size against the reply and
+that it is not one flat colour. `--save-screenshot <path>` writes it out, and
+fails the self-test when no screenshot could be taken.
 
 ## Register with Claude Code
 

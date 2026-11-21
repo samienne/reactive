@@ -477,4 +477,29 @@ avg::Snapshot WindowBridge::snapshot() const
             std::chrono::duration_cast<std::chrono::milliseconds>(timer_));
 }
 
+bool WindowBridge::canCapture() const
+{
+    return aseWindow.canCapture();
+}
+
+void WindowBridge::captureNextFrame(ase::CaptureCallback callback)
+{
+    aseWindow.captureNextFrame(std::move(callback));
+}
+
+void WindowBridge::requestFrame()
+{
+    aseWindow.requestFrame();
+}
+
+float WindowBridge::scalingFactor() const
+{
+    return aseWindow.getScalingFactor();
+}
+
+std::uint64_t WindowBridge::presentCount() const
+{
+    return frames_;
+}
+
 } // namespace bqui

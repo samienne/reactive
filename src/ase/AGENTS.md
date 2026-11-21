@@ -1,6 +1,7 @@
 # ase — agent notes
 
-*Last verified against `6b21821` (2026-08-18).*
+*Last verified against `a662f42` (2026-08-22); the pixel readback note against
+`1318092` (2026-11-16).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -72,13 +73,26 @@ are in the top-level `docs/`.
   produces one frame off the same callback/render path an auto tick takes;
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
   pumping), and dropping the token resumes the cadence. `step` lives only on the
-  token, so a free-running loop cannot be stepped by construction.
+  token, so a free-running loop cannot be stepped by construction. A step, like
+  a tick, skips a due window that has no free in-flight slot, but it remembers
+  the skipped windows: `finishStep()` renders those that have a slot by now, on
+  the stepped frame's own time and dt, and reports whether any are left. While
+  paused, each loop wake (`requestFrame`, which a completing fence calls) also
+  runs the callback set with `PauseToken::setWakeCallback`, on the loop thread,
+  so the holder knows when to call `finishStep()` again. The platform has one
+  such callback, not one per token: setting one replaces the last, and the
+  platform holds it weakly, so it ends with the token that set it and a stale
+  token cannot clear a newer one. Resuming the cadence forgets the skipped
+  windows. The dummy context can stand in for a busy GPU:
+  `DummyRenderContext::holdFences()` leaves fences pending until
+  `releaseFences()`.
 - **`PlatformImpl` is a pure interface; `PlatformBase` holds the shared guts.**
   Mirroring the `WindowImpl`/`WindowBase` split below: `PlatformImpl`
   (`include/ase/platformimpl.h`) is only the public platform virtuals the
   `Platform` handle and its `PauseToken` call (`makeWindow`, `makeRenderContext`,
-  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`, `requestFrame`, `runLoop`) plus
-  the `getImplOfType` type-erasure plumbing. Every backend derives instead from
+  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`/`finishStepFrame`/
+  `setWakeCallback`, `requestFrame`, `runLoop`) plus the `getImplOfType`
+  type-erasure plumbing. Every backend derives instead from
   `PlatformBase` (`include/ase/platformbase.h`, `src/platformbase.cpp`), which
   owns the injected `loop_`, the shared frame-loop body, the pause/step state, and
   the loop-contract *protected* virtuals a backend fills in (`handleEvents`,
@@ -137,12 +151,37 @@ are in the top-level `docs/`.
   immediately without blocking. The swap body — the only place the GL-only
   `Dispatched` tag legitimately appears — is what GlxWindow (swaps its GLX
   drawable with the X lock held inside) and WglWindow (`SwapBuffers`es its
-  `hdc_`) run there; OffscreenWindow and DummyWindow are the no-op a future
-  pixel readback hooks into and name no GL types. Because the dispatched swap
-  runs after `present()` returns, the GL windows capture a `shared_from_this()`
-  keep-alive into the task so the window outlives it. `PresentStatus` is
-  `Ok`-only on GL; it exists so a backend whose present can fail (a lost
-  swapchain) is not a `void`-return retrofit.
+  `hdc_`) run there; OffscreenWindow's present serves pixel readback (below)
+  and DummyWindow's is a no-op, and neither names GL types. Because the
+  dispatched swap runs after `present()` returns, the GL windows capture a
+  `shared_from_this()` keep-alive into the task so the window outlives it.
+  `PresentStatus` is `Ok`-only on GL; it exists so a backend whose present can
+  fail (a lost swapchain) is not a `void`-return retrofit.
+- **Pixel readback is a render command; capture hangs off present.**
+  `CommandBuffer::pushReadback` (`ReadbackCommand` in `rendercommand.h`) reads a
+  framebuffer's colour FIFO behind the commands before it. Like every non-draw
+  command it bounds the GL draw sort, so it sees every draw pushed before it. GL
+  runs `glReadPixels` synchronously on the dispatcher thread
+  (`GlRenderState::dispatchedRenderQueue`), which stalls the render thread until
+  the preceding draws finish but never the loop thread, maps the top-left region
+  to GL's bottom-left origin, flips the rows to top first, and calls the
+  callback there. Nothing else in ase takes a region (uploads and the viewport
+  start at the origin), so the region follows the returned image's top-left
+  convention. The dummy queue completes it at once with `Unsupported`;
+  `RenderContextImpl::canReadback` reports which a context does. The window side
+  lives in `WindowBase`: `captureNextFrame` appends to a list of armed callbacks
+  under a mutex that is never held while a callback runs (a callback may re-arm
+  from the render thread), and `capturePresent`, called from a capturing
+  window's `present()`, counts the present and moves the whole list into one
+  readback submitted on the window's main queue. `Painter::presentWindow`
+  flushes the draws before `present()` and the platform submits the frame fence
+  after the frame callback returns, so the queue order is draws, readback,
+  fence. Only `OffscreenWindow` overrides `canCapture()`, to its context's
+  `canReadback()`; on-screen windows keep `WindowBase`'s `false` until their
+  present submits a readback before the swap. That is why the `OffscreenWindow`
+  that `DummyPlatform::makeWindow` builds for `headless` cannot capture. The
+  real-GL check is the manual `bquiheadlesstest`; the arming logic is tested in
+  `bquitest` over a fake context that reads back synthetic pixels.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

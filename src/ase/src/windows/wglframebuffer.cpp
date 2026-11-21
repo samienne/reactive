@@ -28,12 +28,15 @@ void WglFramebuffer::makeCurrent(Dispatched dispatched,
 
     wglContext.makeCurrent(dispatched, window_);
 
-    Vector2i size(
+    renderState.setViewport(dispatched, getSize());
+}
+
+Vector2i WglFramebuffer::getSize() const
+{
+    return Vector2i(
             (float)(window_.getSize()[0]) * window_.getScalingFactor(),
             (float)(window_.getSize()[1]) * window_.getScalingFactor()
             );
-
-    renderState.setViewport(dispatched, size);
 }
 
 void WglFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)

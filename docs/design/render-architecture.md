@@ -310,8 +310,10 @@ pauses the *one* loop and steps it from a socket source, and the genuinely-bqui 
   `introspect` before the first `step` sees mounted windows.
 - Disconnect lifecycle: drop the token (resume/observe) or stop the loop (exit) — an
   inspector likely ends the session.
-- Pixel readback (vs logical trees) is deferred — it is offscreen-`present`-as-readback,
-  a future add, not a gap in this model.
+- Pixel readback (vs logical trees) is offscreen-`present`-as-readback: on a
+  backend that can read back, a headless window's `present` serves
+  `captureNextFrame`. Exposing it to the remote client is a
+  later add, not a gap in this model.
 - One client is the assumed boundary (two `step`ing clients would be two clocks).
 
 Feasibility: remote fits the model with no unresolvable issue found; the substantive
