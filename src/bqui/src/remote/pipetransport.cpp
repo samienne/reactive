@@ -32,7 +32,8 @@ PipeTransport::PipeTransport(HANDLE handle)
     : handle_(handle),
       readEvent_(makeEvent()),
       writeEvent_(makeEvent()),
-      stopEvent_(makeEvent())
+      stopEvent_(makeEvent()),
+      writer_(handle)
 {
 }
 
@@ -46,6 +47,8 @@ PipeTransport::~PipeTransport()
         DWORD got = 0;
         GetOverlappedResult(handle_, &readyOverlapped_, &got, TRUE);
     }
+
+    writer_.cancel();
 
     if (handle_ != INVALID_HANDLE_VALUE)
         CloseHandle(handle_);
@@ -158,6 +161,21 @@ btl::NativeHandle PipeTransport::nativeHandle()
 {
     // The run loop waits on the read-completion event; it never closes it.
     return btl::fromHandle(readEvent_);
+}
+
+btl::NativeHandle PipeTransport::writableHandle()
+{
+    return btl::fromHandle(writer_.event());
+}
+
+size_t PipeTransport::writeReady(void const* data, size_t size)
+{
+    return writer_.write(data, size);
+}
+
+bool PipeTransport::writePending()
+{
+    return writer_.pending();
 }
 
 bool PipeTransport::fillReady(std::string& out)

@@ -1,3 +1,6 @@
+#include "remote/tcptransport.h"
+#include "scriptedtransport.h"
+
 #include <bqui/remote/remotedriver.h>
 #include <bqui/remote/transport.h>
 
@@ -32,7 +35,9 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -232,12 +237,28 @@ namespace
         // frame counter (both bump together), so it is the observable proof a
         // step or a free-running tick happened.
         std::atomic<int> steps{ 0 };
+        std::mutex stepsMutex;
+        std::condition_variable stepsChanged;
 
         SessionFixture(std::string const& name, RemoteWindows windows)
         {
             auto endpoint = uniqueEndpoint(name);
             listener = listen(endpoint);
+            start(endpoint, std::move(windows));
+        }
 
+        struct Tcp {};
+
+        SessionFixture(Tcp, RemoteWindows windows)
+        {
+            auto tcp = tcpListen(*parseTcpEndpoint("127.0.0.1:0"));
+            auto endpoint = "127.0.0.1:" + std::to_string(tcp->port());
+            listener = std::move(tcp);
+            start(endpoint, std::move(windows));
+        }
+
+        void start(std::string const& endpoint, RemoteWindows windows)
+        {
             serverThread = std::thread([this, windows]
                 {
                     auto server = listener->accept();
@@ -247,7 +268,11 @@ namespace
                     RemoteApp app;
                     app.step = [this](std::chrono::microseconds)
                     {
-                        ++steps;
+                        {
+                            std::lock_guard<std::mutex> lock(stepsMutex);
+                            ++steps;
+                        }
+                        stepsChanged.notify_all();
                         return true;
                     };
                     app.sync = [] {};
@@ -260,6 +285,14 @@ namespace
                 });
 
             client = connect(endpoint);
+        }
+
+        // Wait for the driver to have stepped `count` frames, or give up.
+        bool awaitSteps(int count)
+        {
+            std::unique_lock<std::mutex> lock(stepsMutex);
+            return stepsChanged.wait_for(lock, std::chrono::seconds(10),
+                    [&] { return steps.load() >= count; });
         }
 
         json call(std::string const& method, json params = json::object())
@@ -1019,4 +1052,175 @@ TEST(session, dynamicWindowsOpenAndCloseById)
 
     rpc(*client, id++, "app.shutdown");
     appThread.join();
+}
+
+// --- Outgoing queue: a slow reader does not stall the driver ---------------
+
+namespace
+{
+    void checkStalledReplyDoesNotBlockLaterCommands(SessionFixture& s,
+            btl::UniqueId id, std::string const& name)
+    {
+        int introspectId = s.nextId++;
+        sendRequest(*s.client, introspectId, "window.introspect",
+                { { "window", id.getValue() } });
+
+        int stepId = s.nextId++;
+        sendRequest(*s.client, stepId, "app.step", { { "count", 3 } });
+
+        // The steps run although the reply before them is still unread.
+        ASSERT_TRUE(s.awaitSteps(3));
+
+        auto introspection = awaitResponse(*s.client, introspectId);
+        EXPECT_TRUE(name == introspection.at("result").at("introspection")
+                .at("name").get<std::string>());
+        EXPECT_EQ(3u, awaitResponse(*s.client, stepId).at("result")
+                .at("frame").get<uint64_t>());
+    }
+
+    // A name larger than the OS buffers of the channel, so its reply cannot
+    // leave the driver until the client reads.
+    std::string const& largeName()
+    {
+        static std::string const name(8 * 1024 * 1024, 'n');
+        return name;
+    }
+
+    std::string request(int id, std::string const& method)
+    {
+        json frame = { { "jsonrpc", "2.0" }, { "id", id },
+            { "method", method } };
+        return testkit::framed(frame.dump());
+    }
+
+    // Run a driver over `transport` on this thread until it stops its loop.
+    // Returns false if it had not stopped after a generous bound.
+    bool runDriver(testkit::ScriptedTransport& transport)
+    {
+        btl::RunLoop loop;
+        bool timedOut = false;
+
+        RemoteApp app;
+        app.step = [](std::chrono::microseconds) { return true; };
+        app.sync = [] {};
+        app.liveWindows = [] { return RemoteWindows{}; };
+        RemoteDriver driver(loop, transport, std::move(app), std::nullopt);
+
+        btl::RunLoop::Timer bound;
+        loop.post([&](btl::RunLoop::Controller& controller)
+            {
+                bound = controller.addTimer(std::chrono::seconds(30),
+                        [&](btl::RunLoop::Controller& c)
+                        {
+                            timedOut = true;
+                            c.stop();
+                        });
+            });
+
+        loop.run();
+        return !timedOut;
+    }
+
+    std::vector<int> replyIds(std::string const& wire)
+    {
+        std::vector<int> ids;
+        for (auto const& frame : testkit::unframed(wire))
+            ids.push_back(json::parse(frame).at("id").get<int>());
+        return ids;
+    }
+} // namespace
+
+TEST(session, stalledReplyDoesNotBlockLaterCommands)
+{
+    auto idA = btl::makeUniqueId();
+    FakeRemoteWindow a(idA, largeName());
+    SessionFixture s("stalledreply", { a });
+
+    checkStalledReplyDoesNotBlockLaterCommands(s, idA, largeName());
+}
+
+TEST(session, stalledReplyDoesNotBlockLaterCommandsOverTcp)
+{
+    auto idA = btl::makeUniqueId();
+    FakeRemoteWindow a(idA, largeName());
+    SessionFixture s(SessionFixture::Tcp{}, { a });
+
+    checkStalledReplyDoesNotBlockLaterCommands(s, idA, largeName());
+}
+
+TEST(session, halfClosedTcpClientStillGetsTheLastReply)
+{
+    auto idA = btl::makeUniqueId();
+    FakeRemoteWindow a(idA, largeName());
+    SessionFixture s(SessionFixture::Tcp{}, { a });
+
+    int introspectId = s.nextId++;
+    sendRequest(*s.client, introspectId, "window.introspect",
+            { { "window", idA.getValue() } });
+
+    testkit::shutdownSending(*s.client);
+
+    auto introspection = awaitResponse(*s.client, introspectId);
+    ASSERT_TRUE(introspection.is_object());
+    EXPECT_TRUE(largeName() == introspection.at("result")
+            .at("introspection").at("name").get<std::string>());
+    EXPECT_FALSE(s.client->receive());
+}
+
+TEST(session, shutdownFlushesAQueuedReplyFirst)
+{
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.list")
+        + request(2, "app.shutdown");
+    transport.writes = { 5, 0, 0, 7, 0 };
+
+    ASSERT_TRUE(runDriver(transport));
+    EXPECT_EQ((std::vector<int>{ 1, 2 }), replyIds(transport.wire));
+}
+
+TEST(session, halfClosedClientStillGetsQueuedReplies)
+{
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.list");
+    transport.incomingEnds = true;
+    transport.writes = { 5, 0, 0, 7, 0 };
+
+    ASSERT_TRUE(runDriver(transport));
+    EXPECT_EQ((std::vector<int>{ 1 }), replyIds(transport.wire));
+}
+
+TEST(session, passingTheQueueCapEndsTheSession)
+{
+    testkit::ScriptedTransport transport(100, false);
+    transport.incoming = request(1, "window.list")
+        + request(2, "window.list") + request(3, "window.list");
+    transport.afterScript = 0;
+
+    ASSERT_TRUE(runDriver(transport));
+    EXPECT_TRUE(transport.wire.empty());
+}
+
+TEST(session, aWriteErrorEndsTheSession)
+{
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.list")
+        + request(2, "window.list");
+    transport.writes = { 3, std::nullopt };
+
+    ASSERT_TRUE(runDriver(transport));
+    EXPECT_EQ(3u, transport.wire.size());
+}
+
+TEST(session, shutdownGivesUpOnAClientThatStopsReading)
+{
+    testkit::ScriptedTransport transport(kMaxQueuedBytes, false);
+    transport.incoming = request(1, "window.list")
+        + request(2, "app.shutdown");
+    transport.afterScript = 0;
+
+    auto started = std::chrono::steady_clock::now();
+    ASSERT_TRUE(runDriver(transport));
+    EXPECT_GE(std::chrono::steady_clock::now() - started,
+            std::chrono::milliseconds(1500));
+    EXPECT_TRUE(transport.wire.empty());
 }
