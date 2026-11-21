@@ -13,6 +13,7 @@
 #include <bqui/modifier/clip.h>
 #include <bqui/modifier/onpointermove.h>
 #include <bqui/modifier/onpointerdown.h>
+#include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/onhover.h>
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
@@ -33,6 +34,7 @@
 
 #include <bqui/modifier/setwidgetintrospection.h>
 
+#include <bqui/inputarea.h>
 #include <bqui/simplesizehint.h>
 #include <bqui/keyboardinput.h>
 #include <bqui/buildparams.h>
@@ -48,12 +50,41 @@
 #include <ase/vector.h>
 
 #include <btl/future.h>
+#include <btl/uniqueid.h>
 
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
 
 using namespace bqui;
+
+EventResult printButtonEvent(PointerButtonEvent const& e)
+{
+    std::cout << std::fixed << std::setprecision(1)
+        << "pointer button " << e.button << " "
+        << (e.state == ase::ButtonState::down ? "down" : "up")
+        << " at (" << e.pos[0] << ", " << e.pos[1] << ")" << std::endl;
+
+    return EventResult::possible;
+}
+
+modifier::AnyWidgetModifier printButtonEvents()
+{
+    btl::UniqueId id = btl::makeUniqueId();
+
+    return modifier::makeWidgetModifier(modifier::makeInstanceModifier(
+                [id](widget::Instance instance)
+                {
+                    auto areas = instance.getInputAreas();
+                    areas.push_back(makeInputArea(id, instance.getObb())
+                            .onDown(printButtonEvent)
+                            .onUp(printButtonEvent));
+
+                    return std::move(instance)
+                        .setInputAreas(std::move(areas));
+                }));
+}
 
 std::vector<std::pair<std::string, avg::Curve>> curves = {
     { "linear", avg::curve::linear },
@@ -221,7 +252,8 @@ int main()
                 widget::scrollView(
                         widget::uniformGrid(3, 3)
                         .cell(0, 0, 1, 1, spinner())
-                        .cell(1, 1, 1, 1, spinner())
+                        .cell(1, 1, 1, 1, spinner()
+                            | printButtonEvents())
                         .cell(2, 2, 1, 1, spinner())
                         )
                 , widget::label("AbcTest")
