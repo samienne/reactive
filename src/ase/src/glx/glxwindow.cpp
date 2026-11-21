@@ -393,7 +393,7 @@ PresentStatus GlxWindow::present()
 {
     auto keepAlive = shared_from_this();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
-        [this, keepAlive](GlFunctions const&)
+        [this, keepAlive, counterValue = counterValue_](GlFunctions const&)
         {
             ZoneScopedN("SwapBuffers");
 
@@ -403,7 +403,7 @@ PresentStatus GlxWindow::present()
 
             platform_.swapGlxBuffers(lock, glxWin_);
 
-            setSyncCounter(dpy, syncCounter_, counterValue_);
+            setSyncCounter(dpy, syncCounter_, counterValue);
             XSync(dpy, false);
         });
 
