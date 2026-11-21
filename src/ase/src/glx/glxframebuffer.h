@@ -3,8 +3,6 @@
 #include "glbaseframebuffer.h"
 #include "vector.h"
 
-#include <mutex>
-
 namespace ase
 {
     class GlDispatchedContext;
@@ -22,7 +20,7 @@ namespace ase
         GlxFramebuffer& operator=(GlxFramebuffer&&) = delete;
 
         /**
-         * Sets the window size in pixels; may be called from any thread.
+         * Sets the window size in pixels; render thread only.
          */
         void setPixelSize(Vector2i size);
 
@@ -47,7 +45,6 @@ namespace ase
 
     private:
         GlxWindow& window_;
-        mutable std::mutex mutex_;
         Vector2i pixelSize_ = Vector2i::Zero();
     };
 } // namespace ase

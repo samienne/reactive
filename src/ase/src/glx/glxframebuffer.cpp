@@ -27,18 +27,11 @@ void GlxFramebuffer::makeCurrent(
 
     glxContext.makeCurrent(dispatched, window_);
 
-    Vector2i size;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        size = pixelSize_;
-    }
-
-    renderState.setViewport(dispatched, size);
+    renderState.setViewport(dispatched, pixelSize_);
 }
 
 void GlxFramebuffer::setPixelSize(Vector2i size)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
     pixelSize_ = size;
 }
 
