@@ -39,14 +39,13 @@ namespace
         return scale;
     }
 
-    void syncClientArea(HWND hwnd, GenericWindow& window,
-            WglFramebuffer& framebuffer)
+    void syncClientArea(HWND hwnd, GenericWindow& window, Vector2i& pixelSize)
     {
         RECT rect;
         if (!GetClientRect(hwnd, &rect))
             return;
 
-        framebuffer.setPixelSize(Vector2i(rect.right, rect.bottom));
+        pixelSize = Vector2i(rect.right, rect.bottom);
 
         float const scale = getWindowScalingFactor(hwnd);
         window.setScalingFactor(scale);
@@ -441,8 +440,7 @@ WglWindow::WglWindow(WglPlatform& platform, RenderContext& context,
 
     // The HWND is not yet routed to this window, so the WM_SIZE above went
     // unseen.
-    syncClientArea(hwnd_, genericWindow_,
-            defaultFramebuffer_.getImpl<WglFramebuffer>());
+    syncClientArea(hwnd_, genericWindow_, pixelSize_);
 }
 
 WglWindow::~WglWindow()
@@ -518,6 +516,14 @@ void WglWindow::requestFrame()
 
 std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
 {
+    auto keepAlive = shared_from_this();
+    auto& framebuffer = defaultFramebuffer_.getImpl<WglFramebuffer>();
+    getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
+        [&framebuffer, keepAlive, size = pixelSize_](GlFunctions const&)
+        {
+            framebuffer.setPixelSize(size);
+        });
+
     return genericWindow_.frame(frame);
 }
 
@@ -633,14 +639,12 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
 
             // SetWindowPos skips WM_SIZE if the suggested rect keeps the
             // client size.
-            syncClientArea(hwnd_, genericWindow_,
-                    defaultFramebuffer_.getImpl<WglFramebuffer>());
+            syncClientArea(hwnd_, genericWindow_, pixelSize_);
             return 0;
         }
 
         case WM_SIZE:
-            syncClientArea(hwnd_, genericWindow_,
-                    defaultFramebuffer_.getImpl<WglFramebuffer>());
+            syncClientArea(hwnd_, genericWindow_, pixelSize_);
             break;
     }
 

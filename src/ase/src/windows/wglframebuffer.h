@@ -3,8 +3,6 @@
 #include "glbaseframebuffer.h"
 #include "vector.h"
 
-#include <mutex>
-
 namespace ase
 {
     class WglWindow;
@@ -21,7 +19,7 @@ namespace ase
         WglFramebuffer& operator=(WglFramebuffer&&) = delete;
 
         /**
-         * Sets the client area in pixels; may be called from any thread.
+         * Sets the client area in pixels; render thread only.
          */
         void setPixelSize(Vector2i size);
 
@@ -43,7 +41,6 @@ namespace ase
 
     private:
         WglWindow& window_;
-        mutable std::mutex mutex_;
         Vector2i pixelSize_ = Vector2i::Zero();
     };
 } // namespace ase

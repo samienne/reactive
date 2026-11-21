@@ -52,6 +52,7 @@ namespace ase
         HWND hwnd_;
         HDC hdc_;
         Framebuffer defaultFramebuffer_;
+        Vector2i pixelSize_ = Vector2i::Zero();
         bool visible_ = false;
         std::string title_;
         int captureCount_ = 0;
