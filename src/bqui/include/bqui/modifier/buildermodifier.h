@@ -31,8 +31,8 @@ namespace bqui::modifier
         BuilderModifier& operator=(BuilderModifier const&) = default;
         BuilderModifier& operator=(BuilderModifier&&) noexcept = default;
 
-        template <typename T, typename U>
-        auto operator()(widget::Builder<T, U> builder) &&
+        template <typename T>
+        auto operator()(widget::Builder<T> builder) &&
         {
             return std::invoke(std::move(*func_), std::move(builder));
         }
@@ -120,30 +120,49 @@ namespace bqui::modifier
     {
         return makeBuilderModifier([](auto builder, auto func, auto&&... ts)
             {
-                auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
+                // Carry the solver box and pure-solver constraints onto the
+                // fresh builder, as the element-modifier junction does: they are
+                // the widget's stable identity and would otherwise be orphaned
+                // across this size-dependent rebuild.
+                auto box = builder.getBoxVariables();
+                auto pureLayout = builder.getPureLayout();
 
-                return makeBuilder(btl::bindArguments(
-                    [](BuildParams const&, auto size, auto func,
-                        auto builder, auto&&... ts)
+                auto bound = btl::bindArguments(
+                    [](BuildParams const&,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution,
+                        auto func, auto builder, auto&&... ts)
                     {
                         auto sharedSize = std::move(size).share();
                         auto modifiedBuilder = func(builder, sharedSize,
                                 std::forward<decltype(ts)>(ts)...
                                 );
 
-                        return std::move(modifiedBuilder)(sharedSize);
+                        return std::move(modifiedBuilder)(sharedSize,
+                                std::move(solution));
                     },
                     std::move(func),
                     std::move(builder),
                     std::forward<decltype(ts)>(ts)...
-                    ),
-                    std::move(sizeHint),
+                    );
+
+                auto result = widget::makeBuilder(
+                    [bound=std::move(bound)](BuildParams const& params,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution)
+                    {
+                        return bound(params, std::move(size),
+                                std::move(solution));
+                    },
                     std::move(params),
                     std::move(gravity)
                     );
 
+                result.setBoxVariables(std::move(box));
+                result.setPureLayout(std::move(pureLayout));
+                return result;
             },
             std::forward<TFunc>(func),
             std::forward<Ts>(ts)...
@@ -157,24 +176,35 @@ namespace bqui::modifier
             template <typename T, typename U>
             auto operator()(T&& builder, U&& f) const
             {
-                auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
+                // The solver box and pure-solver constraints are the widget's
+                // stable identity, carried unchanged for its whole lifetime, so
+                // they must survive the fresh builder this mints -- otherwise a
+                // box a constraint was keyed on before this modifier is orphaned
+                // from the one a container tiles after it.
+                auto box = builder.getBoxVariables();
+                auto pureLayout = builder.getPureLayout();
 
-                return widget::makeBuilder([builder=std::forward<T>(builder),
+                auto result = widget::makeBuilder([builder=std::forward<T>(builder),
                     modifier=std::forward<U>(f)]
-                    (BuildParams const& /*params*/, auto size)
+                    (BuildParams const& /*params*/,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution)
                     {
                         auto element = builder.clone()
-                            (std::move(size))
+                            (std::move(size), std::move(solution))
                             | modifier;
 
                         return element;
                     },
-                    std::move(sizeHint),
                     std::move(params),
                     std::move(gravity)
                     );
+
+                result.setBoxVariables(std::move(box));
+                result.setPureLayout(std::move(pureLayout));
+                return result;
             }
         };
     } // namespace detail

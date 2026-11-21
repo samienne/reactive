@@ -58,7 +58,11 @@ AnyWidgetModifier drawKeyboardInputs()
                                 std::move(inputs)
                                 );
 
-                        return std::move(drawnWidget)(params)(std::move(size));
+                        return widget::detail::buildRegionAtSize(
+                                std::move(drawnWidget),
+                                bq::signal::AnySignal<avg::Vector2f>(
+                                    std::move(size)),
+                                params);
                     },
                     params
                 ));

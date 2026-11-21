@@ -4,6 +4,8 @@
 
 #include <bq/signal/signal.h>
 
+#include <avg/vector.h>
+
 #include <btl/uniqueid.h>
 
 #include <functional>
@@ -36,6 +38,14 @@ namespace bqui
 
         /** @brief Adds a callback run when the window's title bar closes it. */
         Window onClose(std::function<void()> const& cb) &&;
+
+        /** @brief Sets the size the window opens at, in place of its content's
+         * natural size.
+         *
+         * The content's min and max still limit it. Read once, when the window
+         * opens.
+         */
+        Window initialSize(avg::Vector2f size) &&;
 
         bq::signal::AnySignal<std::string> const& getTitle() const;
 
