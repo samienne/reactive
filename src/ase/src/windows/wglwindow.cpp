@@ -553,26 +553,22 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
 
         case WM_LBUTTONDOWN:
         case WM_LBUTTONUP:
-        {
-            if (uMsg == WM_LBUTTONDOWN)
-                capturePointer();
-            else
-                releasePointer();
-
-            float scale = genericWindow_.getScalingFactor();
-            float x = (float)GET_X_LPARAM(lParam) / scale;
-            float y = genericWindow_.getHeight() - (float)GET_Y_LPARAM(lParam)
-                / scale;
-
-            genericWindow_.injectPointerButtonEvent(0, 1, Vector2f(x, y),
-                    uMsg == WM_LBUTTONDOWN ? ButtonState::down : ButtonState::up);
-
-            break;
-        }
+        case WM_MBUTTONDOWN:
+        case WM_MBUTTONUP:
         case WM_RBUTTONDOWN:
         case WM_RBUTTONUP:
         {
-            if (uMsg == WM_RBUTTONDOWN)
+            bool const isDown = uMsg == WM_LBUTTONDOWN
+                || uMsg == WM_MBUTTONDOWN
+                || uMsg == WM_RBUTTONDOWN;
+
+            unsigned int button = 1;
+            if (uMsg == WM_MBUTTONDOWN || uMsg == WM_MBUTTONUP)
+                button = 2;
+            else if (uMsg == WM_RBUTTONDOWN || uMsg == WM_RBUTTONUP)
+                button = 3;
+
+            if (isDown)
                 capturePointer();
             else
                 releasePointer();
@@ -582,8 +578,8 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
             float y = genericWindow_.getHeight() - (float)GET_Y_LPARAM(lParam)
                 / scale;
 
-            genericWindow_.injectPointerButtonEvent(0, 2, Vector2f(x, y),
-                    uMsg == WM_RBUTTONDOWN ? ButtonState::down : ButtonState::up);
+            genericWindow_.injectPointerButtonEvent(0, button, Vector2f(x, y),
+                    isDown ? ButtonState::down : ButtonState::up);
 
             break;
         }
