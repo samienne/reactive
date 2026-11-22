@@ -2,8 +2,8 @@
 
 *Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the bulk remote results entry against
-`5d2700c` (2026-11-16); the pixel readback entry against `24b32d48`
-(2026-11-22).*
+`5d2700c` (2026-11-16); the remote screenshot entry against `d4af8075`
+(2026-11-21); the pixel readback entry against `24b32d48` (2026-11-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -167,6 +167,23 @@ undefined after the swap, so on-screen windows report unsupported rather than
 grow a present hook. A future rather than a callback, like the fence, because
 a broken promise turns "the context dropped the command" into an answer, where
 a callback that never ran left the consumer to time out.
+
+## A remote screenshot reads the last frame and is PNG over zlib
+
+`window.screenshot` reads back the last frame the window rendered: paused, the
+driver first steps with zero elapsed time so pending input shows without moving
+the clock the client owns. The frame is encoded as an opaque 8-bit RGB PNG by a
+hand-written container over zlib, off the loop thread.
+
+**Why:** waiting for "the next frame" would hang on a paused or idle app; while
+running, the last frame is as current as the client can observe anyway, and
+paused, a zero-time step keeps one frame path, applying pending input exactly
+as the next step would. PNG writing is a small closed problem (signature,
+header, sRGB chunk, filtered rows, deflate, CRCs), so zlib plus a couple of
+hundred lines we own beats libpng's second subproject, `setjmp` error model and
+decoder we would never call. Alpha is dropped because the stored values are
+premultiplied and sRGB-encoded, so straight alpha would be lossy and nothing
+consumes it.
 
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 

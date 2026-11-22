@@ -101,6 +101,9 @@ public:
     avg::Snapshot snapshot() const override;
     bool canReadback() const override;
     btl::future::Future<ase::ReadbackImage> readback() override;
+    void requestFrame() override;
+    float scalingFactor() const override;
+    std::uint64_t presentCount() const override;
 
 private:
     struct WakeTarget;

@@ -84,6 +84,28 @@ namespace bqui::remote
          * already failed with `ase::ReadbackError::Unsupported`.
          */
         virtual btl::future::Future<ase::ReadbackImage> readback();
+
+        /**
+         * @brief Mark the window due, so the next frame renders it even when
+         * nothing in it changed.
+         *
+         * Does nothing unless overridden.
+         */
+        virtual void requestFrame();
+
+        /**
+         * @brief Pixels per window-space logical unit in a captured frame.
+         *
+         * 1 unless overridden.
+         */
+        virtual float scalingFactor() const;
+
+        /**
+         * @brief How many frames this window has presented.
+         *
+         * 0 unless overridden.
+         */
+        virtual std::uint64_t presentCount() const;
     };
 
     /**
