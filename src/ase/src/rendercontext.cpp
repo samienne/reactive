@@ -9,6 +9,8 @@
 #include "fragmentshader.h"
 #include "vertexshader.h"
 #include "commandbuffer.h"
+#include "fence.h"
+#include "fenceimpl.h"
 #include "window.h"
 #include "platform.h"
 
@@ -112,6 +114,11 @@ Pipeline RenderContext::makePipelineWithBlend(Program program,
 UniformSet RenderContext::makeUniformSet()
 {
     return UniformSet(d()->makeUniformSetImpl());
+}
+
+Fence RenderContext::makeFence()
+{
+    return Fence(d()->makeFenceImpl());
 }
 
 } // namespace ase

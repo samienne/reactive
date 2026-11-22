@@ -17,6 +17,7 @@
 #include "gldispatchedcontext.h"
 #include "glfunctions.h"
 
+#include "basicfence.h"
 #include "commandbuffer.h"
 #include "rendercommand.h"
 #include "vertexshader.h"
@@ -215,6 +216,11 @@ std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl()
 bool GlRenderContext::canReadback() const
 {
     return true;
+}
+
+std::shared_ptr<FenceImpl> GlRenderContext::makeFenceImpl()
+{
+    return std::make_shared<BasicFence>();
 }
 
 } // namespace

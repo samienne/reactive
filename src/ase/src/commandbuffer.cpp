@@ -44,18 +44,9 @@ void CommandBuffer::pushClear(Framebuffer target,
             });
 }
 
-void CommandBuffer::pushFence(std::function<void()> completeCb)
+void CommandBuffer::pushFence(Fence fence)
 {
-    pushFence().then(std::move(completeCb)).detach();
-}
-
-btl::future::Future<> CommandBuffer::pushFence()
-{
-    auto control = std::make_shared<btl::future::FutureControl<>>();
-
-    commands_.push_back(FenceCommand{ { control } });
-
-    return { std::move(control) };
+    commands_.push_back(FenceCommand{ std::move(fence) });
 }
 
 void CommandBuffer::pushUpload(

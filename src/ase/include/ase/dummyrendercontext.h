@@ -55,6 +55,7 @@ namespace ase
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
         bool canReadback() const override;
+        std::shared_ptr<FenceImpl> makeFenceImpl() override;
 
     private:
         // Upward-strong ref to the platform this context was made by; keeps the

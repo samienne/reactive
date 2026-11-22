@@ -3,6 +3,7 @@
 #include "rendercontext.h"
 #include "renderqueue.h"
 #include "commandbuffer.h"
+#include "fence.h"
 
 #include <tracy/Tracy.hpp>
 
@@ -64,8 +65,12 @@ void WindowBase::submitFrameFence(std::function<void()> onSlotFreed)
         ++sync->inFlight;
     }
 
+    Fence fence = context_.makeFence();
+
     CommandBuffer commandBuffer;
-    commandBuffer.pushFence([sync, onSlotFreed = std::move(onSlotFreed)]
+    commandBuffer.pushFence(fence);
+
+    fence.whenSignaled().then([sync, onSlotFreed = std::move(onSlotFreed)]
         {
             {
                 std::lock_guard<std::mutex> lock(sync->mutex);
@@ -76,7 +81,7 @@ void WindowBase::submitFrameFence(std::function<void()> onSlotFreed)
             // so this wake must be thread-safe; requestFrame() is.
             if (onSlotFreed)
                 onSlotFreed();
-        });
+        }).detach();
 
     context_.getMainRenderQueue().submit(std::move(commandBuffer));
 }

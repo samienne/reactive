@@ -1,12 +1,14 @@
 #pragma once
 
+#include "fence.h"
 #include "vector.h"
 
 #include "asevisibility.h"
 
 #include "systemgl.h"
 
-#include <btl/future/promise.h>
+#include <memory>
+#include <vector>
 
 namespace ase
 {
@@ -18,6 +20,7 @@ namespace ase
     class GlDispatchedContext;
     class GlBaseFramebuffer;
     class GlUniformSet;
+    class FenceDrain;
     struct GlFunctions;
     struct Dispatched;
 
@@ -46,10 +49,13 @@ namespace ase
         struct WaitingFence
         {
             GLsync sync;
-            btl::future::Promise<> promise;
+            Fence fence;
         };
 
         std::vector<WaitingFence> fences_;
+
+        // Fulfils the signaled fences' futures off the render thread.
+        std::shared_ptr<FenceDrain> drain_;
 
         // Current state
         Vector2i viewportSize_ = Vector2i(0, 0);

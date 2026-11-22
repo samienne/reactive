@@ -4,8 +4,6 @@
 #include "readback.h"
 #include "asevisibility.h"
 
-#include <btl/future.h>
-
 #include <vector>
 #include <optional>
 
@@ -36,8 +34,10 @@ namespace ase
                 bool stencil = false
                 );
 
-        void pushFence(std::function<void()> completeCb);
-        btl::future::Future<> pushFence();
+        /**
+         * @brief Signal `fence` once the commands before it complete.
+         */
+        void pushFence(Fence fence);
 
         void pushUpload(
                 std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target,
