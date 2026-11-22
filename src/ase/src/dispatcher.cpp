@@ -9,6 +9,7 @@ namespace ase
 
 Dispatcher::Dispatcher(std::string name) :
     name_(name.empty() ? "Dispatcher" : std::move(name)),
+    idleGeneration_(0),
     running_(true),
     idle_(true)
 {
@@ -31,7 +32,7 @@ Dispatcher::~Dispatcher()
 void Dispatcher::run(std::function<void(Dispatched)>&& func)
 {
     std::unique_lock<std::mutex> lock(mutex_);
-    funcs_.push_back(func);
+    funcs_.push_back(std::move(func));
     condition_.notify_all();
 }
 
@@ -48,11 +49,13 @@ void Dispatcher::setIdleFunc(Dispatched,
 {
     idleCallback_ = std::move(cb);
     idlePeriod_ = period;
+    ++idleGeneration_;
 }
 
 void Dispatcher::unsetIdleFunc(Dispatched)
 {
     idleCallback_.reset();
+    ++idleGeneration_;
 }
 
 bool Dispatcher::hasIdleFunc(Dispatched)
@@ -86,7 +89,15 @@ void Dispatcher::runThread()
                     if (!condition_.wait_for(lock, idlePeriod_, predicate))
                     {
                         ZoneScopedN("Dispatcher idle callback");
-                        (*idleCallback_)(Dispatched());
+                        // The callback may replace or unset itself, so
+                        // run it moved out and restore it only if it did not.
+                        auto callback = std::move(*idleCallback_);
+                        auto const generation = idleGeneration_;
+                        callback(Dispatched());
+                        if (idleGeneration_ == generation)
+                        {
+                            idleCallback_ = std::move(callback);
+                        }
                     }
                 }
                 else

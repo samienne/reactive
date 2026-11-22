@@ -13,6 +13,7 @@ are in the top-level `docs/`.
 - `src/glx/`, `src/windows/` — the Linux (GLX) and Windows (WGL) bindings;
   `wglrendercontext`/`wglwindow` are the Windows rendering path.
 - `src/dummy/` — the headless backend for tests.
+- `test/` — the `asetest` unit tests.
 
 ## Notes
 

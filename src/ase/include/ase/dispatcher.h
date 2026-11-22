@@ -54,6 +54,7 @@ namespace ase
         std::vector<std::function<void(Dispatched)> > funcs_;
         std::optional<std::function<void(Dispatched)>> idleCallback_;
         std::chrono::duration<float> idlePeriod_;
+        unsigned int idleGeneration_;
         bool running_;
         bool idle_;
     };
