@@ -35,10 +35,13 @@ namespace ase
         std::string const& getTitle() const override;
 
         Framebuffer& getDefaultFramebuffer() override;
+        bool ownsDefaultFramebuffer() const override;
 
         void requestFrame() override;
 
-        /** @brief No-op: an offscreen surface has no drawable to swap. */
+        /**
+         * @brief No-op: an offscreen surface has no drawable to swap.
+         */
         PresentStatus present() override;
 
     private:

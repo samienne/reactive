@@ -8,6 +8,8 @@
 > Since revised (2026-11-21): the one-shot window capture first proposed under
 > enabler 4 was replaced by a plain readback of the window's framebuffer on its
 > queue; enabler 4, enabler 5 and *Which frame* describe the revised design.
+> Revised again (2026-11-22): the readback returns a future instead of taking a
+> callback.
 
 ## Purpose
 
@@ -195,9 +197,9 @@ any blob-returning method without knowing it by name, and the bridge hides the
 ## Enabler 4: pixel readback in ase
 
 **Readback is a render command, like a fence.** `CommandBuffer` gains a push
-that reads a framebuffer's colour and completes a callback with the pixels. It
+that reads a framebuffer's colour and returns a future of the pixels. It
 runs FIFO behind the draws already submitted, on whatever thread the backend
-executes commands, and the callback may fire on any thread (the fence rule).
+executes commands, and the future may complete on any thread (the fence rule).
 This keeps it backend-neutral: the earlier decision against a generic
 "dispatch a task to the render thread" (`docs/decisions.md`, *Frame cadence is
 per-window*) stands, because a command-buffer backend implements this as a copy
@@ -208,7 +210,7 @@ to a buffer.
   draws finish, never the loop thread. **A PBO with a fence is not worth it
   yet**: it only un-stalls the render thread, at the price of a two-phase state
   machine, and the target is a few captures per second.
-- **Dummy:** completes the callback at once with "unsupported". The render
+- **Dummy:** fails the future at once with "unsupported". The render
   context reports whether it can read back; that is what capability reporting
   asks.
 

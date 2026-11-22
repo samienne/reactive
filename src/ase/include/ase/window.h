@@ -73,6 +73,12 @@ namespace ase
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
+        /**
+         * @brief Whether the default framebuffer is a target the window owns,
+         * which keeps the last frame after `present` and can be read back.
+         */
+        bool ownsDefaultFramebuffer() const;
+
         /** @brief The render context this window was created against and both
          * renders and presents through. */
         RenderContext& getRenderContext();

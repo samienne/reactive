@@ -72,6 +72,7 @@ namespace ase
         virtual Vector2i getSize() const = 0;
         virtual float getScalingFactor() const = 0;
         virtual Framebuffer& getDefaultFramebuffer() = 0;
+        virtual bool ownsDefaultFramebuffer() const = 0;
 
         virtual void requestFrame() = 0;
 

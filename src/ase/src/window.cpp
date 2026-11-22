@@ -87,6 +87,11 @@ Framebuffer& Window::getDefaultFramebuffer()
     return d()->getDefaultFramebuffer();
 }
 
+bool Window::ownsDefaultFramebuffer() const
+{
+    return d()->ownsDefaultFramebuffer();
+}
+
 RenderContext& Window::getRenderContext()
 {
     return d()->getRenderContext();

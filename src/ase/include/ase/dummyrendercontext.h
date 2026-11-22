@@ -55,6 +55,8 @@ namespace ase
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
+        bool canReadback() const override;
+
         /**
          * @brief Leave the fences of frames submitted from now on pending, as
          * a GPU still working on them would.

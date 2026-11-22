@@ -3,6 +3,7 @@
 #include "commandbuffer.h"
 #include "rendercommand.h"
 
+#include <exception>
 #include <variant>
 
 namespace ase
@@ -23,14 +24,18 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
     // pending wedges its backpressure.
     for (auto& command : commandBuffer)
     {
-        if (!std::holds_alternative<FenceCommand>(command))
-            continue;
-
-        auto& promise = std::get<FenceCommand>(command).promise;
-        if (holding_)
-            held_.push_back(std::move(promise));
-        else
-            promise.set();
+        if (auto* fence = std::get_if<FenceCommand>(&command))
+        {
+            if (holding_)
+                held_.push_back(std::move(fence->promise));
+            else
+                fence->promise.set();
+        }
+        else if (auto* readback = std::get_if<ReadbackCommand>(&command))
+        {
+            readback->promise.setFailure(std::make_exception_ptr(
+                        ReadbackFailure(ReadbackError::Unsupported)));
+        }
     }
 }
 
