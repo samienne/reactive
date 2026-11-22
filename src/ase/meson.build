@@ -148,6 +148,7 @@ libasedep = declare_dependency(
 
 asetest = executable('asetest',
   'test/dispatchertest.cpp',
+  'test/fencetest.cpp',
   dependencies: [gtestdep, libasedep],
   )
 
