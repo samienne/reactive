@@ -1,5 +1,8 @@
 #include "windowbridge.h"
 
+#include <ase/commandbuffer.h>
+#include <ase/renderqueue.h>
+
 #include <tracy/Tracy.hpp>
 
 #include <algorithm>
@@ -28,6 +31,7 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     memoryPool_(pmr::new_delete_resource()),
     memory_(&memoryPool_),
     aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
+    canReadback_(headless && context.canReadback()),
     windowData_(window.data()),
     painter_(memory_, aseWindow.getRenderContext()),
     size_(bq::signal::makeInput(
@@ -475,6 +479,23 @@ avg::Snapshot WindowBridge::snapshot() const
             avg::DrawContext(pmr::new_delete_resource()),
             avg::Obb(aseWindow.getSize().cast<float>()),
             std::chrono::duration_cast<std::chrono::milliseconds>(timer_));
+}
+
+bool WindowBridge::canReadback() const
+{
+    return canReadback_;
+}
+
+btl::future::Future<ase::ReadbackImage> WindowBridge::readback()
+{
+    if (!canReadback_)
+        return RemoteWindow::readback();
+
+    ase::CommandBuffer commandBuffer;
+    auto image = commandBuffer.pushReadback(aseWindow.getDefaultFramebuffer());
+    aseWindow.getMainRenderQueue().submit(std::move(commandBuffer));
+
+    return image;
 }
 
 } // namespace bqui

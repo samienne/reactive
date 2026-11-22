@@ -1,5 +1,6 @@
 #include "remote/base64.h"
 #include "remote/blobstore.h"
+#include "remote/capture.h"
 #include "remote/dispatcher.h"
 #include "remote/introspectionjson.h"
 #include "remote/streamtransport.h"
@@ -33,6 +34,8 @@
 #include <ase/window.h>
 #include <avg/color.h>
 
+#include <btl/future/future.h>
+#include <btl/future/promise.h>
 #include <btl/uniqueid.h>
 #include <btl/runloop.h>
 
@@ -44,7 +47,9 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <exception>
 #include <functional>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -235,6 +240,68 @@ namespace
         std::string text_;
     };
 
+    // The producer side of a fake readback: completes its future with the
+    // pixels or fails it with the error. Dropped uncompleted, the promise
+    // breaks, as when a render context drops the command.
+    class ArmedReadback
+    {
+    public:
+        explicit ArmedReadback(btl::future::Promise<ase::ReadbackImage> promise)
+            : promise_(std::move(promise))
+        {
+        }
+
+        void operator()(LoopReadbackResult result) const
+        {
+            auto promise = promise_;
+            if (result.valid())
+            {
+                promise.set(std::move(result).value());
+                return;
+            }
+
+            promise.setFailure(std::make_exception_ptr(
+                        ase::ReadbackFailure(result.err())));
+        }
+
+    private:
+        btl::future::Promise<ase::ReadbackImage> promise_;
+    };
+
+    // A fake that can read back: it holds each pending readback until the
+    // test completes it.
+    class CapturableFakeWindow : public FakeRemoteWindow
+    {
+    public:
+        using FakeRemoteWindow::FakeRemoteWindow;
+
+        bool canReadback() const override { return true; }
+
+        btl::future::Future<ase::ReadbackImage> readback() override
+        {
+            auto control = std::make_shared<
+                btl::future::FutureControl<ase::ReadbackImage>>();
+            ArmedReadback armed{
+                btl::future::Promise<ase::ReadbackImage>(control) };
+            btl::future::Future<ase::ReadbackImage> image(std::move(control));
+
+            std::lock_guard<std::mutex> lock(mutex_);
+            armed_.push_back(std::move(armed));
+
+            return image;
+        }
+
+        std::vector<ArmedReadback> takeArmed()
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return std::move(armed_);
+        }
+
+    private:
+        std::mutex mutex_;
+        std::vector<ArmedReadback> armed_;
+    };
+
     // Serve the driver over `fakes` on a background thread against a loopback
     // endpoint, exposing the connected client side as a JSON-RPC channel. The
     // driver runs on a plain loop with no pause token (there is no real platform
@@ -337,9 +404,20 @@ namespace
             serverThread.join();
         }
     };
+
+    [[nodiscard]] btl::RunLoop::Timer failUnlessStoppedSoon(
+            btl::RunLoop::Controller& controller)
+    {
+        return controller.addTimer(std::chrono::seconds(10),
+                [](btl::RunLoop::Controller& c)
+                {
+                    ADD_FAILURE() << "the capture result never arrived";
+                    c.stop();
+                });
+    }
 } // namespace
 
-TEST(session, windowListReturnsIdsOnly)
+TEST(session, windowListIdentifiesById)
 {
     auto idA = btl::makeUniqueId();
     auto idB = btl::makeUniqueId();
@@ -358,6 +436,189 @@ TEST(session, windowListReturnsIdsOnly)
 
     // A pure query advances no frame.
     EXPECT_EQ(0, s.steps.load());
+}
+
+TEST(session, windowListReportsCanCapturePerWindow)
+{
+    FakeRemoteWindow plain(btl::makeUniqueId(), "plain");
+    CapturableFakeWindow capturable(btl::makeUniqueId(), "capturable");
+    SessionFixture s("cancapture", { plain, capturable });
+
+    auto reply = s.call("window.list");
+    auto const& windows = reply.at("result").at("windows");
+    ASSERT_EQ(2u, windows.size());
+
+    EXPECT_FALSE(windows.at(0).at("canCapture").get<bool>());
+    EXPECT_TRUE(windows.at(1).at("canCapture").get<bool>());
+}
+
+// --- Readback delivery: results reach the loop thread ---------------------
+
+TEST(session, readbackResultReachesTheLoopThread)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "w");
+    btl::RunLoop loop;
+    auto alive = std::make_shared<bool>(true);
+
+    std::optional<LoopReadbackResult> received;
+    std::thread::id receivedOn;
+    btl::RunLoop::Timer guard;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            guard = failUnlessStoppedSoon(controller);
+            readbackOnLoop(window, loop, alive,
+                    [&](btl::RunLoop::Controller& c, LoopReadbackResult result)
+                    {
+                        received = std::move(result);
+                        receivedOn = std::this_thread::get_id();
+                        c.stop();
+                    });
+
+            auto armed = window.takeArmed();
+            if (armed.size() != 1)
+            {
+                ADD_FAILURE() << "armed " << armed.size() << " captures";
+                controller.stop();
+                return;
+            }
+
+            std::thread([readback = std::move(armed.front())]
+                {
+                    ase::ReadbackImage image;
+                    image.size = ase::Vector2i(1, 1);
+                    image.pixels = { 1, 2, 3, 4 };
+                    readback(std::move(image));
+                }).join();
+        });
+
+    loop.run();
+
+    EXPECT_EQ(std::this_thread::get_id(), receivedOn);
+    ASSERT_TRUE(received && received->valid());
+    EXPECT_EQ((std::vector<std::uint8_t>{ 1, 2, 3, 4 }),
+            received->value().pixels);
+}
+
+TEST(session, unsupportedReadbackIsDeliveredLaterNotInline)
+{
+    FakeRemoteWindow window(btl::makeUniqueId(), "w");
+    btl::RunLoop loop;
+    auto alive = std::make_shared<bool>(true);
+
+    std::optional<LoopReadbackResult> received;
+    bool armedReturned = false;
+    btl::RunLoop::Timer guard;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            guard = failUnlessStoppedSoon(controller);
+            readbackOnLoop(window, loop, alive,
+                    [&](btl::RunLoop::Controller& controller,
+                        LoopReadbackResult result)
+                    {
+                        EXPECT_TRUE(armedReturned);
+                        received = std::move(result);
+                        controller.stop();
+                    });
+            armedReturned = true;
+        });
+
+    loop.run();
+
+    ASSERT_TRUE(received && !received->valid());
+    EXPECT_EQ(ase::ReadbackError::Unsupported, received->err());
+}
+
+TEST(session, readbackResultIsDroppedOnceTheOwnerIsGone)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "w");
+    btl::RunLoop loop;
+    auto alive = std::make_shared<bool>(true);
+
+    bool delivered = false;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            readbackOnLoop(window, loop, alive,
+                    [&](btl::RunLoop::Controller&, LoopReadbackResult)
+                    {
+                        delivered = true;
+                    });
+
+            alive.reset();
+            auto armed = window.takeArmed();
+            EXPECT_EQ(1u, armed.size());
+            for (auto& readback : armed)
+                readback(ase::ReadbackError::Failed);
+
+            // Posted after the result, so it runs after the dropped delivery.
+            controller.post([](btl::RunLoop::Controller& c) { c.stop(); });
+        });
+
+    loop.run();
+
+    EXPECT_FALSE(delivered);
+}
+
+TEST(session, readbackCompletionIsDestroyedOnTheLoopThread)
+{
+    struct RecordsDestroyingThread
+    {
+        explicit RecordsDestroyingThread(std::thread::id* where)
+            : destroyedOn(where)
+        {
+        }
+
+        ~RecordsDestroyingThread()
+        {
+            *destroyedOn = std::this_thread::get_id();
+        }
+
+        std::thread::id* destroyedOn;
+    };
+
+    CapturableFakeWindow window(btl::makeUniqueId(), "w");
+    btl::RunLoop loop;
+    auto alive = std::make_shared<bool>(true);
+
+    std::thread::id destroyedOn;
+    std::promise<void> loopDone;
+    std::thread completer;
+    btl::RunLoop::Timer guard;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            guard = failUnlessStoppedSoon(controller);
+            auto recorder =
+                std::make_shared<RecordsDestroyingThread>(&destroyedOn);
+            readbackOnLoop(window, loop, alive,
+                    [recorder = std::move(recorder)](
+                        btl::RunLoop::Controller& c, LoopReadbackResult)
+                    {
+                        c.stop();
+                    });
+
+            auto armed = window.takeArmed();
+            ASSERT_EQ(1u, armed.size());
+
+            // Holds the completed readback until the loop is done, so any copy
+            // of the completion left in it would be destroyed last, here.
+            completer = std::thread(
+                    [readback = std::move(armed.front()),
+                    done = loopDone.get_future()]() mutable
+                    {
+                        readback(ase::ReadbackError::Failed);
+                        done.wait();
+                    });
+        });
+
+    loop.run();
+    loopDone.set_value();
+    if (completer.joinable())
+        completer.join();
+
+    EXPECT_EQ(std::this_thread::get_id(), destroyedOn);
 }
 
 TEST(session, introspectResolvesByIdAndErrorsOnUnknown)
@@ -924,6 +1185,9 @@ TEST(session, describeListIntrospectDriveARealApp)
     ASSERT_EQ(1u, list.at("result").at("windows").size());
     uint64_t windowId =
         list.at("result").at("windows").at(0).at("id").get<uint64_t>();
+    // The dummy backend cannot read pixels back.
+    EXPECT_FALSE(
+            list.at("result").at("windows").at(0).at("canCapture").get<bool>());
 
     // window.introspect: the counter starts at 0.
     auto intro0 = rpc(*client, id++, "window.introspect",

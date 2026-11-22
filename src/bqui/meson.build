@@ -1,6 +1,7 @@
 libbquisrc = [
   'src/remote/base64.cpp',
   'src/remote/blobstore.cpp',
+  'src/remote/capture.cpp',
   'src/remote/dispatcher.cpp',
   'src/remote/introspectionjson.cpp',
   'src/remote/overlappedwriter.cpp',

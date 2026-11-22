@@ -218,6 +218,25 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
 - **`base64Encode` (`src/remote/base64.h`) is the chunk encoding**, exported
   for its tests.
 
+**A readback result comes back on the render thread, not the loop.** No driver
+method reads a window back yet; one is to do so through `readbackOnLoop`
+(`src/remote/capture.h`, exported for its tests), which continues the readback
+future, posts the result to the loop and drops it if the driver is gone by then.
+It folds the future's failure into an `ase::ReadbackError`: an
+`ase::ReadbackFailure` keeps its code, and anything else, a broken promise from
+a context that dropped the command included, is `Failed`.
+`RemoteWindow::readback` is the seam, returning the future: `WindowBridge`
+pushes a whole-framebuffer readback against the ase window's default framebuffer
+on its main queue, which dispatches at once, so it completes whether or not a
+frame is in progress. `window.list` reports `canCapture` from
+`RemoteWindow::canReadback`, which `WindowBridge` sets when it made its ase
+window headless, the only kind whose default framebuffer is an offscreen target
+ase can read, and the context can read back; any other window answers
+`Unsupported` without pushing anything. The completion runs outside the driver's
+`ControllerScope`: it is a loop callback and is handed a `Controller&`, but the
+driver's controller slot, which `safeSend` asserts, is unset there, so resolving
+a responder from it needs a `ControllerScope` first.
+
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception

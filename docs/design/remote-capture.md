@@ -234,10 +234,12 @@ on its main queue. Queue order is the synchronisation: no fence, no present
 hook, and it reads the last frame submitted, whether or not it was rendered
 this tick.
 
-**Only a window that owns its framebuffer can be read back.**
-`ase::Window::ownsDefaultFramebuffer()` says so; only `OffscreenWindow` does. An
-on-screen back buffer is undefined after the swap, so an on-screen window
-reports unsupported rather than return garbage. On-screen capture is not done
+**Only an offscreen target can be read back.** An on-screen back buffer is
+undefined after the swap, so the backend fails a readback of an on-screen
+window's framebuffer as unsupported rather than return garbage. ase has no
+per-window query for it; bqui reports a window capturable when it made the
+window headless, the only kind whose default framebuffer is an offscreen
+target, and its context can read back. On-screen capture is not done
 through a present hook: it becomes possible once on-screen windows render into
 their own offscreen target (see *If the backdrop stack lands first*), and then
 uses the same queue readback.

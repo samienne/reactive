@@ -12,8 +12,10 @@
 #include <ase/keyevent.h>
 #include <ase/platform.h>
 #include <ase/pointerbuttonevent.h>
+#include <ase/readback.h>
 #include <ase/vector.h>
 
+#include <btl/future/future.h>
 #include <btl/runloop.h>
 #include <btl/uniqueid.h>
 
@@ -65,6 +67,23 @@ namespace bqui::remote
          * window-space box the window presents.
          */
         virtual avg::Snapshot snapshot() const = 0;
+
+        /**
+         * @brief Whether `readback` can return pixels.
+         *
+         * False unless overridden.
+         */
+        virtual bool canReadback() const;
+
+        /**
+         * @brief Read back the last frame this window rendered.
+         *
+         * Reads the whole frame behind the frames already submitted and
+         * schedules none. The future has the contract of
+         * `ase::CommandBuffer::pushReadback`. Unless overridden it is returned
+         * already failed with `ase::ReadbackError::Unsupported`.
+         */
+        virtual btl::future::Future<ase::ReadbackImage> readback();
     };
 
     /**
