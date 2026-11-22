@@ -92,6 +92,12 @@ namespace bqui::remote
         std::function<RemoteWindows()> liveWindows;
     };
 
+    /**
+     * @brief How long a client-driven `app.step` waits for its frame to make
+     * progress before it fails.
+     */
+    inline constexpr std::chrono::seconds kStepTimeout{ 5 };
+
     /** @brief The inspector-protocol driver: maps JSON-RPC messages to the app's
      * frame primitives, over a run loop it does not own.
      *
@@ -107,12 +113,17 @@ namespace bqui::remote
      *   for headless inspection and automated testing.
      * - Observer (no token): the app free-runs and the client only introspects
      *   and injects between frames. Live, not deterministic.
+     *
+     * A client-driven `app.step` answers once its frames have rendered. When
+     * no window finishes a frame for `stepTimeout`, it fails instead and the
+     * requests behind it go ahead.
      */
     class BQUI_EXPORT RemoteDriver
     {
     public:
         RemoteDriver(btl::RunLoop& loop, Transport& transport, RemoteApp app,
-                std::optional<ase::PauseToken> pauseToken = std::nullopt);
+                std::optional<ase::PauseToken> pauseToken = std::nullopt,
+                std::chrono::milliseconds stepTimeout = kStepTimeout);
         ~RemoteDriver();
 
         RemoteDriver(RemoteDriver const&) = delete;

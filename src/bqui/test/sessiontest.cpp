@@ -1,3 +1,4 @@
+#include "remote/dispatcher.h"
 #include "remote/tcptransport.h"
 #include "scriptedtransport.h"
 
@@ -23,6 +24,9 @@
 
 #include <ase/platform.h>
 #include <ase/dummyplatform.h>
+#include <ase/dummyrendercontext.h>
+#include <ase/rendercontext.h>
+#include <ase/window.h>
 #include <avg/color.h>
 
 #include <btl/uniqueid.h>
@@ -36,11 +40,15 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #ifdef _WIN32
 #   include <process.h>
@@ -1223,4 +1231,470 @@ TEST(session, shutdownGivesUpOnAClientThatStopsReading)
     EXPECT_GE(std::chrono::steady_clock::now() - started,
             std::chrono::milliseconds(1500));
     EXPECT_TRUE(transport.wire.empty());
+}
+
+// --- Stepping a platform whose window is out of in-flight frames -----------
+
+namespace
+{
+    // Forwards to the driver's transport, reporting how many requests the
+    // driver reads, each frame it queues at the moment it queues it, and when
+    // it finds the input ended.
+    class RecordingTransport : public Transport
+    {
+    public:
+        RecordingTransport(Transport& inner,
+                std::function<void(size_t)> onReceived,
+                std::function<void(std::string const&)> onEnqueue,
+                std::function<void()> onDisconnected) :
+            inner_(inner),
+            onReceived_(std::move(onReceived)),
+            onEnqueue_(std::move(onEnqueue)),
+            onDisconnected_(std::move(onDisconnected))
+        {
+        }
+
+        void send(std::string const& frame) override { inner_.send(frame); }
+        std::optional<std::string> receive() override
+        {
+            return inner_.receive();
+        }
+        void close() override { inner_.close(); }
+        btl::NativeHandle nativeHandle() override
+        {
+            return inner_.nativeHandle();
+        }
+        std::vector<std::string> receiveReady() override
+        {
+            auto frames = inner_.receiveReady();
+            onReceived_(frames.size());
+            return frames;
+        }
+        bool disconnected() const override
+        {
+            bool ended = inner_.disconnected();
+            if (ended)
+                onDisconnected_();
+            return ended;
+        }
+        void enqueue(std::string const& frame) override
+        {
+            onEnqueue_(frame);
+            inner_.enqueue(frame);
+        }
+        bool flushReady() override { return inner_.flushReady(); }
+        btl::NativeHandle writableHandle() override
+        {
+            return inner_.writableHandle();
+        }
+
+    private:
+        Transport& inner_;
+        std::function<void(size_t)> onReceived_;
+        std::function<void(std::string const&)> onEnqueue_;
+        std::function<void()> onDisconnected_;
+    };
+
+    // Serve the driver over a paused dummy platform with one window that is
+    // due every frame and whose fences are held, so the window runs out of
+    // in-flight frames after two steps. The counters are what the test waits
+    // on in place of sleeping.
+    struct SteppedPlatformFixture
+    {
+        struct QueuedReply
+        {
+            int id;
+            int renderedBefore;
+        };
+
+        std::unique_ptr<TransportListener> listener;
+        std::unique_ptr<Transport> client;
+        std::thread serverThread;
+        int nextId = 1;
+
+        btl::RunLoop loop;
+
+        // Loop thread only.
+        ase::DummyRenderContext* context = nullptr;
+        ase::Window* window = nullptr;
+        std::optional<RemoteDriver> driver;
+
+        std::mutex mutex;
+        std::condition_variable changed;
+        int appFrames = 0;
+        int rendered = 0;
+        int inputEnds = 0;
+        size_t received = 0;
+        std::vector<QueuedReply> replies;
+
+        explicit SteppedPlatformFixture(std::string const& name,
+                std::chrono::milliseconds stepTimeout = kStepTimeout)
+        {
+            auto endpoint = uniqueEndpoint(name);
+            listener = listen(endpoint);
+            start(endpoint, stepTimeout);
+        }
+
+        struct Tcp {};
+
+        explicit SteppedPlatformFixture(Tcp)
+        {
+            auto tcp = tcpListen(*parseTcpEndpoint("127.0.0.1:0"));
+            auto endpoint = "127.0.0.1:" + std::to_string(tcp->port());
+            listener = std::move(tcp);
+            start(endpoint, kStepTimeout);
+        }
+
+        void start(std::string const& endpoint,
+                std::chrono::milliseconds stepTimeout)
+        {
+            serverThread = std::thread([this, stepTimeout]
+                {
+                    auto server = listener->accept();
+
+                    ase::Platform platform = ase::makeDummyPlatform(loop);
+                    ase::RenderContext renderContext
+                        = platform.makeRenderContext();
+                    context = &renderContext
+                        .getImpl<ase::DummyRenderContext>();
+
+                    ase::Window serverWindow = platform.makeWindow(
+                            renderContext, ase::Vector2i(64, 64), false);
+                    window = &serverWindow;
+                    serverWindow.setFrameCallback([this](ase::Frame const&)
+                        {
+                            count(rendered);
+                            return std::make_optional(
+                                    std::chrono::microseconds(0));
+                        });
+
+                    context->holdFences();
+
+                    RecordingTransport transport(*server,
+                            [this](size_t frames)
+                            {
+                                {
+                                    std::lock_guard<std::mutex> lock(mutex);
+                                    received += frames;
+                                }
+                                changed.notify_all();
+                            },
+                            [this](std::string const& frame)
+                            {
+                                record(frame);
+                            },
+                            [this] { count(inputEnds); });
+
+                    RemoteApp app;
+                    app.step = [](std::chrono::microseconds) { return true; };
+                    app.sync = [] {};
+                    app.liveWindows = [] { return RemoteWindows(); };
+
+                    driver.emplace(loop, transport, std::move(app),
+                            platform.pause(), stepTimeout);
+
+                    platform.run([this](ase::Frame const&)
+                        {
+                            count(appFrames);
+                            return true;
+                        });
+
+                    driver.reset();
+                    context->releaseFences();
+                    context = nullptr;
+                    window = nullptr;
+                });
+
+            client = connect(endpoint);
+        }
+
+        ~SteppedPlatformFixture()
+        {
+            client.reset();
+            if (serverThread.joinable())
+                serverThread.join();
+        }
+
+        json call(std::string const& method, json params = json::object())
+        {
+            return rpc(*client, nextId++, method, std::move(params));
+        }
+
+        int send(std::string const& method, json params = json::object())
+        {
+            int id = nextId++;
+            sendRequest(*client, id, method, std::move(params));
+            return id;
+        }
+
+        void waitForAppFrames(int frames)
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            changed.wait(lock, [&] { return appFrames >= frames; });
+        }
+
+        void waitForReceived(size_t requests)
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            changed.wait(lock, [&] { return received >= requests; });
+        }
+
+        void waitForInputEnd()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            changed.wait(lock, [&] { return inputEnds > 0; });
+        }
+
+        void releaseFences()
+        {
+            loop.post([this](btl::RunLoop::Controller&)
+                {
+                    context->releaseFences();
+                });
+        }
+
+        int renderedCount()
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            return rendered;
+        }
+
+        int appFrameCount()
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            return appFrames;
+        }
+
+        std::vector<QueuedReply> queuedReplies()
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            return replies;
+        }
+
+    private:
+        void count(int& counter)
+        {
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                ++counter;
+            }
+            changed.notify_all();
+        }
+
+        void record(std::string const& frame)
+        {
+            json message = json::parse(frame, nullptr, false);
+            auto id = message.find("id");
+            if (id == message.end() || !id->is_number())
+                return;
+
+            std::lock_guard<std::mutex> lock(mutex);
+            replies.push_back({ id->get<int>(), rendered });
+        }
+    };
+} // namespace
+
+TEST(session, stepRepliesOnlyAfterItsFrameRendered)
+{
+    SteppedPlatformFixture s("stepwaits");
+
+    EXPECT_EQ(1u, s.call("app.step").at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(2u, s.call("app.step").at("result").at("frame").get<uint64_t>());
+    ASSERT_EQ(2, s.renderedCount());
+
+    // Out of in-flight frames, so this step waits for a fence.
+    int stepId = s.send("app.step");
+    int pauseId = s.send("app.pause");
+
+    // The driver has read the pause before the window's slot frees.
+    s.waitForReceived(4);
+    s.releaseFences();
+
+    // Read both replies in whichever order they come.
+    std::map<int, json> answers;
+    while (answers.size() < 2)
+    {
+        auto raw = s.client->receive();
+        ASSERT_TRUE(raw);
+        json reply = json::parse(*raw);
+        answers[reply.at("id").get<int>()] = reply;
+    }
+
+    EXPECT_EQ(3u, answers[stepId].at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(3u, answers[pauseId].at("result").at("frame").get<uint64_t>());
+
+    // The step answered once its window had rendered, and the request behind
+    // it waited for that.
+    auto replies = s.queuedReplies();
+    ASSERT_EQ(4u, replies.size());
+    EXPECT_EQ(stepId, replies[2].id);
+    EXPECT_EQ(3, replies[2].renderedBefore);
+    EXPECT_EQ(pauseId, replies[3].id);
+    EXPECT_EQ(3, replies[3].renderedBefore);
+}
+
+TEST(session, multiFrameStepRendersEachFrameBeforeTheNext)
+{
+    SteppedPlatformFixture s("stepeach");
+
+    s.call("app.step", { { "count", 2 } });
+    ASSERT_EQ(2, s.renderedCount());
+
+    int stepId = s.send("app.step", { { "count", 3 } });
+
+    s.waitForAppFrames(3);
+
+    int appFramesAtRelease = 0;
+    int renderedAtRelease = 0;
+    s.loop.post([&](btl::RunLoop::Controller&)
+        {
+            appFramesAtRelease = s.appFrameCount();
+            renderedAtRelease = s.renderedCount();
+            s.context->releaseFences();
+        });
+
+    auto step = awaitResponse(*s.client, stepId);
+    EXPECT_EQ(5u, step.at("result").at("frame").get<uint64_t>());
+
+    // The step stopped at the frame its window could not render.
+    EXPECT_EQ(3, appFramesAtRelease);
+    EXPECT_EQ(2, renderedAtRelease);
+    EXPECT_EQ(5, s.renderedCount());
+}
+
+TEST(session, disconnectWhileAStepIsPendingEndsAtTheDeadline)
+{
+    SteppedPlatformFixture s("stepdisconnect", std::chrono::milliseconds(100));
+
+    s.call("app.step", { { "count", 2 } });
+
+    s.send("app.step");
+    s.waitForAppFrames(3);
+
+    // The fixture releases the fences once the session is over and the driver
+    // is gone.
+    s.client.reset();
+    s.serverThread.join();
+
+    EXPECT_EQ(2, s.renderedCount());
+}
+
+TEST(session, halfClosedClientStillGetsADeferredStepReply)
+{
+    SteppedPlatformFixture s(SteppedPlatformFixture::Tcp{});
+
+    s.call("app.step", { { "count", 2 } });
+
+    int stepId = s.send("app.step");
+    int pauseId = s.send("app.pause");
+    testkit::shutdownSending(*s.client);
+
+    s.waitForInputEnd();
+    s.releaseFences();
+
+    auto step = awaitResponse(*s.client, stepId);
+    auto pause = awaitResponse(*s.client, pauseId);
+    ASSERT_TRUE(step.is_object());
+    ASSERT_TRUE(pause.is_object());
+    EXPECT_EQ(3u, step.at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(3u, pause.at("result").at("frame").get<uint64_t>());
+
+    EXPECT_FALSE(s.client->receive());
+    s.serverThread.join();
+}
+
+TEST(session, stepResumedAfterTheDriverIsGoneDoesNothing)
+{
+    SteppedPlatformFixture s("stepdriverdead");
+
+    s.call("app.step", { { "count", 2 } });
+
+    int stepId = s.send("app.step");
+    s.waitForAppFrames(3);
+
+    // Freeing the slot and waking the loop queue the step's resumption; the
+    // driver is destroyed before the loop gets to it.
+    s.loop.post([&s](btl::RunLoop::Controller& controller)
+        {
+            s.context->releaseFences();
+            s.window->requestFrame();
+
+            controller.post([&s](btl::RunLoop::Controller& c)
+                {
+                    s.driver.reset();
+                    c.post([](btl::RunLoop::Controller& last)
+                        {
+                            last.stop();
+                        });
+                });
+        });
+
+    s.serverThread.join();
+
+    for (auto const& reply : s.queuedReplies())
+        EXPECT_NE(stepId, reply.id);
+}
+
+TEST(session, stepFailsWhenItsFrameDoesNotRenderInTime)
+{
+    SteppedPlatformFixture s("stepdeadline", std::chrono::milliseconds(100));
+
+    s.call("app.step", { { "count", 2 } });
+
+    int stepId = s.send("app.step");
+    int pauseId = s.send("app.pause");
+
+    auto step = awaitResponse(*s.client, stepId);
+    auto pause = awaitResponse(*s.client, pauseId);
+    EXPECT_EQ(kInternalError, step.at("error").at("code").get<int>());
+    EXPECT_EQ(3u, pause.at("result").at("frame").get<uint64_t>());
+
+    // A wake after the step gave up, here the requestFrame() one, finds
+    // nothing to resume.
+    std::mutex mutex;
+    std::condition_variable woken;
+    bool wakeDone = false;
+    s.loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            s.context->releaseFences();
+            s.window->requestFrame();
+            controller.post([&](btl::RunLoop::Controller&)
+                {
+                    {
+                        std::lock_guard<std::mutex> lock(mutex);
+                        wakeDone = true;
+                    }
+                    woken.notify_all();
+                });
+        });
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        woken.wait(lock, [&] { return wakeDone; });
+    }
+
+    EXPECT_EQ(3u, s.queuedReplies().size());
+    EXPECT_EQ(2, s.renderedCount());
+
+    // The next step first renders the frame the window was still owed.
+    EXPECT_EQ(4u, s.call("app.step").at("result").at("frame")
+            .get<uint64_t>());
+    EXPECT_EQ(4, s.renderedCount());
+}
+
+TEST(session, shutdownBehindAHungStepGoesAheadAtTheDeadline)
+{
+    SteppedPlatformFixture s("stephung", std::chrono::milliseconds(100));
+
+    s.call("app.step", { { "count", 2 } });
+
+    int stepId = s.send("app.step");
+    int shutdownId = s.send("app.shutdown");
+
+    auto step = awaitResponse(*s.client, stepId);
+    auto shutdown = awaitResponse(*s.client, shutdownId);
+    EXPECT_EQ(kInternalError, step.at("error").at("code").get<int>());
+    EXPECT_TRUE(shutdown.at("result").is_object());
+
+    s.serverThread.join();
+    EXPECT_EQ(2, s.renderedCount());
 }
