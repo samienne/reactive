@@ -42,13 +42,12 @@ std::chrono::microseconds WindowBase::lastFrameTime() const
     return genericWindow_.lastFrameTime();
 }
 
-bool WindowBase::canAcquire()
+bool WindowBase::canAcquire() const
 {
-    inFlight_.erase(std::remove_if(inFlight_.begin(), inFlight_.end(),
-                [](Fence const& fence) { return fence.isSignaled(); }),
-            inFlight_.end());
+    auto pending = std::count_if(inFlight_.begin(), inFlight_.end(),
+            [](Fence const& fence) { return !fence.isSignaled(); });
 
-    return inFlight_.size() < kFrameBudget;
+    return static_cast<std::size_t>(pending) < kFrameBudget;
 }
 
 void WindowBase::submitFrameFence()
@@ -59,6 +58,9 @@ void WindowBase::submitFrameFence()
     Fence fence = commandBuffer.pushFence();
     context_.getMainRenderQueue().submit(std::move(commandBuffer));
 
+    inFlight_.erase(std::remove_if(inFlight_.begin(), inFlight_.end(),
+                [](Fence const& done) { return done.isSignaled(); }),
+            inFlight_.end());
     inFlight_.push_back(std::move(fence));
 }
 

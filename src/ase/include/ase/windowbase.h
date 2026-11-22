@@ -99,7 +99,7 @@ namespace ase
          * when the budget is full. Nothing calls back when a fence signals,
          * so the caller polls.
          */
-        bool canAcquire();
+        bool canAcquire() const;
 
         /**
          * @brief Submit this frame's fence on the window's own queue, behind
