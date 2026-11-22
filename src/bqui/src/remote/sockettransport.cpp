@@ -2,6 +2,8 @@
 
 #include "sockettransport.h"
 
+#include "tcpsocket.h"
+
 #include <btl/posix/nativehandle_posix.h>
 
 #include <cerrno>
@@ -29,7 +31,10 @@ sockaddr_un makeAddress(std::string const& path)
     return address;
 }
 
-SocketTransport::SocketTransport(int fd) : fd_(fd) {}
+SocketTransport::SocketTransport(int fd) : fd_(fd)
+{
+    setNonBlocking(fd_);
+}
 
 SocketTransport::~SocketTransport()
 {
@@ -58,6 +63,11 @@ void SocketTransport::writeAll(void const* data, size_t size)
         {
             if (errno == EINTR)
                 continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                waitForSocket(fd_, POLLOUT);
+                continue;
+            }
 
             throw lastError("write");
         }
@@ -77,6 +87,11 @@ bool SocketTransport::readAll(void* data, size_t size)
         {
             if (errno == EINTR)
                 continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                waitForSocket(fd_, POLLIN);
+                continue;
+            }
 
             throw lastError("read");
         }
@@ -95,14 +110,34 @@ btl::NativeHandle SocketTransport::nativeHandle()
     return btl::fromFd(fd_);
 }
 
+btl::NativeHandle SocketTransport::writableHandle()
+{
+    return btl::fromFd(fd_);
+}
+
+size_t SocketTransport::writeReady(void const* data, size_t size)
+{
+    for (;;)
+    {
+        ssize_t wrote = ::send(fd_, data, size, kSendFlags);
+        if (wrote >= 0)
+            return static_cast<size_t>(wrote);
+
+        if (errno == EINTR)
+            continue;
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return 0;
+
+        throw lastError("send");
+    }
+}
+
 bool SocketTransport::fillReady(std::string& out)
 {
     char buffer[8192];
     for (;;)
     {
-        // MSG_DONTWAIT reads without blocking and without changing the fd's
-        // mode, so the blocking readAll() path is unaffected.
-        ssize_t got = ::recv(fd_, buffer, sizeof(buffer), MSG_DONTWAIT);
+        ssize_t got = ::recv(fd_, buffer, sizeof(buffer), 0);
         if (got > 0)
         {
             out.append(buffer, static_cast<size_t>(got));
