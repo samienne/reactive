@@ -2,7 +2,8 @@
 
 *Last verified against `a662f42` (2026-08-22); the pixel readback note against
 `5a26b28f` (2026-11-22); the fence and backpressure notes against `f1595378`
-(2026-11-22).*
+(2026-11-22); the framebuffer notes against `9e9936b5` (2026-11-22); the
+pause and step notes against `0548e867` (2026-11-22).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
