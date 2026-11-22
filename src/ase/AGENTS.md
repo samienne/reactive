@@ -1,7 +1,8 @@
 # ase — agent notes
 
 *Last verified against `a662f42` (2026-08-22); the pixel readback note against
-`5a26b28f` (2026-11-22).*
+`5a26b28f` (2026-11-22); the fence and backpressure notes against `c9871428`
+(2026-11-22).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -49,32 +50,36 @@ are in the top-level `docs/`.
 - **The frame loop is context-free and lives on the platform.** `Platform::run`
   (`PlatformBase::run`, one shared body in `src/platformbase.cpp`) drives frames
   on the injected loop: per dirty window it gates — without blocking — on that
-  window's own `canAcquire` backpressure, skipping a saturated window (which a
-  freed slot later wakes back through `requestFrame`), renders and presents
-  through the context the window carries, and fences on the window's own queue —
-  so `run` names no `RenderContext` of its own.
-  A backend supplies only what differs through protected virtuals: the static
-  cadence via `runConfig()` (`PlatformBase::RunConfig`: just `frameStep`; the
-  frame *rate* is per-window — the loop schedules to the earliest of the windows'
-  `nextFrameTime`, not a platform cap — and the dummy queue completes fences
-  inline), the OS `wakeSource()` (read
-  once at loop start), and the live `getRenderWindows()` list (re-read every tick,
-  since windows open and close during a run); there is no `Session`. A wake
-  (`requestFrame`, an OS event, a presented frame's fence) cuts a pending timer
-  short, but never to sooner than one `frameStep` after the last tick, so the
-  per-frame fence wakes cannot run an animating window past the cadence. A
-  tick's `dt` is its real elapsed time capped at the longer of four frame steps
-  and the wait the loop scheduled for a window's `nextFrameTime`, so a
-  scheduled update arrives on time. The wait counts in full even when a wake
-  ends it early. Time past the cap, such as a stall, is dropped; a stall that
-  follows a wake which cut the wait short, but ends before the wait's original
-  end, is within the cap and counts in full. A pause ends the scheduled wait where the pause starts, so
-  the wait before the pause counts and the pause does not. Manual
-  driving is a `Platform::pause()` RAII token (`PauseToken`) whose `step(dt)`
-  produces one frame off the same callback/render path an auto tick takes;
-  "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
-  pumping), and dropping the token resumes the cadence. `step` lives only on the
-  token, so a free-running loop cannot be stepped by construction.
+  window's own `canAcquire` backpressure, skipping a saturated window (which the
+  fence recheck below brings back), renders and presents through the context the
+  window carries, and fences on the window's own queue — so `run` names no
+  `RenderContext` of its own. A backend supplies only what differs through
+  protected virtuals: the static cadence via `runConfig()`
+  (`PlatformBase::RunConfig`: just `frameStep`; the frame *rate* is per-window —
+  the loop schedules to the earliest of the windows' `nextFrameTime`, not a
+  platform cap — and the dummy queue signals fences on submit), the OS
+  `wakeSource()` (read once at loop start), and the live `getRenderWindows()`
+  list (re-read every tick, since windows open and close during a run); there is
+  no `Session`. A wake (`requestFrame`, an OS event, the fence recheck) cuts a
+  pending timer short, but never to sooner than one `frameStep` after the last
+  tick, so the fence wakes cannot run an animating window past the cadence.
+  Nothing wakes the loop when a fence signals: while a window wants a frame but
+  has no free slot, a `kFenceRecheckInterval` (1 ms) timer recounts such windows
+  and wakes the loop when the count drops; it is not armed otherwise. So a frame
+  that quiesces gets no trailing tick, and a headless test that ends on one
+  stops the loop from it. A tick's `dt` is its real elapsed time capped at the
+  longer of four frame steps and the wait the loop scheduled for a window's
+  `nextFrameTime`, so a scheduled update arrives on time. The wait counts in
+  full even when a wake ends it early. Time past the cap, such as a stall, is
+  dropped; a stall that follows a wake which cut the wait short, but ends before
+  the wait's original end, is within the cap and counts in full. A pause ends
+  the scheduled wait where the pause starts, so the wait before the pause counts
+  and the pause does not. Manual driving is a `Platform::pause()` RAII token
+  (`PauseToken`) whose `step(dt)` produces one frame off the same
+  callback/render path an auto tick takes; "paused" suspends auto-cadence frame
+  *production*, not the loop (events/IO keep pumping), and dropping the token
+  resumes the cadence. `step` lives only on the token, so a free-running loop
+  cannot be stepped by construction.
 - **`PlatformImpl` is a pure interface; `PlatformBase` holds the shared guts.**
   Mirroring the `WindowImpl`/`WindowBase` split below: `PlatformImpl`
   (`include/ase/platformimpl.h`) is only the public platform virtuals the
@@ -87,32 +92,32 @@ are in the top-level `docs/`.
   `runConfig`, `wakeSource`, `getRenderWindows`) — none of which are on the public
   interface. `RunConfig` moved here too (`PlatformBase::RunConfig`).
 - **`WindowImpl` is a pure interface; `WindowBase` holds the shared guts.**
-  `WindowImpl` (`include/ase/windowimpl.h`) is only the public window virtuals plus
-  the `getImplOfType` type-erasure plumbing. Every backend window instead derives
-  from `WindowBase` (`include/ase/windowbase.h`, `src/windowbase.cpp`), which owns
-  the co-owned `RenderContext`, the per-window present backpressure (the
-  non-blocking `canAcquire`/`submitFrameFence` + the `WindowPresentSync` fence
-  bookkeeping), the loop-contract members (the `frame` private virtual and the
-  concrete `nextFrameTime`, both reached through `friend class PlatformBase`), and
-  the `GenericWindow genericWindow_` (protected, so backends
-  reach it during OS-event translation). The callback setters and event injectors
-  that just forward to `genericWindow_` — plus `getSize`/`getScalingFactor` — are
-  concrete forwarders on `WindowBase`; a backend overrides only what genuinely
-  differs (`present`, framebuffer, visibility, scaling-aware title/requestFrame,
-  `frame`). `nextFrameTime` reads `genericWindow_` on `WindowBase` itself, so
-  backends do not reimplement it. `GenericWindow` is loop-thread only except
-  `requestFrame`, which just sets an atomic flag, and a request made while
-  the frame callback runs outranks the delay the callback returns. Every
-  backend's `requestFrame` also wakes its platform loop through
-  `PlatformBase::requestFrame`, which is why the dummy and offscreen windows
-  hold a platform reference like the GLX/WGL ones. The `WindowBase` ctor takes
-  `(context, size, scalingFactor)` so it can build `genericWindow_`. The
-  platform render lists are `weak_ptr<WindowBase>` since the loop hooks live
-  there. `getRenderContext` is a pure virtual on `WindowImpl` (implemented by
-  `WindowBase`), so `Window` reaches the render context without a downcast; the
-  window's main render queue is just `getRenderContext().getMainRenderQueue()`,
-  so `Window::getMainRenderQueue` is a convenience computed on that and stays
-  off the impl interface.
+  `WindowImpl` (`include/ase/windowimpl.h`) is only the public window virtuals
+  plus the `getImplOfType` type-erasure plumbing. Every backend window instead
+  derives from `WindowBase` (`include/ase/windowbase.h`, `src/windowbase.cpp`),
+  which owns the co-owned `RenderContext`, the per-window present backpressure
+  (the non-blocking `canAcquire`/`submitFrameFence` over the window's own
+  outstanding `Fence`s, loop thread only), the loop-contract members (the
+  `frame` private virtual and the concrete `nextFrameTime`, both reached through
+  `friend class PlatformBase`), and the `GenericWindow genericWindow_`
+  (protected, so backends reach it during OS-event translation). The callback
+  setters and event injectors that just forward to `genericWindow_` — plus
+  `getSize`/`getScalingFactor` — are concrete forwarders on `WindowBase`; a
+  backend overrides only what genuinely differs (`present`, framebuffer,
+  visibility, scaling-aware title/requestFrame, `frame`). `nextFrameTime` reads
+  `genericWindow_` on `WindowBase` itself, so backends do not reimplement it.
+  `GenericWindow` is loop-thread only except `requestFrame`, which just sets an
+  atomic flag, and a request made while the frame callback runs outranks the
+  delay the callback returns. Every backend's `requestFrame` also wakes its
+  platform loop through `PlatformBase::requestFrame`, which is why the dummy and
+  offscreen windows hold a platform reference like the GLX/WGL ones. The
+  `WindowBase` ctor takes `(context, size, scalingFactor)` so it can build
+  `genericWindow_`. The platform render lists are `weak_ptr<WindowBase>` since
+  the loop hooks live there. `getRenderContext` is a pure virtual on
+  `WindowImpl` (implemented by `WindowBase`), so `Window` reaches the render
+  context without a downcast; the window's main render queue is just
+  `getRenderContext().getMainRenderQueue()`, so `Window::getMainRenderQueue` is
+  a convenience computed on that and stays off the impl interface.
 - **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
   `headless` gives an `OffscreenWindow` (backend-agnostic,
   `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from
@@ -151,6 +156,23 @@ are in the top-level `docs/`.
   framebuffer's size is render-thread-only state that `makeCurrent` reads
   without a lock. GlxWindow's present task likewise captures the
   `_NET_WM_SYNC_REQUEST` counter value by value.
+- **`Fence` is a polled handle.** `RenderContext::makeFence()` makes one
+  (`FenceImpl` from `RenderContextImpl::makeFenceImpl`) before the command
+  runs, since `CommandBuffer` is backend-agnostic; `pushFence(Fence)` queues
+  it. `isSignaled()` is an atomic read, and the frame throttle uses only that.
+  `whenSignaled()` is the one future entry point. GL and the dummy both use
+  `BasicFence`: the backend calls `signal()`, which hands back the waiting
+  promises, and a per-queue `FenceDrain` fulfils them in order from one btl
+  thread-pool task at a time, so no continuation runs on the GL render
+  thread or under the dispatcher's mutex (where the idle poll runs).
+  `~GlRenderState` deletes unsignaled sync objects and drops its idle poll,
+  which captured it; those fences never signal, and once their last reference is
+  released, on the destroying thread rather than the render thread, their
+  futures fail with `btl::future::BrokenPromise`. The exception is a submit
+  whose rendering throws before reaching a fence's command: that fence is
+  destroyed on the render thread, so its `BrokenPromise` continuation runs
+  there. A window co-owns its context and so its queues, so a live window's
+  fences cannot lose their queue.
 - **Render-thread-only GL functions take the `Dispatched` tag.** Its
   constructor is private and only `Dispatcher` is a friend: the dispatcher
   creates the tag on its thread and passes it to every task and idle callback
