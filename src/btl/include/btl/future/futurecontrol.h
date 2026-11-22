@@ -59,19 +59,21 @@ namespace btl::future
 
             std::mutex mutex;
             std::condition_variable condition;
+            bool ready = false;
 
             auto oldCallback = std::move(callback_);
             callback_ = std::make_optional<MoveOnlyFunction<void(FutureControl&)>>(
-                    [&condition, &mutex](FutureControl&) mutable
+                    [&condition, &mutex, &ready](FutureControl&) mutable
             {
                 std::unique_lock<std::mutex> lock2(mutex);
+                ready = true;
                 condition.notify_one();
             });
 
             std::unique_lock<std::mutex> lock2(mutex);
 
             lock.unlock();
-            condition.wait(lock2);
+            condition.wait(lock2, [&ready] { return ready; });
 
             if (oldCallback.has_value())
                 (*oldCallback)(*this);
