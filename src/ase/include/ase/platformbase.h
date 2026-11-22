@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -111,6 +112,9 @@ namespace ase
         // The earliest frame time a renderable window wants its next frame at,
         // or nullopt if none does; the loop schedules its next tick to this.
         std::optional<std::chrono::microseconds> earliestFrameTime();
+
+        // How many windows want a frame but have no free in-flight slot.
+        std::size_t countHeldBackWindows();
 
         // When the scheduled wait for the next tick ends. A wake that cuts
         // the timer short keeps it; a pause ends the wait at the pause.

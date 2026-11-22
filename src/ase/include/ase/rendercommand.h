@@ -5,6 +5,7 @@
 #include "readback.h"
 
 #include <btl/future/promise.h>
+#include "fence.h"
 
 #include <variant>
 
@@ -24,7 +25,7 @@ namespace ase
 
     struct FenceCommand
     {
-        btl::future::Promise<> promise;
+        Fence fence;
     };
 
     struct BufferUploadCommand

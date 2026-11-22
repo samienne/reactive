@@ -16,6 +16,7 @@
 #include "gldispatchedcontext.h"
 #include "glrendercontext.h"
 
+#include "basicfence.h"
 #include "rendercommand.h"
 #include "commandbuffer.h"
 
@@ -143,7 +144,8 @@ namespace
 
 
 GlRenderState::GlRenderState(GlDispatchedContext& dispatcher) :
-    dispatcher_(dispatcher)
+    dispatcher_(dispatcher),
+    drain_(std::make_shared<FenceDrain>())
 {
     dispatcher_.dispatch([](Dispatched, GlFunctions const& gl)
     {
@@ -203,16 +205,37 @@ GlRenderState::GlRenderState(GlDispatchedContext& dispatcher) :
 
 GlRenderState::~GlRenderState()
 {
-    if (vertexArrayObject_)
+    // Queued behind every submit, so no fence can be added after it. The
+    // idle poll captures this and must not outlive it. Unsignaled fences are
+    // released here, off the render thread, as dropping one fails its
+    // futures inline.
+    std::vector<Fence> dropped;
+
+    dispatcher_.dispatch([this, &dropped](Dispatched d, GlFunctions const& gl)
     {
-        dispatcher_.dispatch([this](Dispatched, GlFunctions const& gl)
+        if (vertexArrayObject_)
         {
             gl.glDeleteVertexArrays(1, &vertexArrayObject_);
             vertexArrayObject_ = 0;
-        });
+        }
 
-        dispatcher_.wait();
-    }
+        for (auto& fence : fences_)
+        {
+            if (fence.sync)
+            {
+                gl.glDeleteSync(fence.sync);
+            }
+
+            dropped.push_back(std::move(fence.fence));
+        }
+
+        fences_.clear();
+
+        if (dispatcher_.hasIdleFunc(d))
+            dispatcher_.unsetIdleFunc(d);
+    });
+
+    dispatcher_.wait();
 }
 
 void GlRenderState::submit(CommandBuffer&& commands)
@@ -316,7 +339,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             WaitingFence fence
             {
                 gl.glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0),
-                std::move(fenceCommand.promise)
+                std::move(fenceCommand.fence)
             };
 
             fences_.push_back(std::move(fence));
@@ -595,31 +618,41 @@ void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
 {
     ZoneScoped;
 
+    std::vector<btl::future::Promise<>> signaled;
+
     auto i = fences_.begin();
     while (i != fences_.end())
     {
         auto&& fence = *i;
 
-        GLenum err = gl.glClientWaitSync(fence.sync, 0, 0);
+        // A sync that failed to create or to wait on would never signal, so
+        // it is treated as signaled rather than hold its frame slot forever.
+        GLenum err = fence.sync
+            ? gl.glClientWaitSync(fence.sync, 0, 0)
+            : GL_WAIT_FAILED;
         switch(err)
         {
         case GL_ALREADY_SIGNALED:
         case GL_CONDITION_SATISFIED:
-            fence.promise.set();
-
-            gl.glDeleteSync(fence.sync);
-            i = fences_.erase(i);
-            break;
-
-        case GL_TIMEOUT_EXPIRED:
         case GL_WAIT_FAILED:
-            ++i;
+            fence.fence.getImpl<BasicFence>().signal(signaled);
+
+            if (fence.sync)
+            {
+                gl.glDeleteSync(fence.sync);
+            }
+
+            i = fences_.erase(i);
             break;
 
         default:
             ++i;
         }
     }
+
+    // Never fulfil here: this runs on the render thread, and in the idle
+    // poll under the dispatcher's mutex.
+    drain_->post(std::move(signaled));
 
     if (!fences_.empty() && !dispatcher_.hasIdleFunc(d))
     {

@@ -1,5 +1,6 @@
 #include "commandbuffer.h"
 
+#include "basicfence.h"
 #include "rendercommand.h"
 #include "textureimpl.h"
 
@@ -44,18 +45,13 @@ void CommandBuffer::pushClear(Framebuffer target,
             });
 }
 
-void CommandBuffer::pushFence(std::function<void()> completeCb)
+Fence CommandBuffer::pushFence()
 {
-    pushFence().then(std::move(completeCb)).detach();
-}
+    Fence fence(std::make_shared<BasicFence>());
 
-btl::future::Future<> CommandBuffer::pushFence()
-{
-    auto control = std::make_shared<btl::future::FutureControl<>>();
+    commands_.push_back(FenceCommand{ fence });
 
-    commands_.push_back(FenceCommand{ { control } });
-
-    return { std::move(control) };
+    return fence;
 }
 
 void CommandBuffer::pushUpload(

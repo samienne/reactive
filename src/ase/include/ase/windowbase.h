@@ -5,6 +5,7 @@
 #include "rendercontext.h"
 #include "presentstatus.h"
 #include "vector.h"
+#include "fence.h"
 
 #include <btl/visibility.h>
 
@@ -14,13 +15,12 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace ase
 {
     class RenderQueue;
     struct Frame;
-
-    struct WindowPresentSync;
 
     /**
      * @brief The shared base every backend window derives from.
@@ -91,26 +91,26 @@ namespace ase
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
 
-        /** @brief Whether this window has a spare in-flight slot, without
+        /**
+         * @brief Whether this window has a spare in-flight slot, without
          * blocking.
          *
          * Bounds how many of its frames are queued on the GPU at once; false
-         * when the budget is full.
+         * when the budget is full. Nothing calls back when a fence signals,
+         * so the caller polls.
          */
         bool canAcquire() const;
 
-        /** @brief Take an in-flight slot and submit this frame's fence on the
-         * window's own queue behind its draws.
-         *
-         * The fence completion frees the slot, preserving the queue's
-         * draws -> present -> fence order, and runs `onSlotFreed`. There is no
-         * guarantee which thread that runs on -- it varies by backend -- so
-         * `onSlotFreed` must be safe to call from any thread.
+        /**
+         * @brief Submit this frame's fence on the window's own queue, behind
+         * its draws and present, taking an in-flight slot until it signals.
          */
-        void submitFrameFence(std::function<void()> onSlotFreed);
+        void submitFrameFence();
 
         RenderContext context_;
 
-        std::shared_ptr<WindowPresentSync> presentSync_;
+        // This window's submitted frame fences not yet seen signaled; loop
+        // thread only.
+        std::vector<Fence> inFlight_;
     };
 }

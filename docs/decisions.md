@@ -2,10 +2,27 @@
 
 *Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the pixel readback entry against
-`5a26b28f` (2026-11-22).*
+`5a26b28f` (2026-11-22); the fence and backpressure entries against
+`f1595378` (2026-11-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## A fence is polled; its futures are fulfilled off the render thread
+
+A GPU fence is an `ase::Fence` object a command buffer makes and carries, not
+a bare future. The frame throttle
+reads only its atomic `isSignaled()`, so a window counts its unsignaled fences
+and the loop, which nothing wakes when a fence signals, polls on a short timer
+only while a window is held back. `whenSignaled()` still gives a future, but
+its promises are fulfilled in order by at most one btl thread-pool task at a
+time per queue, never on the backend thread that saw the fence complete.
+
+**Why:** the fence continuation used to run on the GL render thread under the
+dispatcher's mutex, so any user continuation could stall or deadlock rendering,
+and the throttle needed a mutex shared with that thread. Polling keeps the
+throttle on the loop thread alone; the drain keeps continuations off backend
+threads for GL and for a future Vulkan waiter thread alike.
 
 ## The compiler floor is GCC 12, Clang 15 and MSVC 2022
 
@@ -130,8 +147,8 @@ a callback that never ran left the consumer to time out.
 had a free in-flight slot, stalling the whole loop — input draining, inspector
 RPC, every other window — through one window's GPU wait. It is now
 `canAcquire()`, a non-blocking check: the loop renders a window only when it has
-a free slot, skips it otherwise, and the fence that frees the slot wakes the loop
-through the existing `requestFrame()` to retry it.
+a free slot, skips it otherwise, and retries it once its fences signal (see
+the fence entry above).
 
 **Why:** the loop is a reactor; blocking it defeats that. A headful window still
 paces to vsync, but as readiness-plus-wake rather than a blocking wait, so the
@@ -153,7 +170,8 @@ varies its own by content — both fall out of a per-window next-frame request, 
 a single platform cap cannot express them. The mechanism was already half-built:
 `frame()` returned that delay end-to-end and the loop discarded it, collapsing it
 to a bool. Headless has no vsync, so a headless window paces itself the same way;
-the dummy render queue completes fences inline and adds no pacing of its own (an
+the dummy render queue signals fences on submit, with their futures fulfilled
+on the thread pool, and adds no pacing of its own (an
 earlier background fence-completer that faked vsync was removed, taking its
 `wait_until` hazard with it). Fences are left to signal only *real* completion —
 headful vsync today, a pixel-readback / double-buffer swap later. A

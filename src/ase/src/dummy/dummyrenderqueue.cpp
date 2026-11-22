@@ -1,5 +1,6 @@
 #include "dummyrenderqueue.h"
 
+#include "basicfence.h"
 #include "commandbuffer.h"
 #include "rendercommand.h"
 
@@ -8,6 +9,11 @@
 
 namespace ase
 {
+
+DummyRenderQueue::DummyRenderQueue() :
+    drain_(std::make_shared<FenceDrain>())
+{
+}
 
 void DummyRenderQueue::flush()
 {
@@ -19,14 +25,14 @@ void DummyRenderQueue::finish()
 
 void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
 {
-    // Nothing draws, but fences must still complete: the frame loop tracks GPU
-    // frames in flight by a fence per submit, so leaving them pending would
-    // wedge its backpressure.
+    std::vector<btl::future::Promise<>> signaled;
+
     for (auto& command : commandBuffer)
     {
         if (std::holds_alternative<FenceCommand>(command))
         {
-            std::get<FenceCommand>(command).promise.set();
+            std::get<FenceCommand>(command).fence.getImpl<BasicFence>()
+                .signal(signaled);
         }
         else if (auto* readback = std::get_if<ReadbackCommand>(&command))
         {
@@ -34,6 +40,8 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
                         ReadbackFailure(ReadbackError::Unsupported)));
         }
     }
+
+    drain_->post(std::move(signaled));
 }
 
 } // namespace

@@ -126,7 +126,9 @@ libasesrc = [
   'src/uniformset.cpp',
   'src/renderbuffer.cpp',
   'src/renderqueue.cpp',
-  'src/platformbase.cpp'
+  'src/platformbase.cpp',
+  'src/fence.cpp',
+  'src/basicfence.cpp'
   ]
 
 libase = library('ase',
@@ -146,6 +148,7 @@ libasedep = declare_dependency(
 
 asetest = executable('asetest',
   'test/dispatchertest.cpp',
+  'test/fencetest.cpp',
   dependencies: [gtestdep, libasedep],
   )
 

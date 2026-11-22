@@ -144,6 +144,7 @@ thread via the threadpool -> `post` seam ([`runloop.md`](runloop.md)). The loop
 keeps servicing input and vsync while the GPU works. Back-pressure is an in-flight
 cap: the fence continuation is what releases a slot and requests the next frame, so
 the pipeline never queues more than N frames deep and never stalls the loop thread.
+(ase now polls the fences instead; see `docs/decisions.md`.)
 The cost is a touch of latency the frame after a stall actually resolves - an
 acceptable trade for a responsive loop.
 
