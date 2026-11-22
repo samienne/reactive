@@ -117,7 +117,9 @@ libasesrc = [
   'src/readback.cpp',
   'src/drawcommand.cpp',
   'src/texture.cpp',
+  'src/attachmentframebuffer.cpp',
   'src/framebuffer.cpp',
+  'src/framebufferimpl.cpp',
   'src/pipeline.cpp',
   'src/pointerbuttonevent.cpp',
   'src/keyevent.cpp',
@@ -149,7 +151,10 @@ libasedep = declare_dependency(
 asetest = executable('asetest',
   'test/dispatchertest.cpp',
   'test/fencetest.cpp',
+  'test/framebufferobjectcachetest.cpp',
+  'test/framebuffertest.cpp',
   dependencies: [gtestdep, libasedep],
+  include_directories: include_directories('src'),
   )
 
 test('ase', asetest, timeout: 1200,
