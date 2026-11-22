@@ -55,10 +55,8 @@ void WindowBase::submitFrameFence()
 {
     ZoneScopedN("submitFrameFence");
 
-    Fence fence = context_.makeFence();
-
     CommandBuffer commandBuffer;
-    commandBuffer.pushFence(fence);
+    Fence fence = commandBuffer.pushFence();
     context_.getMainRenderQueue().submit(std::move(commandBuffer));
 
     inFlight_.push_back(std::move(fence));

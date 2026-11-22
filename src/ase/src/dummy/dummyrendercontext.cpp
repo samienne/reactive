@@ -13,7 +13,6 @@
 #include "dummyfragmentshader.h"
 #include "dummyprogram.h"
 
-#include "basicfence.h"
 #include "buffer.h"
 #include "program.h"
 #include "vertexspec.h"
@@ -114,11 +113,6 @@ std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl()
 bool DummyRenderContext::canReadback() const
 {
     return false;
-}
-
-std::shared_ptr<FenceImpl> DummyRenderContext::makeFenceImpl()
-{
-    return std::make_shared<BasicFence>();
 }
 
 } // namespace ase

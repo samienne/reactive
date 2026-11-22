@@ -109,13 +109,6 @@ namespace
         std::shared_ptr<HoldingQueue> queue_;
     };
 
-    void submitFence(RenderContext& context, Fence fence)
-    {
-        CommandBuffer commandBuffer;
-        commandBuffer.pushFence(std::move(fence));
-        context.getMainRenderQueue().submit(std::move(commandBuffer));
-    }
-
     // The thread a continuation on `fence` runs on.
     std::future<std::thread::id> threadOf(Fence& fence)
     {
@@ -145,13 +138,14 @@ TEST(fence, dummyFenceSignalsWhenItsCommandRuns)
     auto platform = makeDummyPlatform(loop);
     auto context = platform.makeRenderContext();
 
-    Fence fence = context.makeFence();
+    CommandBuffer commandBuffer;
+    Fence fence = commandBuffer.pushFence();
     auto first = threadOf(fence);
     auto second = threadOf(fence);
 
     EXPECT_FALSE(fence.isSignaled());
 
-    submitFence(context, fence);
+    context.getMainRenderQueue().submit(std::move(commandBuffer));
 
     EXPECT_TRUE(fence.isSignaled());
 
@@ -165,23 +159,16 @@ TEST(fence, dummyFenceSignalsWhenItsCommandRuns)
 
 TEST(fence, unsubmittedFenceFailsWithBrokenPromise)
 {
-    btl::RunLoop loop;
-    auto platform = makeDummyPlatform(loop);
-
     std::optional<Fence> fence;
     std::exception_ptr failure;
 
     {
-        auto context = platform.makeRenderContext();
-
-        fence.emplace(context.makeFence());
+        CommandBuffer commandBuffer;
+        fence.emplace(commandBuffer.pushFence());
         fence->whenSignaled().onFailure([&failure](std::exception_ptr err)
             {
                 failure = std::move(err);
             }).detach();
-
-        CommandBuffer commandBuffer;
-        commandBuffer.pushFence(*fence);
     }
 
     EXPECT_FALSE(fence->isSignaled());

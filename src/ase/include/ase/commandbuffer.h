@@ -35,9 +35,10 @@ namespace ase
                 );
 
         /**
-         * @brief Signal `fence` once the commands before it complete.
+         * @brief A fence that signals once the commands pushed before it
+         * complete.
          */
-        void pushFence(Fence fence);
+        Fence pushFence();
 
         void pushUpload(
                 std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target,

@@ -1,5 +1,6 @@
 #include "commandbuffer.h"
 
+#include "basicfence.h"
 #include "rendercommand.h"
 #include "textureimpl.h"
 
@@ -44,9 +45,13 @@ void CommandBuffer::pushClear(Framebuffer target,
             });
 }
 
-void CommandBuffer::pushFence(Fence fence)
+Fence CommandBuffer::pushFence()
 {
-    commands_.push_back(FenceCommand{ std::move(fence) });
+    Fence fence(std::make_shared<BasicFence>());
+
+    commands_.push_back(FenceCommand{ fence });
+
+    return fence;
 }
 
 void CommandBuffer::pushUpload(

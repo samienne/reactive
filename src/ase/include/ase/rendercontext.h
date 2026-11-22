@@ -31,7 +31,6 @@ namespace ase
     class UniformSet;
     class Renderbuffer;
     class RenderQueue;
-    class Fence;
 
     /**
      * @brief RenderContext
@@ -84,11 +83,6 @@ namespace ase
                 BlendMode srcFactor, BlendMode dstFactor);
 
         UniformSet makeUniformSet();
-
-        /**
-         * @brief A fence to push on any of this context's queues.
-         */
-        Fence makeFence();
 
         /** @brief A co-owning handle to this context's implementation.
          *

@@ -34,7 +34,6 @@ namespace ase
     class UniformSet;
     class RenderbufferImpl;
     class RenderQueueImpl;
-    class FenceImpl;
 
     class ASE_EXPORT RenderContextImpl
     {
@@ -81,7 +80,6 @@ namespace ase
         virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl() = 0;
 
         virtual bool canReadback() const = 0;
-        virtual std::shared_ptr<FenceImpl> makeFenceImpl() = 0;
     };
 }
 
