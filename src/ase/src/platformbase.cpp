@@ -60,7 +60,6 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     auto armFenceRecheck = [this, &heldBack, &fenceTimer, &fenceTimerArmed,
             &recheckFences](btl::RunLoop::Controller& controller)
     {
-        heldBack = countHeldBackWindows();
         if (heldBack == 0 || fenceTimerArmed)
             return;
 
@@ -99,22 +98,30 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     // Between ticks the count only grows through a requestFrame(), which
     // wakes the loop itself, so a lower count means a window got a slot back.
+    // A fence can signal between any two counts, so each recheck counts once
+    // and keeps that count as the next baseline.
     recheckFences = [this, &heldBack, &fenceTimer, &fenceTimerArmed,
             &armFenceRecheck, &wakeTick](btl::RunLoop::Controller& controller)
     {
         fenceTimerArmed = false;
         fenceTimer.detach();
 
-        if (countHeldBackWindows() < heldBack)
+        auto count = countHeldBackWindows();
+        if (count < heldBack)
             wakeTick(controller);
 
+        heldBack = count;
         armFenceRecheck(controller);
     };
 
     auto scheduleTick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &tick,
-            &clock, &frameTime, &armFenceRecheck](
+            &clock, &frameTime, &heldBack, &armFenceRecheck](
             btl::RunLoop::Controller& controller)
     {
+        // A window whose fence signals after this count is a drop the recheck
+        // sees; one that signalled before it is renderable again and sets the
+        // earliest frame time below.
+        heldBack = countHeldBackWindows();
         armFenceRecheck(controller);
 
         if (tickScheduled)
