@@ -1,6 +1,7 @@
 #include "bqui/remote/remotedriver.h"
 #include "bqui/remote/transport.h"
 
+#include "debug.h"
 #include "introspectionjson.h"
 
 #include <avg/rendertree/snapshot.h>
@@ -38,6 +39,10 @@ constexpr int kInternalError = -32603;
 
 // One nominal frame at ~60 Hz — the default step when a client gives no dt.
 constexpr int64_t kNominalFrameUs = 16667;
+
+// How long an orderly shutdown waits for the client to take more of a queued
+// reply before giving up on it.
+constexpr std::chrono::seconds kShutdownFlushTimeout{ 2 };
 
 // A handler failure carrying a JSON-RPC error code.
 struct RpcError
@@ -225,22 +230,13 @@ public:
         {
             ControllerScope scope(controller_, controller);
 
-            controller.addReadable(transport_->nativeHandle(),
-                    [this](btl::RunLoop::Controller& c) { onReadable(c); })
-                .detach();
+            readable_ = controller.addReadable(transport_->nativeHandle(),
+                    [this](btl::RunLoop::Controller& c) { onReadable(c); });
 
             // A completion-based backend (Win32 named pipe) only signals
             // readable once an overlapped read is pending, so this first
             // receiveReady() kicks that read off (a no-op for socket backends).
-            for (auto& frame : transport_->receiveReady())
-            {
-                dispatch(frame);
-                if (shuttingDown_)
-                    break;
-            }
-
-            if (shuttingDown_ || transport_->disconnected())
-                loop_.stop();
+            receive();
         });
     }
 
@@ -260,16 +256,28 @@ private:
     void onReadable(btl::RunLoop::Controller& controller)
     {
         ControllerScope scope(controller_, controller);
+        receive();
+    }
 
+    // Keeps draining while shutting down, so a readable channel does not spin
+    // the loop while the last reply flushes; those frames are discarded.
+    void receive()
+    {
         for (auto& frame : transport_->receiveReady())
         {
-            dispatch(frame);
             if (shuttingDown_)
                 break;
+
+            dispatch(frame);
         }
 
+        // A peer that only half-closed still reads, so the queue keeps
+        // flushing; the drained channel would report readable for good.
+        if (transport_->disconnected())
+            readable_ = btl::RunLoop::Source();
+
         if (shuttingDown_ || transport_->disconnected())
-            loop_.stop();
+            finish();
     }
 
     void dispatch(std::string const& frame)
@@ -278,18 +286,92 @@ private:
             safeSend(*reply);
     }
 
-    // A send to a vanished peer is end-of-session, not a fault to propagate.
     void safeSend(std::string const& frame)
     {
+        if (closed_)
+            return;
+
         try
         {
-            transport_->send(frame);
+            transport_->enqueue(frame);
+            flush();
         }
-        catch (std::exception const&)
+        catch (std::exception const& e)
         {
-            shuttingDown_ = true;
-            loop_.stop();
+            close(e.what());
         }
+    }
+
+    void flush()
+    {
+        if (transport_->flushReady())
+        {
+            writable_ = btl::RunLoop::Source();
+            return;
+        }
+
+        if (writable_.id() == 0)
+        {
+            writable_ = controller_->addWritable(transport_->writableHandle(),
+                    [this](btl::RunLoop::Controller& c) { onWritable(c); });
+        }
+    }
+
+    void onWritable(btl::RunLoop::Controller& controller)
+    {
+        ControllerScope scope(controller_, controller);
+
+        try
+        {
+            flush();
+        }
+        catch (std::exception const& e)
+        {
+            close(e.what());
+            return;
+        }
+
+        if (!shuttingDown_)
+            return;
+
+        if (writable_.id() == 0)
+            stop();
+        else
+            armFlushTimeout();
+    }
+
+    void close(char const* reason)
+    {
+        DBG("Remote connection closed: %1", reason);
+        closed_ = true;
+        shuttingDown_ = true;
+        stop();
+    }
+
+    void finish()
+    {
+        shuttingDown_ = true;
+
+        if (writable_.id() == 0)
+            stop();
+        else if (flushTimeout_.id() == 0)
+            armFlushTimeout();
+    }
+
+    void armFlushTimeout()
+    {
+        flushTimeout_ = controller_->addTimer(kShutdownFlushTimeout,
+                [this](btl::RunLoop::Controller&)
+                {
+                    close("the client did not read the last reply");
+                });
+    }
+
+    void stop()
+    {
+        writable_ = btl::RunLoop::Source();
+        flushTimeout_ = btl::RunLoop::Timer();
+        loop_.stop();
     }
 
     void ensureTicking()
@@ -309,7 +391,7 @@ private:
 
         if (shuttingDown_)
         {
-            loop_.stop();
+            finish();
             return;
         }
 
@@ -319,7 +401,7 @@ private:
         advanceFrame(std::chrono::microseconds(kNominalFrameUs));
         if (shuttingDown_)
         {
-            loop_.stop();
+            finish();
             return;
         }
 
@@ -657,8 +739,12 @@ private:
     uint64_t frame_ = 0;
     State state_ = State::Paused;
     bool shuttingDown_ = false;
+    bool closed_ = false;
     bool frameNotifications_ = false;
     bool ticking_ = false;
+    btl::RunLoop::Source readable_;
+    btl::RunLoop::Source writable_;
+    btl::RunLoop::Timer flushTimeout_;
 };
 
 RemoteDriver::RemoteDriver(btl::RunLoop& loop, Transport& transport,
