@@ -35,7 +35,6 @@ namespace ase
         std::string const& getTitle() const override;
 
         Framebuffer& getDefaultFramebuffer() override;
-        bool ownsDefaultFramebuffer() const override;
 
         void requestFrame() override;
 

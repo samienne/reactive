@@ -98,12 +98,15 @@ comparable; signals detect changes by item generation.
 `CommandBuffer::pushReadback` reads a framebuffer's whole colour in queue order,
 like a fence, at the size the framebuffer has on the render thread. A window's
 frame is read by pushing it against the window's framebuffer on its main queue:
-queue order is the synchronisation, and it reads the last frame submitted. Only
-a window that owns its framebuffer (`ase::Window::ownsDefaultFramebuffer`, the
-offscreen window) can be read back. GL reads with a synchronous `glReadPixels`
-on the render thread. The push returns a future that fails with
-`ReadbackFailure` (unsupported or failed), or with `BrokenPromise` when the
-command is dropped unrun.
+queue order is the synchronisation, and it reads the last frame submitted.
+Whether a framebuffer can be read is the backend's call, reported per readback:
+GL reads the offscreen window's target and context framebuffers, but fails an
+on-screen window's back buffer as unsupported, since it is undefined after the
+swap. There is no window-level query; a caller needs only
+`RenderContext::canReadback` and the future's failure. GL reads with a
+synchronous `glReadPixels` on the render thread. The push returns a future that
+fails with `ReadbackFailure` (unsupported or failed), or with `BrokenPromise`
+when the command is dropped unrun.
 
 **Why:** a render command is backend-neutral, where a "run this on the render
 thread" hook is not (see *Frame cadence is per-window*): a command-buffer

@@ -34,11 +34,6 @@ RenderContext& WindowBase::getRenderContext()
     return context_;
 }
 
-bool WindowBase::ownsDefaultFramebuffer() const
-{
-    return false;
-}
-
 std::optional<std::chrono::microseconds>
 WindowBase::nextFrameTime() const
 {

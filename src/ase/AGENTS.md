@@ -198,10 +198,11 @@ are in the top-level `docs/`.
   which a context does.
   A window's frame is read back by pushing one against `getDefaultFramebuffer()`
   on its main queue: queue order is the synchronisation, so it reads the last
-  frame submitted, rendered this tick or not. That is only meaningful where
-  `Window::ownsDefaultFramebuffer()` is true, which only `OffscreenWindow`
-  reports: an on-screen back buffer is undefined after the swap, so nothing
-  reads one. The real-GL check is the manual `bquiheadlesstest`.
+  frame submitted, rendered this tick or not. Only an `OffscreenWindow` target
+  is readable that way: an on-screen back buffer is undefined after the swap,
+  so `GlBaseFramebuffer::canReadback` is false for the GLX/WGL window
+  framebuffers and GL fails their readback with `Unsupported`. The real-GL
+  check is the manual `bquiheadlesstest`.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

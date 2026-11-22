@@ -33,7 +33,7 @@ namespace ase
     enum class ReadbackError
     {
         /**
-         * @brief The render context or window cannot read pixels back.
+         * @brief The render context or framebuffer cannot read pixels back.
          */
         Unsupported,
 

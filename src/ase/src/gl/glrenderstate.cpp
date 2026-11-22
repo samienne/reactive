@@ -374,6 +374,13 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             GlBaseFramebuffer const& framebuffer = readback->source.getImpl<
                 GlBaseFramebuffer>();
 
+            if (!framebuffer.canReadback())
+            {
+                readback->promise.setFailure(std::make_exception_ptr(
+                            ReadbackFailure(ReadbackError::Unsupported)));
+                continue;
+            }
+
             if (boundFramebuffer_ != &framebuffer)
             {
                 boundFramebuffer_ = &framebuffer;

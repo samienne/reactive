@@ -40,6 +40,11 @@ Vector2i GlxFramebuffer::getSize(Dispatched) const
     return pixelSize_;
 }
 
+bool GlxFramebuffer::canReadback() const
+{
+    return false;
+}
+
 void GlxFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)
 {
     assert(false);

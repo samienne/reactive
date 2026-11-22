@@ -89,9 +89,9 @@ namespace
         ase::Vector2i const size(64, 32);
         auto window = platform.makeWindow(context, size, true);
 
-        if (!window.ownsDefaultFramebuffer() || !context.canReadback())
+        if (!context.canReadback())
         {
-            std::cout << "capture: window cannot read back -> FAIL"
+            std::cout << "capture: context cannot read back -> FAIL"
                 << std::endl;
             return false;
         }

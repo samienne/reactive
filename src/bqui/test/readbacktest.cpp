@@ -25,19 +25,6 @@ TEST(readback, dummyContextCannotReadBack)
     EXPECT_FALSE(context.canReadback());
 }
 
-TEST(readback, onlyAHeadlessWindowOwnsItsFramebuffer)
-{
-    btl::RunLoop loop;
-    auto platform = ase::makeDummyPlatform(loop);
-    auto context = platform.makeRenderContext();
-
-    auto headless = platform.makeWindow(context, kSize, true);
-    auto onScreen = platform.makeWindow(context, kSize, false);
-
-    EXPECT_TRUE(headless.ownsDefaultFramebuffer());
-    EXPECT_FALSE(onScreen.ownsDefaultFramebuffer());
-}
-
 TEST(readback, dummyQueueFailsReadbackUnsupported)
 {
     btl::RunLoop loop;
