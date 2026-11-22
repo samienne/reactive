@@ -1,7 +1,7 @@
 # btl — agent notes
 
 *Last verified against `2c6969c` (2026-07-19); the promise abandonment note
-against `24b32d48` (2026-11-22).*
+against `84e63727` (2026-11-22).*
 
 Small utilities used everywhere. Concepts are in `readme.md`; project-wide
 conventions are in the top-level `docs/`.
