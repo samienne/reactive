@@ -1,6 +1,9 @@
 #include <bqui/remote/transport.h>
 
 #include "remote/tcptransport.h"
+#include "scriptedtransport.h"
+
+#include <btl/runloop.h>
 
 #include <gtest/gtest.h>
 
@@ -8,6 +11,7 @@
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -380,4 +384,196 @@ TEST(tcpTransport, receiveReadyReassemblesFrames)
     ASSERT_TRUE(server);
 
     checkReceiveReadyFraming(std::move(client), std::move(server));
+}
+
+// --- The outgoing queue: enqueue() + flushReady() -------------------------
+
+namespace
+{
+    struct Channel
+    {
+        std::unique_ptr<Transport> writer;
+        std::unique_ptr<Transport> reader;
+    };
+
+    // A named pipe on Windows, a Unix socket on POSIX.
+    Channel connectLocal(std::string const& name)
+    {
+        auto endpoint = uniqueEndpoint(name);
+        auto listener = listen(endpoint);
+
+        Channel channel;
+        std::thread acceptThread([&] { channel.writer = listener->accept(); });
+        channel.reader = connect(endpoint);
+        acceptThread.join();
+        return channel;
+    }
+
+    Channel connectTcp()
+    {
+        auto listener = tcpListen(*parseTcpEndpoint("127.0.0.1:0"));
+        auto endpoint = "127.0.0.1:" + std::to_string(listener->port());
+
+        Channel channel;
+        std::thread acceptThread([&] { channel.writer = listener->accept(); });
+        channel.reader = connect(endpoint);
+        acceptThread.join();
+        return channel;
+    }
+
+    std::string patterned(size_t size)
+    {
+        std::string text(size, 'x');
+        for (size_t i = 0; i < size; ++i)
+            text[i] = static_cast<char>('a' + (i % 26));
+        return text;
+    }
+
+    // Flush `writer` from a run loop each time it turns writable, the way the
+    // driver does. Returns false if the queue never emptied.
+    bool flushOnLoop(Transport& writer)
+    {
+        if (writer.flushReady())
+            return true;
+
+        btl::RunLoop loop;
+        btl::RunLoop::Source writable;
+        btl::RunLoop::Timer timeout;
+        bool flushed = false;
+
+        loop.post([&](btl::RunLoop::Controller& controller)
+            {
+                timeout = controller.addTimer(std::chrono::seconds(30),
+                        [](btl::RunLoop::Controller& c) { c.stop(); });
+
+                writable = controller.addWritable(writer.writableHandle(),
+                        [&](btl::RunLoop::Controller& c)
+                        {
+                            if (writer.flushReady())
+                            {
+                                flushed = true;
+                                c.stop();
+                            }
+                        });
+            });
+
+        loop.run();
+        return flushed;
+    }
+
+    // Read `count` frames on another thread while the writer flushes.
+    std::vector<std::string> flushAndReceive(Channel& channel, size_t count)
+    {
+        std::vector<std::string> frames;
+        std::thread reader([&]
+            {
+                while (frames.size() < count)
+                {
+                    auto frame = channel.reader->receive();
+                    if (!frame)
+                        break;
+                    frames.push_back(std::move(*frame));
+                }
+            });
+
+        // A writer that never flushed would leave the reader parked.
+        if (!flushOnLoop(*channel.writer))
+            channel.writer.reset();
+
+        reader.join();
+        return frames;
+    }
+
+    void checkEnqueueDoesNotBlockOnAStalledReader(Channel channel)
+    {
+        ASSERT_TRUE(channel.writer);
+
+        // More than the OS buffers between the two ends hold, so a blocking
+        // write would park here for good: nothing reads yet.
+        std::string big = patterned(16 * 1024 * 1024);
+        channel.writer->enqueue(big);
+        channel.writer->enqueue("after");
+        EXPECT_FALSE(channel.writer->flushReady());
+        EXPECT_FALSE(channel.writer->flushReady());
+
+        auto frames = flushAndReceive(channel, 2);
+
+        ASSERT_EQ(2u, frames.size());
+        EXPECT_TRUE(big == frames[0]);
+        EXPECT_EQ("after", frames[1]);
+    }
+} // namespace
+
+TEST(transport, enqueueDoesNotBlockOnAStalledReader)
+{
+    checkEnqueueDoesNotBlockOnAStalledReader(connectLocal("queuestall"));
+}
+
+TEST(tcpTransport, enqueueDoesNotBlockOnAStalledReader)
+{
+    checkEnqueueDoesNotBlockOnAStalledReader(connectTcp());
+}
+
+TEST(transport, queuedFramesArriveInOrderAcrossShortWrites)
+{
+    testkit::ScriptedTransport transport;
+    transport.writes = { 3, 0, 5, 2, 500, 0 };
+
+    std::string big = patterned(1000);
+    transport.enqueue("before");
+    transport.enqueue(big);
+    transport.enqueue("");
+    transport.enqueue("after");
+
+    EXPECT_FALSE(transport.flushReady());
+    EXPECT_EQ(3u, transport.wire.size());
+    EXPECT_FALSE(transport.flushReady());
+    EXPECT_EQ(510u, transport.wire.size());
+    EXPECT_TRUE(transport.flushReady());
+
+    EXPECT_EQ(testkit::framed("before") + testkit::framed(big)
+            + testkit::framed("") + testkit::framed("after"), transport.wire);
+}
+
+TEST(transport, enqueueThrowsPastTheQueueCapAndThenTakesNoMore)
+{
+    testkit::ScriptedTransport transport(64);
+    transport.afterScript = 0;
+
+    std::string frame(20, 'x');
+    ASSERT_NO_THROW(transport.enqueue(frame));
+    ASSERT_NO_THROW(transport.enqueue(frame));
+    EXPECT_THROW(transport.enqueue(frame), std::runtime_error);
+
+    EXPECT_THROW(transport.enqueue("later"), std::runtime_error);
+    EXPECT_TRUE(transport.flushReady());
+    EXPECT_TRUE(transport.wire.empty());
+}
+
+TEST(transport, writtenBytesLeaveTheQueueCap)
+{
+    testkit::ScriptedTransport transport(64);
+    transport.writes = { 30 };
+    transport.afterScript = 0;
+
+    std::string frame(36, 'x');
+    transport.enqueue(frame);
+    EXPECT_FALSE(transport.flushReady());
+    EXPECT_NO_THROW(transport.enqueue(std::string(46, 'y')));
+    EXPECT_THROW(transport.enqueue("z"), std::runtime_error);
+}
+
+TEST(transport, aFailedWriteThrowsAndThenTakesNoMore)
+{
+    testkit::ScriptedTransport transport;
+    transport.writes = { 2, std::nullopt };
+
+    transport.enqueue("first");
+    transport.enqueue("second");
+    EXPECT_THROW(transport.flushReady(), std::runtime_error);
+    EXPECT_EQ(2u, transport.wire.size());
+
+    EXPECT_TRUE(transport.flushReady());
+    EXPECT_THROW(transport.enqueue("later"), std::runtime_error);
+    EXPECT_EQ(2u, transport.wire.size());
 }
