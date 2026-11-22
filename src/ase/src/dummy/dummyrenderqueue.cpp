@@ -29,10 +29,16 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
 
     for (auto& command : commandBuffer)
     {
-        if (std::holds_alternative<FenceCommand>(command))
+        if (auto* fenceCommand = std::get_if<FenceCommand>(&command))
         {
-            std::get<FenceCommand>(command).fence.getImpl<BasicFence>()
-                .signal(signaled);
+            if (holding_)
+            {
+                held_.push_back(std::move(fenceCommand->fence));
+            }
+            else
+            {
+                fenceCommand->fence.getImpl<BasicFence>().signal(signaled);
+            }
         }
         else if (auto* readback = std::get_if<ReadbackCommand>(&command))
         {
@@ -40,6 +46,25 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
                         ReadbackFailure(ReadbackError::Unsupported)));
         }
     }
+
+    drain_->post(std::move(signaled));
+}
+
+void DummyRenderQueue::holdFences()
+{
+    holding_ = true;
+}
+
+void DummyRenderQueue::releaseFences()
+{
+    holding_ = false;
+
+    auto held = std::move(held_);
+    held_.clear();
+
+    std::vector<btl::future::Promise<>> signaled;
+    for (auto& fence : held)
+        fence.getImpl<BasicFence>().signal(signaled);
 
     drain_->post(std::move(signaled));
 }

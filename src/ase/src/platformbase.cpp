@@ -57,10 +57,16 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     bool fenceTimerArmed = false;
     std::function<void(btl::RunLoop::Controller&)> recheckFences;
 
-    auto armFenceRecheck = [this, &heldBack, &fenceTimer, &fenceTimerArmed,
-            &recheckFences](btl::RunLoop::Controller& controller)
+    // The windows a step skipped that still have no slot. A step seeds it
+    // from the windows it skipped, not from a count taken afterwards, which
+    // would miss a fence that signalled in between.
+    std::size_t stepHeldBack = 0;
+
+    auto armFenceRecheck = [&heldBack, &stepHeldBack, &fenceTimer,
+            &fenceTimerArmed, &recheckFences](
+            btl::RunLoop::Controller& controller)
     {
-        if (heldBack == 0 || fenceTimerArmed)
+        if ((heldBack == 0 && stepHeldBack == 0) || fenceTimerArmed)
             return;
 
         fenceTimerArmed = true;
@@ -97,21 +103,33 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     };
 
     // Between ticks the count only grows through a requestFrame(), which
-    // wakes the loop itself, so a lower count means a window got a slot back.
-    // A fence can signal between any two counts, so each recheck counts once
+    // wakes the loop itself, or a paused step, whose skipped windows keep
+    // their own baseline; so a lower count means a window got a slot back.
+    // A fence can signal between any two counts, so each check counts once
     // and keeps that count as the next baseline.
-    recheckFences = [this, &heldBack, &fenceTimer, &fenceTimerArmed,
-            &armFenceRecheck, &wakeTick](btl::RunLoop::Controller& controller)
+    auto checkHeldBack = [this, &heldBack, &stepHeldBack, &armFenceRecheck,
+            &wakeTick](btl::RunLoop::Controller& controller)
+    {
+        auto count = countHeldBackWindows();
+        auto stepCount = countStepHeldBackWindows();
+        if (count < heldBack || stepCount < stepHeldBack)
+        {
+            runWakeCallback();
+            wakeTick(controller);
+        }
+
+        heldBack = count;
+        stepHeldBack = stepCount;
+        armFenceRecheck(controller);
+    };
+
+    recheckFences = [&fenceTimer, &fenceTimerArmed, &checkHeldBack](
+            btl::RunLoop::Controller& controller)
     {
         fenceTimerArmed = false;
         fenceTimer.detach();
 
-        auto count = countHeldBackWindows();
-        if (count < heldBack)
-            wakeTick(controller);
-
-        heldBack = count;
-        armFenceRecheck(controller);
+        checkHeldBack(controller);
     };
 
     auto scheduleTick = [this, &tickScheduled, &tickTimer, &tickTimerDue, &tick,
@@ -208,6 +226,20 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             wakeTick(c);
         };
 
+    checkHeldBack_ = checkHeldBack;
+    steppedWindows_ = [this, &stepHeldBack]
+    {
+        stepHeldBack = stepSkipped_.size();
+        if (stepHeldBack == 0)
+            return;
+
+        loop_.post([this](btl::RunLoop::Controller& controller)
+            {
+                if (checkHeldBack_)
+                    checkHeldBack_(controller);
+            });
+    };
+
     stepFrame_ = [this, &steppedTime, &frameCallback](
             std::chrono::microseconds dt) -> bool
     {
@@ -216,7 +248,12 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         Frame frame { steppedTime, dt };
 
         bool keepRunning = frameCallback(frame);
-        renderDirtyWindows(frame);
+
+        stepSkipped_.clear();
+        stepTime_ = frame.time;
+        stepDt_ = frame.dt;
+        renderDirtyWindows(frame, &stepSkipped_);
+        steppedWindows_();
 
         return keepRunning;
     };
@@ -244,9 +281,13 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     scheduleTick_ = nullptr;
     stepFrame_ = nullptr;
+    steppedWindows_ = nullptr;
+    checkHeldBack_ = nullptr;
+    stepSkipped_.clear();
 }
 
-void PlatformBase::renderDirtyWindows(Frame const& frame)
+void PlatformBase::renderDirtyWindows(Frame const& frame,
+        std::vector<std::weak_ptr<WindowBase>>* skipped)
 {
     ZoneScopedN("renderDirtyWindows");
 
@@ -260,15 +301,23 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
             // saturated one is skipped without blocking, and the fence recheck
             // wakes the loop to retry it.
             auto due = window->nextFrameTime();
-            if (due && *due <= frame.time && window->canAcquire())
-            {
-                window->frame(frame);
-                window->submitFrameFence();
-            }
+            if (!due || *due > frame.time)
+                continue;
+
+            if (window->canAcquire())
+                renderWindow(*window, frame);
+            else if (skipped)
+                skipped->push_back(weakWindow);
         }
     }
 
     FrameMark;
+}
+
+void PlatformBase::renderWindow(WindowBase& window, Frame const& frame)
+{
+    window.frame(frame);
+    window.submitFrameFence();
 }
 
 std::optional<std::chrono::microseconds>
@@ -306,6 +355,20 @@ PlatformBase::earliestFrameTime()
     return earliest;
 }
 
+std::size_t PlatformBase::countStepHeldBackWindows()
+{
+    std::size_t count = 0;
+
+    for (auto& weakWindow : stepSkipped_)
+    {
+        auto window = weakWindow.lock();
+        if (window && !window->canAcquire())
+            ++count;
+    }
+
+    return count;
+}
+
 std::size_t PlatformBase::countHeldBackWindows()
 {
     std::size_t count = 0;
@@ -335,12 +398,46 @@ void PlatformBase::resumeFrames()
         --pauseCount_;
 
     if (pauseCount_ == 0)
+    {
+        stepSkipped_.clear();
         requestFrame();
+    }
 }
 
 bool PlatformBase::stepFrame(std::chrono::microseconds dt)
 {
     return stepFrame_ ? stepFrame_(dt) : false;
+}
+
+bool PlatformBase::finishStepFrame()
+{
+    auto owed = std::move(stepSkipped_);
+    stepSkipped_.clear();
+
+    Frame frame { stepTime_, stepDt_ };
+
+    for (auto& weakWindow : owed)
+    {
+        auto window = weakWindow.lock();
+        if (!window)
+            continue;
+
+        if (window->canAcquire())
+            renderWindow(*window, frame);
+        else
+            stepSkipped_.push_back(std::move(weakWindow));
+    }
+
+    if (!owed.empty() && steppedWindows_)
+        steppedWindows_();
+
+    return stepSkipped_.empty();
+}
+
+void PlatformBase::setWakeCallback(
+        std::weak_ptr<std::function<void()>> callback)
+{
+    wakeCallback_ = std::move(callback);
 }
 
 void PlatformBase::requestFrame()
@@ -350,10 +447,22 @@ void PlatformBase::requestFrame()
         loop_.post([this](btl::RunLoop::Controller& controller)
             {
                 wakePosted_ = false;
+                runWakeCallback();
+
                 if (scheduleTick_)
                     scheduleTick_(controller);
             });
     }
+}
+
+void PlatformBase::runWakeCallback()
+{
+    if (pauseCount_ == 0)
+        return;
+
+    auto wake = wakeCallback_.lock();
+    if (wake && *wake)
+        (*wake)();
 }
 
 btl::RunLoop& PlatformBase::runLoop()

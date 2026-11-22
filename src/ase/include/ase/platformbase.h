@@ -44,6 +44,9 @@ namespace ase
         void pauseFrames() override;
         void resumeFrames() override;
         bool stepFrame(std::chrono::microseconds dt) override;
+        bool finishStepFrame() override;
+        void setWakeCallback(
+                std::weak_ptr<std::function<void()>> callback) override;
         void requestFrame() override;
         btl::RunLoop& runLoop() override;
 
@@ -97,6 +100,8 @@ namespace ase
         // requestFrame() and a pause token can reach the loop-local tick.
         std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
         std::function<bool(std::chrono::microseconds)> stepFrame_;
+        std::function<void()> steppedWindows_;
+        std::function<void(btl::RunLoop::Controller&)> checkHeldBack_;
 
         // Depth of outstanding pause tokens; non-zero suspends auto-cadence
         // frames.
@@ -107,7 +112,23 @@ namespace ase
         std::chrono::microseconds frameStep_{ 0 };
 
     private:
-        void renderDirtyWindows(Frame const& frame);
+        // Appends each due window passed over for want of an in-flight slot to
+        // `skipped`, when given.
+        void renderDirtyWindows(Frame const& frame,
+                std::vector<std::weak_ptr<WindowBase>>* skipped = nullptr);
+
+        void renderWindow(WindowBase& window, Frame const& frame);
+
+        // A no-op unless frames are paused.
+        void runWakeCallback();
+
+        // The windows the last stepped frame is still owed, and that frame's
+        // time and dt.
+        std::vector<std::weak_ptr<WindowBase>> stepSkipped_;
+        std::chrono::microseconds stepTime_{ 0 };
+        std::chrono::microseconds stepDt_{ 0 };
+
+        std::weak_ptr<std::function<void()>> wakeCallback_;
 
         // The earliest frame time a renderable window wants its next frame at,
         // or nullopt if none does; the loop schedules its next tick to this.
@@ -115,6 +136,9 @@ namespace ase
 
         // How many windows want a frame but have no free in-flight slot.
         std::size_t countHeldBackWindows();
+
+        // How many windows the last step is owed that have no free slot yet.
+        std::size_t countStepHeldBackWindows();
 
         // When the scheduled wait for the next tick ends. A wake that cuts
         // the timer short keeps it; a pause ends the wait at the pause.
