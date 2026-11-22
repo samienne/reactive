@@ -18,7 +18,9 @@
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <optional>
 #include <random>
+#include <stdexcept>
 #include <thread>
 #include <type_traits>
 
@@ -636,4 +638,117 @@ TEST(async, whenAllReleasesInputsOnFailure)
 
     EXPECT_EQ(1, useCountWhenReady);
     EXPECT_EQ(1, value.use_count());
+}
+
+TEST(async, abandonedPromiseFailsFuture)
+{
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    {
+        auto dropped = std::move(p);
+    }
+
+    ASSERT_TRUE(fut.ready());
+    EXPECT_THROW(std::move(fut).get(), BrokenPromise);
+}
+
+TEST(async, abandonedPromiseSkipsThenAndReportsFailure)
+{
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    bool thenRan = false;
+    std::exception_ptr failure;
+
+    auto r = std::move(fut)
+        .then([&thenRan](int)
+            {
+                thenRan = true;
+            })
+        .onFailure([&failure](std::exception_ptr err)
+            {
+                failure = std::move(err);
+            });
+
+    {
+        auto dropped = std::move(p);
+    }
+
+    EXPECT_FALSE(thenRan);
+    ASSERT_TRUE(failure);
+    EXPECT_THROW(std::rethrow_exception(failure), BrokenPromise);
+    EXPECT_THROW(r.getRefTuple(), BrokenPromise);
+}
+
+TEST(async, abandonedPromiseOfDetachedFutureIsHarmless)
+{
+    auto [p, fut] = btl::test::makeManualFuture<>();
+
+    bool thenRan = false;
+    std::move(fut).then([&thenRan]()
+        {
+            thenRan = true;
+        }).detach();
+
+    {
+        auto dropped = std::move(p);
+    }
+
+    EXPECT_FALSE(thenRan);
+}
+
+TEST(async, promiseCopiesAbandonOnlyWhenLastGoes)
+{
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    int failures = 0;
+    auto r = std::move(fut).onFailure([&failures](std::exception_ptr)
+        {
+            ++failures;
+        });
+
+    auto copy = std::make_optional(p);
+    {
+        auto dropped = std::move(p);
+    }
+
+    EXPECT_FALSE(r.ready());
+
+    copy.reset();
+
+    ASSERT_TRUE(r.ready());
+    EXPECT_EQ(1, failures);
+}
+
+TEST(async, fulfilledPromiseDestructionKeepsValue)
+{
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    {
+        auto dropped = std::move(p);
+        dropped.set(5);
+    }
+
+    EXPECT_EQ(5, std::move(fut).get());
+}
+
+TEST(async, failedPromiseDestructionKeepsFailure)
+{
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    {
+        auto dropped = std::move(p);
+        dropped.setFailure(
+                std::make_exception_ptr(std::runtime_error("test error")));
+    }
+
+    EXPECT_THROW(std::move(fut).get(), std::runtime_error);
+}
+
+TEST(async, promiseOutlivingFutureIsHarmless)
+{
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    std::move(fut).cancel();
+
+    EXPECT_FALSE(p.valid());
 }

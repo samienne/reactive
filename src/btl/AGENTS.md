@@ -1,6 +1,7 @@
 # btl — agent notes
 
-*Last verified against `2c6969c` (2026-07-19).*
+*Last verified against `2c6969c` (2026-07-19); the promise abandonment note
+against `84e63727` (2026-11-22).*
 
 Small utilities used everywhere. Concepts are in `readme.md`; project-wide
 conventions are in the top-level `docs/`.
@@ -32,6 +33,16 @@ conventions are in the top-level `docs/`.
   publishing the result, so a ready combined future implies the inputs are
   already released. Any new combinator built this way needs both the extra
   count and the rendezvous.
+- **A promise abandoned unfulfilled fails its future** with
+  `future::BrokenPromise`. `Promise` copies share one `detail::PromiseState`,
+  whose destructor does this, so it fires once, when the last copy goes, and
+  only if nothing was set first. Continuations then run inside that
+  destructor, on the thread that dropped the last copy, often a teardown path;
+  `then` skips its function and passes the failure on, and a detached future
+  swallows it. An `onFailure` callback is not wrapped in a `try`, so one that
+  throws there terminates. `Future<>::get()` does not rethrow (it never reads
+  the result); use `getRefTuple()` or `onFailure` to observe a failure of a
+  valueless future.
 - Most of `btl` is header-only template code, which is why the include-dir
   firewall matters here (see `docs/conventions.md`).
 - **On Windows, posts and timers can run under the message-source callback.**

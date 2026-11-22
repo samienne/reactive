@@ -40,6 +40,9 @@
     #endif
 
 #elif defined(_WIN32)
+    #define BTL_CLASS_VISIBLE
+    #define BTL_CLASS_HIDDEN
+
     #define BTL_EXPORT __declspec(dllexport)
     #define BTL_IMPORT __declspec(dllimport)
     /* dllexport on an `extern template` declaration is C4910 (MSVC) and
