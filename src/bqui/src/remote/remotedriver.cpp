@@ -16,6 +16,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -30,6 +31,21 @@ namespace bqui::remote
 using nlohmann::json;
 
 RemoteWindow::~RemoteWindow() = default;
+
+bool RemoteWindow::canReadback() const
+{
+    return false;
+}
+
+btl::future::Future<ase::ReadbackImage> RemoteWindow::readback()
+{
+    auto control = std::make_shared<
+        btl::future::FutureControl<ase::ReadbackImage>>();
+    control->setFailure(std::make_exception_ptr(
+                ase::ReadbackFailure(ase::ReadbackError::Unsupported)));
+
+    return { std::move(control) };
+}
 
 namespace
 {
@@ -631,7 +647,10 @@ private:
 
         json windows = json::array();
         for (auto& window : app_.liveWindows())
-            windows.push_back({ { "id", window.get().id().getValue() } });
+            windows.push_back({
+                    { "id", window.get().id().getValue() },
+                    { "canCapture", window.get().canReadback() },
+                    });
 
         return { { "windows", windows } };
     }
@@ -736,7 +755,8 @@ private:
             } });
 
         dispatcher_.add({ "window.list",
-            "List the live windows by id.",
+            "List the live windows by id, with whether each can be "
+            "captured (`canCapture`).",
             {},
             [this](json const& p, Responder&) { return windowList(p); } });
 

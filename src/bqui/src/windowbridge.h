@@ -99,6 +99,8 @@ public:
     void injectText(std::string text) override;
     widget::Introspection introspect() const override;
     avg::Snapshot snapshot() const override;
+    bool canReadback() const override;
+    btl::future::Future<ase::ReadbackImage> readback() override;
 
 private:
     struct WakeTarget;
@@ -109,6 +111,7 @@ private:
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::memory_resource* memory_;
     ase::Window aseWindow;
+    bool canReadback_;
 
     std::shared_ptr<WindowData> windowData_;
     avg::Painter painter_;
