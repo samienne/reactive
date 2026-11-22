@@ -3,6 +3,8 @@
 #include "tcpsocket.h"
 
 #ifdef _WIN32
+#   include "overlappedwriter.h"
+
 #   include <btl/win32/nativehandle_win32.h>
 #else
 #   include <btl/posix/nativehandle_posix.h>
@@ -84,10 +86,26 @@ std::optional<TcpAddress> parseTcpEndpoint(std::string const& endpoint)
     return TcpAddress{ std::move(host), static_cast<uint16_t>(port) };
 }
 
-TcpTransport::TcpTransport(TcpSocket sock) : sock_(sock) {}
+#ifdef _WIN32
+TcpTransport::TcpTransport(TcpSocket sock) :
+    sock_(sock),
+    writer_(std::make_unique<OverlappedWriter>(
+                reinterpret_cast<HANDLE>(static_cast<RawSocket>(sock))))
+{
+}
+#else
+TcpTransport::TcpTransport(TcpSocket sock) : sock_(sock)
+{
+    setNonBlocking(static_cast<RawSocket>(sock_));
+}
+#endif
 
 TcpTransport::~TcpTransport()
 {
+#ifdef _WIN32
+    writer_->cancel();
+#endif
+
     if (static_cast<RawSocket>(sock_) != kInvalidSocket)
         closeRawSocket(static_cast<RawSocket>(sock_));
 }
@@ -117,6 +135,11 @@ void TcpTransport::writeAll(void const* data, size_t size)
 #ifndef _WIN32
             if (lastSocketError() == EINTR)
                 continue;
+            if (lastSocketError() == EAGAIN || lastSocketError() == EWOULDBLOCK)
+            {
+                waitForSocket(static_cast<RawSocket>(sock_), POLLOUT);
+                continue;
+            }
 #endif
             throw tcpError("send");
         }
@@ -140,6 +163,11 @@ bool TcpTransport::readAll(void* data, size_t size)
 #ifndef _WIN32
             if (lastSocketError() == EINTR)
                 continue;
+            if (lastSocketError() == EAGAIN || lastSocketError() == EWOULDBLOCK)
+            {
+                waitForSocket(static_cast<RawSocket>(sock_), POLLIN);
+                continue;
+            }
 #endif
             // A reset peer is a closed channel, not an error to propagate —
             // mirror the pipe transport's ERROR_BROKEN_PIPE handling.
@@ -167,6 +195,45 @@ btl::NativeHandle TcpTransport::nativeHandle()
 #endif
 }
 
+btl::NativeHandle TcpTransport::writableHandle()
+{
+#ifdef _WIN32
+    return btl::fromHandle(writer_->event());
+#else
+    return nativeHandle();
+#endif
+}
+
+size_t TcpTransport::writeReady(void const* data, size_t size)
+{
+#ifdef _WIN32
+    return writer_->write(data, size);
+#else
+    for (;;)
+    {
+        auto wrote = ::send(static_cast<RawSocket>(sock_), data, size,
+                kSendFlags);
+        if (wrote >= 0)
+            return static_cast<size_t>(wrote);
+
+        int err = lastSocketError();
+        if (err == EINTR)
+            continue;
+        if (err == EAGAIN || err == EWOULDBLOCK)
+            return 0;
+
+        throw tcpError("send");
+    }
+#endif
+}
+
+#ifdef _WIN32
+bool TcpTransport::writePending()
+{
+    return writer_->pending();
+}
+#endif
+
 bool TcpTransport::fillReady(std::string& out)
 {
     auto sock = static_cast<RawSocket>(sock_);
@@ -189,7 +256,7 @@ bool TcpTransport::fillReady(std::string& out)
 #ifdef _WIN32
         int got = ::recv(sock, buffer, sizeof(buffer), 0);
 #else
-        ssize_t got = ::recv(sock, buffer, sizeof(buffer), MSG_DONTWAIT);
+        ssize_t got = ::recv(sock, buffer, sizeof(buffer), 0);
 #endif
         if (got > 0)
         {

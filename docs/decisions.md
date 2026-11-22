@@ -3,10 +3,57 @@
 *Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the pixel readback entry against
 `5a26b28f` (2026-11-22); the fence and backpressure entries against
-`f1595378` (2026-11-22).*
+`f1595378` (2026-11-22); the bulk remote results entry against `22fcb970`
+(2026-11-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## Bulk remote results are blobs the client pulls
+
+A remote method with a large result can answer with a blob descriptor instead
+of the inline result. The client pulls the bytes with `blob.read` and frees
+them with `blob.release`. A chunk is base64 inside an ordinary JSON reply. A
+session caps the bytes held in unreleased blobs (256 MiB) and clamps a read to
+1 MiB, 256 KiB by default; a blob lives until it is released or the session
+ends.
+
+**Why:** pulling gives flow control without a second channel. Each chunk is
+one bounded reply, so the outgoing queue never holds a whole image, and other
+requests interleave between the chunks. Base64 keeps the framing pure JSON;
+the encoding sits behind `blob.read` and is named in each reply and in
+`system.describe`, so a binary frame kind can replace it without changing the
+methods. Release is explicit rather than on reading the last byte, so a
+client can re-read a range. The cap bounds what a client that never releases
+can make the app hold, and failing the producer, not evicting an older blob,
+keeps every handed-out id valid until its owner lets go.
+
+## The remote driver ends a session whose outgoing queue passes its cap
+
+Replies and notifications wait in a per-transport queue capped at
+`kMaxQueuedBytes`. A frame that would pass the cap drops the queue and ends
+the session with a logged reason, as a write error does; a single frame larger
+than the cap ends it too.
+
+**Why:** the alternatives are worse. Dropping frames to make room would hand a
+JSON-RPC client a reply stream with holes, and a missing reply looks like a
+hang. Blocking until the client reads would park the app's loop thread, which
+the non-blocking queue exists to avoid. Growing without bound lets a stalled
+client exhaust the app's memory. A client that stops reading has broken the
+protocol, so ending its session is the honest outcome.
+
+## The remote driver's shutdown flush is bounded by inactivity
+
+On an orderly end (`app.shutdown`, the app finishing, or the client closing
+its sending side) the driver keeps flushing queued replies, and stops the loop
+once the queue drains, a write fails, or the client has taken nothing for
+`kShutdownFlushTimeout` (2 s).
+
+**Why:** not flushing at all truncates the last reply, which is often the one
+the client asked for (an introspection, the shutdown acknowledgement). Waiting
+without a bound lets a client that stopped reading keep the app alive forever.
+Bounding inactivity rather than total time lets a slow client that is still
+reading a large reply finish it.
 
 ## A fence is polled; its futures are fulfilled off the render thread
 
@@ -219,6 +266,30 @@ parallel `runSession` loop over a wrapped platform. Folding remote onto the same
 `pause`/`step` primitive that every test and the dummy backend already use is what
 keeps the frame path identical local and remote — no `RemoteWindowImpl`, no
 decorator, no second driving path.
+
+## Remote requests take effect in order; their replies may overtake
+
+A remote method handler may answer later than it returns (a `Responder` it
+keeps). Requests are still dispatched in arrival order, and a handler whose
+effect on the app is unfinished holds a dispatch gate that queues the requests
+behind it, so what a client did happens in the order it asked. Replies are not
+held to that order: one that is slow to produce is overtaken, and the `id`
+correlates. `app.step` is the first deferred method: it answers only after
+every window due in its frames has rendered, where it used to answer even when
+a window without a free in-flight slot had been skipped. A step whose frames
+stop completing fails after a deadline (5 s without progress), so a stuck GPU
+cannot hold the session's later requests, `app.shutdown` among them, for good.
+A client that half-closes still gets the pending step's reply and those behind
+it.
+
+**Why:** strictly serial replies would be simpler for a naive client, but would
+make everything wait behind one slow answer (a screenshot's readback and
+encode). Ordering the effects is what a client's script relies on (inject,
+step, observe); the order of replies carries no meaning that the ids do not.
+The deadline is an inactivity bound rather than a limit on the whole step, so
+a long multi-frame step on a slow GPU still completes; a one-shot script that
+sends its requests and half-closes is the common client, so ending its input
+must not end the answers it is owed.
 
 ## `present` returns `PresentStatus`, not `void`
 

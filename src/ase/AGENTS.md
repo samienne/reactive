@@ -2,7 +2,8 @@
 
 *Last verified against `a662f42` (2026-08-22); the pixel readback note against
 `5a26b28f` (2026-11-22); the fence and backpressure notes against `f1595378`
-(2026-11-22).*
+(2026-11-22); the framebuffer notes against `9e9936b5` (2026-11-22); the
+pause and step notes against `22fcb970` (2026-11-22).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -79,13 +80,29 @@ are in the top-level `docs/`.
   callback/render path an auto tick takes; "paused" suspends auto-cadence frame
   *production*, not the loop (events/IO keep pumping), and dropping the token
   resumes the cadence. `step` lives only on the token, so a free-running loop
-  cannot be stepped by construction.
+  cannot be stepped by construction. A step, like a tick, skips a due window
+  that has no free in-flight slot, but it remembers the skipped windows:
+  `finishStep()` renders those that have a slot by now, on the stepped frame's
+  own time and dt, and reports whether any are left. A step arms the fence
+  recheck itself, since it renders outside a tick, and the recheck watches the
+  skipped windows against how many the step skipped, not a later count, which
+  would miss a fence that signalled in between. While paused, each loop wake
+  (`requestFrame`, or the fence recheck seeing a held-back window get its slot
+  back) also runs the callback set with `PauseToken::setWakeCallback`, on the
+  loop thread, so the holder knows when to call `finishStep()` again. The
+  platform has one such callback, not one per token: setting one replaces the
+  last, and the platform holds it weakly, so it ends with the token that set it
+  and a stale token cannot clear a newer one. Resuming the cadence forgets the
+  skipped windows. The dummy context can stand in for a busy GPU:
+  `DummyRenderContext::holdFences()` leaves fences unsignaled until
+  `releaseFences()`.
 - **`PlatformImpl` is a pure interface; `PlatformBase` holds the shared guts.**
   Mirroring the `WindowImpl`/`WindowBase` split below: `PlatformImpl`
   (`include/ase/platformimpl.h`) is only the public platform virtuals the
   `Platform` handle and its `PauseToken` call (`makeWindow`, `makeRenderContext`,
-  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`, `requestFrame`, `runLoop`) plus
-  the `getImplOfType` type-erasure plumbing. Every backend derives instead from
+  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`/`finishStepFrame`/
+  `setWakeCallback`, `requestFrame`, `runLoop`) plus the `getImplOfType`
+  type-erasure plumbing. Every backend derives instead from
   `PlatformBase` (`include/ase/platformbase.h`, `src/platformbase.cpp`), which
   owns the injected `loop_`, the shared frame-loop body, the pause/step state, and
   the loop-contract *protected* virtuals a backend fills in (`handleEvents`,

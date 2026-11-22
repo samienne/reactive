@@ -1,8 +1,10 @@
 #pragma once
 
+#include "fence.h"
 #include "renderqueueimpl.h"
 
 #include <memory>
+#include <vector>
 
 namespace ase
 {
@@ -13,7 +15,7 @@ namespace ase
     public:
         /**
          * @brief Headless render queue: nothing draws and fences signal
-         * on submit().
+         * on submit(), unless they are being held.
          */
         DummyRenderQueue();
 
@@ -22,7 +24,12 @@ namespace ase
         void finish() override;
         void submit(CommandBuffer&& renderQueue) override;
 
+        void holdFences();
+        void releaseFences();
+
     private:
         std::shared_ptr<FenceDrain> drain_;
+        bool holding_ = false;
+        std::vector<Fence> held_;
     };
 } // namespace ase

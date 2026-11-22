@@ -2,6 +2,7 @@
 
 #ifdef _WIN32
 
+#include "overlappedwriter.h"
 #include "streamtransport.h"
 
 #include <atomic>
@@ -37,11 +38,14 @@ namespace bqui::remote
 
         void close() override;
         btl::NativeHandle nativeHandle() override;
+        btl::NativeHandle writableHandle() override;
 
     protected:
         void writeAll(void const* data, size_t size) override;
         bool readAll(void* data, size_t size) override;
         bool fillReady(std::string& out) override;
+        size_t writeReady(void const* data, size_t size) override;
+        bool writePending() override;
 
     private:
         HANDLE handle_;
@@ -59,6 +63,8 @@ namespace bqui::remote
         OVERLAPPED readyOverlapped_{};
         char readyChunk_[8192];
         bool readPending_ = false;
+
+        OverlappedWriter writer_;
     };
 } // namespace bqui::remote
 
