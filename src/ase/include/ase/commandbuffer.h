@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rendercommand.h"
+#include "readback.h"
 #include "asevisibility.h"
 
 #include <btl/future.h>
@@ -45,6 +46,20 @@ namespace ase
                 );
 
         void pushUpload(Texture target, Buffer data, Vector2i size, Format format);
+
+        /**
+         * @brief Read back the whole colour of `source` once the commands
+         * pushed before it have drawn.
+         *
+         * The size is the framebuffer's when the command runs, and the image
+         * carries it. The future completes on any thread with the pixels, or
+         * fails with `ReadbackFailure`: `ReadbackError::Unsupported` on a
+         * render context whose `canReadback()` is false, or
+         * `ReadbackError::Failed` when the backend cannot read. It fails with
+         * `btl::future::BrokenPromise` if the command is dropped unrun, as
+         * when the render context is destroyed first.
+         */
+        btl::future::Future<ReadbackImage> pushReadback(Framebuffer source);
 
         size_t size() const;
         Iterator begin();

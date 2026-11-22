@@ -38,6 +38,11 @@ std::shared_ptr<RenderContextImpl> RenderContext::getSharedImpl() const
     return deferred_;
 }
 
+bool RenderContext::canReadback() const
+{
+    return d()->canReadback();
+}
+
 RenderQueue RenderContext::getTransferQueue()
 {
     return RenderQueue(d()->getTransferQueue());

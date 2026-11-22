@@ -42,6 +42,11 @@ Framebuffer& OffscreenWindow::getDefaultFramebuffer()
     return framebuffer_;
 }
 
+bool OffscreenWindow::ownsDefaultFramebuffer() const
+{
+    return true;
+}
+
 void OffscreenWindow::requestFrame()
 {
     genericWindow_.requestFrame();
