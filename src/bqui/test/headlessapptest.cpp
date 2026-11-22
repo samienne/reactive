@@ -44,6 +44,16 @@ namespace
     // the run completes cleanly, not its timing.
     constexpr std::chrono::microseconds kFrameStep{ 16667 };
 
+    // A quiescing frame is the last tick the loop runs until it is woken,
+    // so a test that ends on one stops the loop from it.
+    void stopLoop(btl::RunLoop& loop)
+    {
+        loop.post([](btl::RunLoop::Controller& controller)
+                {
+                    controller.stop();
+                });
+    }
+
     void runScript(AnyWidget content,
             std::function<void(App&, ase::PauseToken&)> script)
     {
@@ -288,16 +298,29 @@ TEST(headlessApp, requestFrameFromAnotherThreadWakesAnIdleLoop)
     auto context = platform.makeRenderContext();
     auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
 
+    std::promise<void> idle;
+    std::promise<void> finished;
+
     int frames = 0;
     window.setFrameCallback([&](ase::Frame const&)
             -> std::optional<std::chrono::microseconds>
             {
-                ++frames;
+                // The quiescing frame schedules nothing more; a task posted
+                // from it runs once the loop has gone idle.
+                if (++frames == 1)
+                {
+                    loop.post([&](btl::RunLoop::Controller&)
+                            {
+                                idle.set_value();
+                            });
+                }
+                else
+                {
+                    stopLoop(loop);
+                }
                 return std::nullopt;
             });
 
-    std::promise<void> idle;
-    std::promise<void> finished;
     std::thread requester([&]
             {
                 idle.get_future().wait();
@@ -313,21 +336,7 @@ TEST(headlessApp, requestFrameFromAnotherThreadWakesAnIdleLoop)
                 }
             });
 
-    bool idleSignalled = false;
-    platform.run([&](ase::Frame const&)
-            {
-                // The first tick after the quiescing frame schedules nothing
-                // more; a task posted from it runs once the loop has gone idle.
-                if (frames == 1 && !idleSignalled)
-                {
-                    idleSignalled = true;
-                    loop.post([&](btl::RunLoop::Controller&)
-                            {
-                                idle.set_value();
-                            });
-                }
-                return frames < 2;
-            });
+    platform.run([](ase::Frame const&) { return true; });
 
     finished.set_value();
     requester.join();
@@ -358,6 +367,7 @@ TEST(headlessApp, requestFrameCutsALongWaitShort)
                 {
                     secondFrame = std::chrono::steady_clock::now();
                     secondFrameTime = frame.time;
+                    stopLoop(loop);
                     return std::nullopt;
                 }
 
@@ -374,7 +384,7 @@ TEST(headlessApp, requestFrameCutsALongWaitShort)
                 return std::chrono::seconds(5);
             });
 
-    platform.run([&](ase::Frame const&) { return frames < 2; });
+    platform.run([](ase::Frame const&) { return true; });
 
     ASSERT_EQ(2, frames);
     EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -434,6 +444,7 @@ TEST(headlessApp, aLongWaitEndsOnTime)
                 if (++frames != 1)
                 {
                     secondFrame = std::chrono::steady_clock::now();
+                    stopLoop(loop);
                     return std::nullopt;
                 }
 
@@ -441,7 +452,7 @@ TEST(headlessApp, aLongWaitEndsOnTime)
                 return kWait;
             });
 
-    platform.run([&](ase::Frame const&) { return frames < 2; });
+    platform.run([](ase::Frame const&) { return true; });
 
     auto waited = std::chrono::duration_cast<std::chrono::microseconds>(
             secondFrame - firstFrame);

@@ -7,26 +7,22 @@
 
 #include <tracy/Tracy.hpp>
 
-#include <mutex>
+#include <algorithm>
+#include <cstddef>
 
 namespace ase
 {
 
-// The window's backpressure state, shared with the fence completion callback so
-// a fence can free a slot even after the window itself is gone.
-struct WindowPresentSync
+namespace
 {
-    std::mutex mutex;
-
-    int inFlight = 0;
-    int budget = 2;
-};
+    // Frames a window may have queued on the GPU at once.
+    constexpr std::size_t kFrameBudget = 2;
+} // namespace
 
 WindowBase::WindowBase(RenderContext& context, Vector2i size,
         float scalingFactor) :
     genericWindow_(size, scalingFactor),
-    context_(context.getSharedImpl()),
-    presentSync_(std::make_shared<WindowPresentSync>())
+    context_(context.getSharedImpl())
 {
 }
 
@@ -46,44 +42,26 @@ std::chrono::microseconds WindowBase::lastFrameTime() const
     return genericWindow_.lastFrameTime();
 }
 
-bool WindowBase::canAcquire() const
+bool WindowBase::canAcquire()
 {
-    auto sync = presentSync_;
+    inFlight_.erase(std::remove_if(inFlight_.begin(), inFlight_.end(),
+                [](Fence const& fence) { return fence.isSignaled(); }),
+            inFlight_.end());
 
-    std::lock_guard<std::mutex> lock(sync->mutex);
-    return sync->inFlight < sync->budget;
+    return inFlight_.size() < kFrameBudget;
 }
 
-void WindowBase::submitFrameFence(std::function<void()> onSlotFreed)
+void WindowBase::submitFrameFence()
 {
     ZoneScopedN("submitFrameFence");
-
-    auto sync = presentSync_;
-
-    {
-        std::lock_guard<std::mutex> lock(sync->mutex);
-        ++sync->inFlight;
-    }
 
     Fence fence = context_.makeFence();
 
     CommandBuffer commandBuffer;
     commandBuffer.pushFence(fence);
-
-    fence.whenSignaled().then([sync, onSlotFreed = std::move(onSlotFreed)]
-        {
-            {
-                std::lock_guard<std::mutex> lock(sync->mutex);
-                --sync->inFlight;
-            }
-
-            // The fence may complete on any thread -- it varies by backend --
-            // so this wake must be thread-safe; requestFrame() is.
-            if (onSlotFreed)
-                onSlotFreed();
-        }).detach();
-
     context_.getMainRenderQueue().submit(std::move(commandBuffer));
+
+    inFlight_.push_back(std::move(fence));
 }
 
 void WindowBase::setCursor(Cursor cursor)
