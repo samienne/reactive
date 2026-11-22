@@ -3,7 +3,7 @@
 *Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the bulk remote results entry against
 `5d2700c` (2026-11-16); the remote screenshot entry against `d4af8075`
-(2026-11-21); the pixel readback entry against `24b32d48` (2026-11-22).*
+(2026-11-21); the pixel readback entry against `12aae85a` (2026-11-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.

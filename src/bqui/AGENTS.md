@@ -1,7 +1,7 @@
 # bqui — agent notes
 
 *Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework;
-the remote readback and screenshot paragraphs against `24b32d48`
+the remote readback and screenshot paragraphs against `12aae85a`
 (2026-11-22).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
