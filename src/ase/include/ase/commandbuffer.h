@@ -53,9 +53,10 @@ namespace ase
          *
          * The size is the framebuffer's when the command runs, and the image
          * carries it. The future completes on any thread with the pixels, or
-         * fails with `ReadbackFailure`: `ReadbackError::Unsupported` on a
-         * render context whose `canReadback()` is false, or
-         * `ReadbackError::Failed` when the backend cannot read. It fails with
+         * fails with `ReadbackFailure`: `ReadbackError::Unsupported` when
+         * the render context's `canReadback()` is false or the backend
+         * cannot read this framebuffer, or `ReadbackError::Failed` when the
+         * read itself fails. It fails with
          * `btl::future::BrokenPromise` if the command is dropped unrun, as
          * when the render context is destroyed first.
          */

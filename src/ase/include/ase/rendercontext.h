@@ -93,8 +93,10 @@ namespace ase
         /**
          * @brief Whether this context can read pixels back.
          *
-         * When false, a readback pushed on its queues completes with
-         * `ReadbackError::Unsupported`. False on the dummy backend.
+         * When false, every readback pushed on its queues fails with
+         * `ReadbackError::Unsupported`. When true the backend supports
+         * readback, but one of a particular framebuffer can still fail that
+         * way. False on the dummy backend.
          */
         bool canReadback() const;
 
