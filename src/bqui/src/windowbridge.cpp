@@ -498,4 +498,19 @@ btl::future::Future<ase::ReadbackImage> WindowBridge::readback()
     return image;
 }
 
+void WindowBridge::requestFrame()
+{
+    aseWindow.requestFrame();
+}
+
+float WindowBridge::scalingFactor() const
+{
+    return aseWindow.getScalingFactor();
+}
+
+std::uint64_t WindowBridge::presentCount() const
+{
+    return frames_;
+}
+
 } // namespace bqui

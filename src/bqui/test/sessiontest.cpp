@@ -3,6 +3,8 @@
 #include "remote/capture.h"
 #include "remote/dispatcher.h"
 #include "remote/introspectionjson.h"
+#include "remote/png.h"
+#include "remote/screenshot.h"
 #include "remote/streamtransport.h"
 #include "remote/tcptransport.h"
 #include "scriptedtransport.h"
@@ -33,6 +35,8 @@
 #include <ase/rendercontext.h>
 #include <ase/window.h>
 #include <avg/color.h>
+#include <avg/obb.h>
+#include <avg/rect.h>
 
 #include <btl/future/future.h>
 #include <btl/future/promise.h>
@@ -269,26 +273,94 @@ namespace
     };
 
     // A fake that can read back: it holds each pending readback until the
-    // test completes it.
+    // test completes it, as a render thread would, unless told to serve a
+    // result at once. It presents whenever the fixture steps, and a widget layout set
+    // for the next present takes effect there.
     class CapturableFakeWindow : public FakeRemoteWindow
     {
     public:
         using FakeRemoteWindow::FakeRemoteWindow;
 
+        using Widget = std::optional<std::pair<avg::UniqueId, LogicalRect>>;
+
+        Introspection introspect() const override
+        {
+            Introspection root = FakeRemoteWindow::introspect();
+
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            if (widget_)
+            {
+                LogicalRect const& r = widget_->second;
+                Introspection child;
+                child.id = widget_->first;
+                child.obb = avg::Obb(avg::Rect(ase::Vector2f(r.x, r.y),
+                            ase::Vector2f(r.width, r.height)));
+                root.children.push_back(
+                        makeIntrospectionChild(std::move(child)));
+            }
+
+            return root;
+        }
+
         bool canReadback() const override { return true; }
 
         btl::future::Future<ase::ReadbackImage> readback() override
         {
+            presentsWhenArmed_ = presents_.load();
+
             auto control = std::make_shared<
                 btl::future::FutureControl<ase::ReadbackImage>>();
             ArmedReadback armed{
                 btl::future::Promise<ase::ReadbackImage>(control) };
             btl::future::Future<ase::ReadbackImage> image(std::move(control));
 
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::unique_lock<std::mutex> lock(mutex_);
+            if (serveWith_)
+            {
+                auto result = *serveWith_;
+                lock.unlock();
+                armed(std::move(result));
+                return image;
+            }
+
             armed_.push_back(std::move(armed));
+            armedChanged_.notify_all();
 
             return image;
+        }
+
+        std::uint64_t presentsWhenArmed() const
+        {
+            return presentsWhenArmed_.load();
+        }
+
+        void requestFrame() override { ++frameRequests_; }
+
+        float scalingFactor() const override { return scalingFactor_; }
+
+        std::uint64_t presentCount() const override { return presents_; }
+
+        void present()
+        {
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            if (nextWidget_)
+            {
+                widget_ = *nextWidget_;
+                nextWidget_.reset();
+            }
+            ++presents_;
+        }
+
+        void setWidget(Widget widget)
+        {
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            widget_ = std::move(widget);
+        }
+
+        void setWidgetAtNextPresent(Widget widget)
+        {
+            std::lock_guard<std::mutex> lock(widgetMutex_);
+            nextWidget_ = std::move(widget);
         }
 
         std::vector<ArmedReadback> takeArmed()
@@ -297,9 +369,37 @@ namespace
             return std::move(armed_);
         }
 
+        // Waits until `count` captures are armed, then takes them.
+        std::vector<ArmedReadback> awaitArmed(size_t count)
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            armedChanged_.wait_for(lock, std::chrono::seconds(10),
+                    [&] { return armed_.size() >= count; });
+            return std::move(armed_);
+        }
+
+        void serveWith(LoopReadbackResult result)
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            serveWith_ = std::move(result);
+        }
+
+        void setScalingFactor(float factor) { scalingFactor_ = factor; }
+
+        int frameRequests() const { return frameRequests_.load(); }
+
     private:
         std::mutex mutex_;
+        std::condition_variable armedChanged_;
         std::vector<ArmedReadback> armed_;
+        std::optional<LoopReadbackResult> serveWith_;
+        std::atomic<int> frameRequests_{ 0 };
+        float scalingFactor_ = 1.0f;
+        mutable std::mutex widgetMutex_;
+        Widget widget_;
+        std::optional<Widget> nextWidget_;
+        std::atomic<std::uint64_t> presents_{ 0 };
+        std::atomic<std::uint64_t> presentsWhenArmed_{ 0 };
     };
 
     // Serve the driver over `fakes` on a background thread against a loopback
@@ -327,6 +427,14 @@ namespace
             start(endpoint, std::move(windows));
         }
 
+        SessionFixture(std::string const& name, RemoteWindows windows,
+                std::chrono::milliseconds stepTimeout, BlobLimits blobLimits)
+        {
+            auto endpoint = uniqueEndpoint(name);
+            listener = listen(endpoint);
+            start(endpoint, std::move(windows), stepTimeout, blobLimits);
+        }
+
         struct Tcp {};
 
         SessionFixture(Tcp, RemoteWindows windows)
@@ -337,17 +445,30 @@ namespace
             start(endpoint, std::move(windows));
         }
 
-        void start(std::string const& endpoint, RemoteWindows windows)
+        void start(std::string const& endpoint, RemoteWindows windows,
+                std::chrono::milliseconds stepTimeout = kStepTimeout,
+                BlobLimits blobLimits = {})
         {
-            serverThread = std::thread([this, windows]
+            serverThread = std::thread([this, windows, stepTimeout,
+                    blobLimits]
                 {
                     auto server = listener->accept();
 
                     btl::RunLoop loop;
 
                     RemoteApp app;
-                    app.step = [this](std::chrono::microseconds)
+                    app.step = [this, windows](std::chrono::microseconds)
                     {
+                        for (auto& window : windows)
+                        {
+                            if (auto* capturable =
+                                    dynamic_cast<CapturableFakeWindow*>(
+                                        &window.get()))
+                            {
+                                capturable->present();
+                            }
+                        }
+
                         {
                             std::lock_guard<std::mutex> lock(stepsMutex);
                             ++steps;
@@ -359,7 +480,7 @@ namespace
                     app.liveWindows = [windows] { return windows; };
 
                     RemoteDriver driver(loop, *server, std::move(app),
-                            std::nullopt);
+                            std::nullopt, stepTimeout, blobLimits);
 
                     loop.run();
                 });
@@ -1188,6 +1309,9 @@ TEST(session, describeListIntrospectDriveARealApp)
     // The dummy backend cannot read pixels back.
     EXPECT_FALSE(
             list.at("result").at("windows").at(0).at("canCapture").get<bool>());
+    auto shot = rpc(*client, id++, "window.screenshot",
+            { { "window", windowId } });
+    EXPECT_EQ(kCaptureUnsupported, shot.at("error").at("code").get<int>());
 
     // window.introspect: the counter starts at 0.
     auto intro0 = rpc(*client, id++, "window.introspect",
@@ -1376,13 +1500,26 @@ namespace
     // Run a driver over `transport` on this thread until it stops its loop.
     // Returns false if it had not stopped after a generous bound.
     bool runDriver(testkit::ScriptedTransport& transport,
-            RemoteWindows windows = {}, BlobLimits blobLimits = {})
+            RemoteWindows windows = {}, BlobLimits blobLimits = {},
+            std::function<bool(std::chrono::microseconds)> step = {})
     {
         btl::RunLoop loop;
         bool timedOut = false;
 
         RemoteApp app;
-        app.step = [](std::chrono::microseconds) { return true; };
+        app.step = step ? std::move(step)
+            : [windows](std::chrono::microseconds)
+            {
+                for (auto& window : windows)
+                {
+                    if (auto* capturable =
+                            dynamic_cast<CapturableFakeWindow*>(&window.get()))
+                    {
+                        capturable->present();
+                    }
+                }
+                return true;
+            };
         app.sync = [] {};
         app.liveWindows = [windows] { return windows; };
         RemoteDriver driver(loop, transport, std::move(app), std::nullopt,
@@ -1815,6 +1952,523 @@ TEST(session, describeMarksBlobMethodsAndReportsTheLimits)
     EXPECT_EQ(100u, blob.at("maxRead").get<size_t>());
     EXPECT_EQ(10u, blob.at("defaultRead").get<size_t>());
     EXPECT_EQ(json::array({ "base64" }), blob.at("encodings"));
+}
+
+// --- Screenshots ------------------------------------------------------------
+
+namespace
+{
+    // Red is the column times 40, green the row from the top times 60, blue
+    // 200 and alpha 128.
+    ase::ReadbackImage syntheticFrame(int width, int height)
+    {
+        ase::ReadbackImage image;
+        image.size = ase::Vector2i(width, height);
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                image.pixels.insert(image.pixels.end(), {
+                        static_cast<std::uint8_t>(x * 40),
+                        static_cast<std::uint8_t>(y * 60), 200, 128 });
+            }
+        }
+        return image;
+    }
+
+    // The PNG of the frame's pixels from `left`, `top` (rows from the top),
+    // `width` by `height`, alpha dropped.
+    std::string expectedPng(ase::ReadbackImage const& image, int left,
+            int top, int width, int height)
+    {
+        std::vector<std::uint8_t> rgb;
+        for (int y = top; y < top + height; ++y)
+        {
+            for (int x = left; x < left + width; ++x)
+            {
+                auto const* pixel = image.pixels.data()
+                    + (y * image.size.x() + x) * 4;
+                rgb.insert(rgb.end(), pixel, pixel + 3);
+            }
+        }
+
+        return encodePng(static_cast<uint32_t>(width),
+                static_cast<uint32_t>(height), rgb.data());
+    }
+
+    json screenshotParams(RemoteWindow const& window,
+            json extra = json::object())
+    {
+        extra["window"] = window.id().getValue();
+        return extra;
+    }
+
+    int errorCodeOf(json const& reply)
+    {
+        return reply.at("error").at("code").get<int>();
+    }
+} // namespace
+
+TEST(session, pausedScreenshotRendersAFrameAndAnswersWithAPng)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "shot");
+    SessionFixture s("shot", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    // Paused, so the driver rendered a frame for the screenshot, after
+    // marking the window due, and read it back behind that frame.
+    EXPECT_TRUE(s.awaitSteps(1));
+    EXPECT_EQ(1u, window.presentsWhenArmed());
+    EXPECT_EQ(1, window.frameRequests());
+
+    auto frame = syntheticFrame(4, 3);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    auto const& result = reply.at("result");
+    EXPECT_EQ(4, result.at("width").get<int>());
+    EXPECT_EQ(3, result.at("height").get<int>());
+    EXPECT_EQ(1u, result.at("presentIndex").get<uint64_t>());
+    EXPECT_FALSE(result.contains("pixelsPerUnit"));
+    EXPECT_EQ((json{ { "x", 0.0 }, { "y", 0.0 }, { "width", 4.0 },
+                { "height", 3.0 } }), result.at("region"));
+
+    auto png = expectedPng(frame, 0, 0, 4, 3);
+    auto const& blob = result.at("blob");
+    EXPECT_EQ("image/png", blob.at("contentType"));
+    EXPECT_EQ(png.size(), blob.at("size").get<size_t>());
+
+    auto read = s.call("blob.read", { { "id", blob.at("id") },
+            { "offset", 0 } });
+    EXPECT_EQ(base64Encode(png.data(), png.size()),
+            read.at("result").at("data").get<std::string>());
+    EXPECT_TRUE(read.at("result").at("end").get<bool>());
+
+    // The frame rendered for the capture moved neither time nor the index.
+    auto pause = s.call("app.pause");
+    EXPECT_EQ(0, pause.at("result").at("frame").get<int>());
+}
+
+TEST(session, screenshotOfARegionCropsAndScales)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "region");
+    window.setScalingFactor(2.0f);
+    SessionFixture s("region", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window,
+                { { "region", { { "x", 0.5 }, { "y", 0.0 },
+                    { "width", 1.0 }, { "height", 1.0 } } } }));
+
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    auto frame = syntheticFrame(6, 4);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    auto const& result = reply.at("result");
+    EXPECT_EQ((json{ { "x", 0.5 }, { "y", 0.0 }, { "width", 1.0 },
+                { "height", 1.0 } }), result.at("region"));
+
+    // Logical (0.5, 0) to (1.5, 1) at two pixels a unit is columns 1 to 2
+    // of the bottom two rows.
+    auto png = expectedPng(frame, 1, 2, 2, 2);
+    auto read = s.call("blob.read", { { "id", result.at("blob").at("id") },
+            { "offset", 0 } });
+    EXPECT_EQ(base64Encode(png.data(), png.size()),
+            read.at("result").at("data").get<std::string>());
+
+    int const scaled = s.nextId++;
+    sendRequest(*s.client, scaled, "window.screenshot",
+            screenshotParams(window, { { "scale", 0.5 } }));
+    armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    armed.front()(frame);
+
+    auto half = awaitResponse(*s.client, scaled);
+    ASSERT_TRUE(half.contains("result")) << half.dump();
+    EXPECT_EQ(3, half.at("result").at("width").get<int>());
+    EXPECT_EQ(2, half.at("result").at("height").get<int>());
+    EXPECT_EQ((json{ { "x", 0.0 }, { "y", 0.0 }, { "width", 3.0 },
+                { "height", 2.0 } }), half.at("result").at("region"));
+}
+
+TEST(session, widgetScreenshotCropsToTheBoundsOfTheCapturedFrame)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "widget");
+    avg::UniqueId const widget;
+    window.setWidget(std::make_pair(widget, LogicalRect{ 1, 0, 2, 1 }));
+    SessionFixture s("shotwidget", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window,
+                { { "widget", widget.getValue() } }));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    // Once a later request is answered, the captured frame has rendered; the
+    // widget then moves before the pixels arrive.
+    EXPECT_TRUE(s.call("window.list").contains("result"));
+    window.setWidget(std::make_pair(widget, LogicalRect{ 0, 0, 1, 1 }));
+
+    auto frame = syntheticFrame(4, 3);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    auto const& result = reply.at("result");
+    EXPECT_EQ((json{ { "x", 1.0 }, { "y", 0.0 }, { "width", 2.0 },
+                { "height", 1.0 } }), result.at("region"));
+
+    auto png = expectedPng(frame, 1, 2, 2, 1);
+    auto read = s.call("blob.read", { { "id", result.at("blob").at("id") },
+            { "offset", 0 } });
+    EXPECT_EQ(base64Encode(png.data(), png.size()),
+            read.at("result").at("data").get<std::string>());
+}
+
+TEST(session, widgetMissingFromTheCapturedFrameIsInvalidParams)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "widgetgone");
+    avg::UniqueId const widget;
+    window.setWidget(std::make_pair(widget, LogicalRect{ 0, 0, 1, 1 }));
+    window.setWidgetAtNextPresent(std::nullopt);
+    SessionFixture s("shotwidgetgone", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window,
+                { { "widget", widget.getValue() } }));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    // Back by the time the pixels arrive, but not in the frame they show.
+    EXPECT_TRUE(s.call("window.list").contains("result"));
+    window.setWidget(std::make_pair(widget, LogicalRect{ 0, 0, 1, 1 }));
+    armed.front()(syntheticFrame(4, 3));
+
+    auto reply = awaitResponse(*s.client, id);
+    EXPECT_EQ(kInvalidParams, errorCodeOf(reply)) << reply.dump();
+}
+
+TEST(session, pauseRendersNoFrameForAScreenshotWhoseFrameHasRendered)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "pauseafter");
+    SessionFixture s("shotpauseafter", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    EXPECT_TRUE(s.call("app.pause").contains("result"));
+    EXPECT_EQ(1, s.steps.load());
+
+    armed.front()(syntheticFrame(2, 2));
+    EXPECT_TRUE(awaitResponse(*s.client, id).contains("result"));
+}
+
+TEST(session, runningScreenshotReadsBackWithoutRenderingAFrame)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "running");
+    window.serveWith(syntheticFrame(2, 2));
+    window.present();
+    int steps = 0;
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "app.run")
+        + request(2, "window.screenshot", screenshotParams(window))
+        + request(3, "app.pause");
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }, {},
+                [&](std::chrono::microseconds)
+                {
+                    ++steps;
+                    return true;
+                }));
+
+    EXPECT_EQ(0, steps);
+    EXPECT_EQ(0, window.frameRequests());
+    auto ids = replyIds(transport.wire);
+    std::sort(ids.begin(), ids.end());
+    EXPECT_EQ((std::vector<int>{ 1, 2, 3 }), ids);
+}
+
+TEST(session, runningScreenshotWaitsForTheWindowsFirstPresent)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "first");
+    window.serveWith(syntheticFrame(2, 2));
+    int steps = 0;
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "app.run")
+        + request(2, "window.screenshot", screenshotParams(window));
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }, {},
+                [&](std::chrono::microseconds)
+                {
+                    ++steps;
+                    window.present();
+                    return true;
+                }));
+
+    EXPECT_LE(1, steps);
+    std::optional<json> shot;
+    for (auto const& frame : testkit::unframed(transport.wire))
+    {
+        json reply = json::parse(frame);
+        if (reply.at("id").get<int>() == 2)
+        {
+            shot = std::move(reply);
+        }
+    }
+    ASSERT_TRUE(shot);
+    ASSERT_TRUE(shot->contains("result")) << shot->dump();
+    EXPECT_EQ(1u, window.presentsWhenArmed());
+    EXPECT_EQ(1u, shot->at("result").at("presentIndex").get<uint64_t>());
+}
+
+TEST(session, screenshotRejectsBadParamsAndUnknownWindows)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "params");
+    SessionFixture s("shotparams", { window });
+
+    auto unknown = s.call("window.screenshot",
+            { { "window", btl::makeUniqueId().getValue() } });
+    EXPECT_EQ(kInvalidParams, errorCodeOf(unknown));
+
+    json const region = { { "x", 0 }, { "y", 0 }, { "width", 1 },
+        { "height", 1 } };
+    for (json extra : {
+            json{ { "region", region }, { "widget", 1 } },
+            json{ { "region", { { "x", 0 }, { "y", 0 }, { "width", 0 },
+                { "height", 1 } } } },
+            json{ { "region", "everything" } },
+            json{ { "widget", 12345 } },
+            json{ { "scale", 0 } },
+            json{ { "scale", 1.5 } },
+            json{ { "scale", 1e-50 } },
+            json{ { "region", { { "x", 1e39 }, { "y", 0 }, { "width", 1 },
+                { "height", 1 } } } },
+            })
+    {
+        auto reply = s.call("window.screenshot",
+                screenshotParams(window, extra));
+        EXPECT_EQ(kInvalidParams, errorCodeOf(reply)) << extra.dump();
+    }
+
+    EXPECT_TRUE(window.takeArmed().empty());
+}
+
+TEST(session, screenshotOfAWindowThatCannotCaptureIsUnsupported)
+{
+    FakeRemoteWindow window(btl::makeUniqueId(), "plain");
+    SessionFixture s("shotunsupported", { window });
+
+    auto reply = s.call("window.screenshot", screenshotParams(window));
+
+    EXPECT_EQ(kCaptureUnsupported, errorCodeOf(reply));
+    EXPECT_EQ("unsupported",
+            reply.at("error").at("data").at("reason").get<std::string>());
+    EXPECT_EQ(0, s.steps.load());
+}
+
+TEST(session, failedCapturesAnswerWithErrors)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "failing");
+    SessionFixture s("shotfailing", { window });
+
+    std::vector<std::pair<ase::ReadbackError, int>> const cases{
+        { ase::ReadbackError::Unsupported, kCaptureUnsupported },
+        { ase::ReadbackError::Failed, kInternalError },
+    };
+    std::vector<std::string> const reasons{ "unsupported", "failed" };
+
+    for (size_t i = 0; i < cases.size(); ++i)
+    {
+        int const id = s.nextId++;
+        sendRequest(*s.client, id, "window.screenshot",
+                screenshotParams(window));
+        auto armed = window.awaitArmed(1);
+        ASSERT_EQ(1u, armed.size());
+        armed.front()(cases[i].first);
+
+        auto reply = awaitResponse(*s.client, id);
+        EXPECT_EQ(cases[i].second, errorCodeOf(reply));
+        EXPECT_EQ(reasons[i],
+                reply.at("error").at("data").at("reason").get<std::string>());
+    }
+}
+
+TEST(session, droppedCaptureAnswersAsFailed)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "dropped");
+    SessionFixture s("shotdropped", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    armed.clear();
+
+    auto reply = awaitResponse(*s.client, id);
+    EXPECT_EQ(kInternalError, errorCodeOf(reply));
+    EXPECT_EQ("failed",
+            reply.at("error").at("data").at("reason").get<std::string>());
+}
+
+TEST(session, tooManyScreenshotsInFlightIsBusy)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "busy");
+    SessionFixture s("shotbusy", { window });
+
+    std::vector<int> ids;
+    for (size_t i = 0; i < kMaxScreenshotsInFlight; ++i)
+    {
+        ids.push_back(s.nextId++);
+        sendRequest(*s.client, ids.back(), "window.screenshot",
+                screenshotParams(window));
+    }
+
+    auto busy = s.call("window.screenshot", screenshotParams(window));
+    EXPECT_EQ(kCaptureBusy, errorCodeOf(busy));
+
+    auto armed = window.awaitArmed(kMaxScreenshotsInFlight);
+    ASSERT_EQ(kMaxScreenshotsInFlight, armed.size());
+    for (auto& readback : armed)
+        readback(ase::ReadbackError::Failed);
+
+    std::vector<int> answered;
+    for (size_t i = 0; i < ids.size(); ++i)
+    {
+        auto raw = s.client->receive();
+        ASSERT_TRUE(raw);
+        answered.push_back(json::parse(*raw).at("id").get<int>());
+    }
+    std::sort(answered.begin(), answered.end());
+    EXPECT_EQ(ids, answered);
+}
+
+TEST(session, screenshotWhoseEncodeFailsIsAnInternalError)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "badframe");
+    SessionFixture s("shotbadframe", { window });
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+
+    // Fewer pixels than the frame's size claims.
+    auto frame = syntheticFrame(4, 3);
+    frame.pixels.resize(4);
+    armed.front()(frame);
+
+    auto reply = awaitResponse(*s.client, id);
+    EXPECT_EQ(kInternalError, errorCodeOf(reply)) << reply.dump();
+
+    auto list = s.call("window.list");
+    EXPECT_TRUE(list.contains("result"));
+}
+
+TEST(session, screenshotPastTheBlobCapFails)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "cap");
+    BlobLimits limits;
+    limits.maxOutstanding = 16;
+    limits.maxRead = 8;
+    limits.defaultRead = 8;
+    SessionFixture s("shotcap", { window }, kStepTimeout, limits);
+
+    int const id = s.nextId++;
+    sendRequest(*s.client, id, "window.screenshot", screenshotParams(window));
+    auto armed = window.awaitArmed(1);
+    ASSERT_EQ(1u, armed.size());
+    armed.front()(syntheticFrame(4, 4));
+
+    auto reply = awaitResponse(*s.client, id);
+    EXPECT_EQ(kBlobCapReached, errorCodeOf(reply));
+}
+
+TEST(session, screenshotFailsWhenNoFrameIsCapturedInTime)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "late");
+    SessionFixture s("shotlate", { window }, std::chrono::milliseconds(50),
+            {});
+
+    auto reply = s.call("window.screenshot", screenshotParams(window));
+    EXPECT_EQ(kInternalError, errorCodeOf(reply));
+
+    // A capture served after the deadline goes nowhere.
+    for (auto& readback : window.takeArmed())
+        readback(syntheticFrame(2, 2));
+    auto list = s.call("window.list");
+    EXPECT_TRUE(list.contains("result"));
+}
+
+TEST(session, halfClosedClientStillGetsAScreenshot)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "halfclosed");
+    auto frame = syntheticFrame(3, 2);
+    window.serveWith(frame);
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.screenshot",
+            screenshotParams(window));
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }));
+
+    auto frames = testkit::unframed(transport.wire);
+    ASSERT_EQ(1u, frames.size());
+    auto reply = json::parse(frames.front());
+    ASSERT_TRUE(reply.contains("result")) << reply.dump();
+    EXPECT_EQ(expectedPng(frame, 0, 0, 3, 2).size(),
+            reply.at("result").at("blob").at("size").get<size_t>());
+}
+
+TEST(session, shutdownWhileAScreenshotIsPendingAnswersIt)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "ending");
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.screenshot",
+            screenshotParams(window)) + request(2, "app.shutdown");
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }));
+
+    auto frames = testkit::unframed(transport.wire);
+    ASSERT_EQ(2u, frames.size());
+    EXPECT_EQ(2, json::parse(frames[0]).at("id").get<int>());
+    auto shot = json::parse(frames[1]);
+    EXPECT_EQ(1, shot.at("id").get<int>());
+    EXPECT_EQ(kInternalError, errorCodeOf(shot));
+
+    // The armed capture outlived the loop it would post to, so it is dropped
+    // uncalled.
+    EXPECT_EQ(1u, window.takeArmed().size());
+}
+
+TEST(session, appQuittingInTheZeroTimeFrameAnswersTheScreenshot)
+{
+    CapturableFakeWindow window(btl::makeUniqueId(), "quitting");
+
+    testkit::ScriptedTransport transport;
+    transport.incoming = request(1, "window.screenshot",
+            screenshotParams(window));
+    transport.incomingEnds = true;
+    ASSERT_TRUE(runDriver(transport, { window }, {},
+                [](std::chrono::microseconds) { return false; }));
+
+    auto frames = testkit::unframed(transport.wire);
+    ASSERT_EQ(1u, frames.size());
+    auto reply = json::parse(frames.front());
+    EXPECT_EQ(1, reply.at("id").get<int>());
+    EXPECT_EQ(kInternalError, errorCodeOf(reply));
 }
 
 // --- Stepping a platform whose window is out of in-flight frames -----------

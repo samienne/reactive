@@ -1,10 +1,11 @@
 # Design: screenshots over the remote protocol
 
-> **Status: proposed, nothing implemented.** Written against master `4d00d3fd`
+> **Status: implemented except PR 7** (on-screen capture over the backdrop
+> stack's offscreen target; see *PR plan*). Written against master `4d00d3fd`
 > (2026-11-16). The decisions under *Decided* were settled with the owner and are
 > recorded, not reopened; everything else is this note's proposal, and the
 > choices it could not settle are listed under *Open questions for the owner*.
-> The API contract will be Doxygen in the headers once the PRs land.
+> The API contract is Doxygen in the headers.
 > Since revised (2026-11-21): the one-shot window capture first proposed under
 > enabler 4 was replaced by a plain readback of the window's framebuffer on its
 > queue; enabler 4, enabler 5 and *Which frame* describe the revised design.
@@ -155,7 +156,7 @@ which the Python client already does (`bqui_mcp.py:132-135`).
 Pending responders go inert, queued-but-undispatched frames are discarded, and
 blobs are freed. The driver's destructor waits for its in-flight worker jobs (a
 bounded number of PNG encodes), so nothing posts to a loop that is being torn
-down; a late render-thread callback finds the session gone.
+down; a late render-thread completion finds the session gone.
 
 **`app.step` becomes the first deferred method.** To fix the skipped-frame
 problem, a pause-token holder must learn that a stepped frame left a due window
@@ -298,7 +299,7 @@ unit (scaling factor times scale), and the frame index.
 
 ### Encoding
 
-The render-thread callback hands the raw frame to a `btl` thread-pool job, which
+The readback's completion hands the raw frame to a `btl` thread-pool job, which
 crops, scales, drops alpha, encodes, and posts the bytes to the loop thread,
 where the blob is stored and the responder resolved.
 

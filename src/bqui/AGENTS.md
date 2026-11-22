@@ -218,24 +218,59 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
 - **`base64Encode` (`src/remote/base64.h`) is the chunk encoding**, exported
   for its tests.
 
-**A readback result comes back on the render thread, not the loop.** No driver
-method reads a window back yet; one is to do so through `readbackOnLoop`
-(`src/remote/capture.h`, exported for its tests), which continues the readback
-future, posts the result to the loop and drops it if the driver is gone by then.
-It folds the future's failure into an `ase::ReadbackError`: an
-`ase::ReadbackFailure` keeps its code, and anything else, a broken promise from
-a context that dropped the command included, is `Failed`.
-`RemoteWindow::readback` is the seam, returning the future: `WindowBridge`
-pushes a whole-framebuffer readback against the ase window's default framebuffer
-on its main queue, which dispatches at once, so it completes whether or not a
-frame is in progress. `window.list` reports `canCapture` from
-`RemoteWindow::canReadback`, which `WindowBridge` sets when it made its ase
-window headless, the only kind whose default framebuffer is an offscreen target
-ase can read, and the context can read back; any other window answers
-`Unsupported` without pushing anything. The completion runs outside the driver's
-`ControllerScope`: it is a loop callback and is handed a `Controller&`, but the
-driver's controller slot, which `safeSend` asserts, is unset there, so resolving
-a responder from it needs a `ControllerScope` first.
+**A readback result comes back on the render thread, not the loop.** The
+driver reads a window back through `readbackOnLoop` (`src/remote/capture.h`,
+exported for its tests), which continues the readback future, posts the
+result to the loop and drops it if the driver is gone by then. It folds the
+future's failure into an `ase::ReadbackError`: an `ase::ReadbackFailure` keeps
+its code, and anything else, a broken promise from a context that dropped the
+command included, is `Failed`. `RemoteWindow::readback` is the seam, returning
+the future: `WindowBridge` pushes a whole-framebuffer readback against the ase
+window's default framebuffer on its main queue, which dispatches at once, so it
+completes whether or not a frame is in progress. `window.list` reports
+`canCapture` from `RemoteWindow::canReadback`, which `WindowBridge` sets when
+it made its ase window headless, the only kind whose default framebuffer is an
+offscreen target ase can read, and the context can read back; any other window
+answers `Unsupported` without pushing anything. The completion runs outside the
+driver's `ControllerScope`: it is a loop callback and is handed a
+`Controller&`, but the driver's controller slot, which `safeSend` asserts, is
+unset there, so resolving a responder from it needs a `ControllerScope` first,
+as `window.screenshot`'s completion opens.
+
+**`window.screenshot` reads back the last rendered frame.** Queue order is the
+synchronisation: the readback lands behind every frame already submitted, so
+it shows the last one, rendered this tick or not. Running, the handler pushes
+it at once and renders nothing. Paused, it first marks the window due
+(`RemoteWindow::requestFrame`) and steps with zero elapsed time, so input
+injected since the last step shows: time and the driver's frame index do not
+move. What holds:
+
+- **The zero-time frame holds the gate** while a window waits for a free slot,
+  resumed by the same paused wake as a pending step and released after
+  `stepTimeout` at the latest; the readback is pushed once it ends. Later
+  requests go ahead while the pixels are read and encoded.
+- **The geometry and `presentIndex` are read when the readback is pushed**:
+  the widget bounds and scaling factor, and `RemoteWindow::presentCount`, are
+  those of the last frame submitted, which is the one the readback reads.
+- **Each screenshot has a deadline**: no pixels within `stepTimeout` answers
+  with an internal error, and pixels arriving later are dropped unencoded. At
+  most `kMaxScreenshotsInFlight` (`src/remote/errors.h`) are unanswered at
+  once; beyond that is `kCaptureBusy` (-32011). A window that cannot be read
+  back is `kCaptureUnsupported` (-32010), checked at request time and mapped
+  again from the readback result; `Failed` (a dropped readback included), and
+  a window gone before its readback is pushed, are internal errors with the
+  reason in the error data.
+- **Encoding runs on the btl thread pool.** The loop plans the crop
+  (`planScreenshot`, `src/remote/screenshot.h`, beside the request parsing);
+  `ScreenshotEncoder` (`src/remote/screenshotencoder.h`) runs the job, which
+  crops and scales with `renderScreenshot`, encodes (`encodePng`,
+  `src/remote/png.h`, zlib with a hand-written container) and posts the bytes
+  back; the blob is added on the loop, so the outstanding cap is checked after
+  the encode. Destroying the encoder waits for the jobs that have started,
+  since each posts to the loop; one that starts later does nothing.
+- **A pending screenshot keeps a half-closed session up**, like a pending step;
+  a session that finishes, as when the app quits in the zero-time frame,
+  answers it with an internal error.
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
