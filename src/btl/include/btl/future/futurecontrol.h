@@ -38,6 +38,13 @@ namespace btl::future
             set(std::move(err));
         }
 
+        void setFailureIfPending(std::exception_ptr err)
+        {
+            LockType lock(mutex_);
+            if (std::holds_alternative<std::monostate>(value_))
+                publish(std::move(lock), std::move(err));
+        }
+
         void waitForResult()
         {
             // Fast preliminary check if we don't have to wait.
@@ -208,7 +215,13 @@ namespace btl::future
             bool r = ready();
             assert(!r);
 
-            LockType lock(mutex_);
+            publish(LockType(mutex_), std::move(value));
+        }
+
+        void publish(LockType lock,
+                std::variant<std::monostate, std::tuple<Ts...>,
+                    std::exception_ptr> value)
+        {
             value_ = std::move(value);
             TSAN_ANNOTATE_HAPPENS_BEFORE(&value_);
             TSAN_ANNOTATE_HAPPENS_BEFORE(&value_.getReferenceForTsan());
