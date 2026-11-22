@@ -11,10 +11,12 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cassert>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -183,11 +185,13 @@ class RemoteDriver::Impl
 {
 public:
     Impl(btl::RunLoop& loop, Transport& transport, RemoteApp app,
-            std::optional<ase::PauseToken> pauseToken) :
+            std::optional<ase::PauseToken> pauseToken,
+            std::chrono::milliseconds stepTimeout) :
         loop_(loop),
         transport_(&transport),
         app_(std::move(app)),
         pauseToken_(std::move(pauseToken)),
+        stepTimeout_(stepTimeout),
         dispatcher_([this](std::string const& frame) { safeSend(frame); })
     {
 #ifdef SIGPIPE
@@ -197,6 +201,15 @@ public:
         std::signal(SIGPIPE, SIG_IGN);
 #endif
         buildRegistry();
+
+        if (pauseToken_)
+        {
+            pauseToken_->setWakeCallback([this]
+                {
+                    if (pendingStep_)
+                        post([this] { resumeStep(); });
+                });
+        }
 
         loop_.post([this](btl::RunLoop::Controller& controller)
         {
@@ -220,6 +233,15 @@ public:
 private:
     enum class State { Paused, Running };
 
+    // An `app.step` whose frames are not all rendered yet.
+    struct PendingStep
+    {
+        int64_t remaining;
+        std::chrono::microseconds dt;
+        Responder responder;
+        DispatchGate gate;
+    };
+
     // The loop-thread Controller, valid only during a callback.
     struct ControllerScope
     {
@@ -234,6 +256,21 @@ private:
     {
         ControllerScope scope(controller_, controller);
         receive();
+    }
+
+    // Runs `task` in a loop callback of its own, unless the driver is gone by
+    // then.
+    void post(std::function<void()> task)
+    {
+        loop_.post([this, alive = std::weak_ptr<bool>(alive_),
+                task = std::move(task)](btl::RunLoop::Controller& controller)
+            {
+                if (alive.expired())
+                    return;
+
+                ControllerScope scope(controller_, controller);
+                task();
+            });
     }
 
     // Keeps draining while shutting down, so a readable channel does not spin
@@ -253,8 +290,17 @@ private:
         if (transport_->disconnected())
             readable_ = btl::RunLoop::Source();
 
-        if (shuttingDown_ || transport_->disconnected())
+        // A step still waiting on its frame answers once it renders, as do the
+        // requests queued behind it; the step deadline bounds that wait.
+        if (shuttingDown_)
             finish();
+        else if (transport_->disconnected())
+        {
+            if (pendingStep_ && !closed_)
+                inputEnded_ = true;
+            else
+                finish();
+        }
     }
 
     void safeSend(std::string const& frame)
@@ -265,6 +311,24 @@ private:
         try
         {
             transport_->enqueue(frame);
+        }
+        catch (std::exception const& e)
+        {
+            close(e.what());
+            return;
+        }
+
+        assert(controller_);
+        flushQueued();
+    }
+
+    void flushQueued()
+    {
+        if (closed_)
+            return;
+
+        try
+        {
             flush();
         }
         catch (std::exception const& e)
@@ -292,17 +356,9 @@ private:
     {
         ControllerScope scope(controller_, controller);
 
-        try
-        {
-            flush();
-        }
-        catch (std::exception const& e)
-        {
-            close(e.what());
-            return;
-        }
+        flushQueued();
 
-        if (!shuttingDown_)
+        if (closed_ || !shuttingDown_)
             return;
 
         if (writable_.id() == 0)
@@ -321,6 +377,8 @@ private:
     {
         shuttingDown_ = true;
         dispatcher_.end();
+        pendingStep_.reset();
+        stepDeadline_ = btl::RunLoop::Timer();
     }
 
     void close(char const* reason)
@@ -453,7 +511,7 @@ private:
         return { { "state", "paused" }, { "frame", frame_ } };
     }
 
-    json step(json const& params)
+    Reply step(json const& params, Responder& responder)
     {
         auto count = static_cast<int64_t>(numberField(params, "count", 1.0));
         if (count < 0)
@@ -463,11 +521,88 @@ private:
                 numberField(params, "dt_us",
                     static_cast<double>(kNominalFrameUs))));
 
-        for (int64_t i = 0; i < count && !shuttingDown_; ++i)
-            advanceFrame(dt);
-
         // A step always leaves the app paused, whichever state it started from.
         state_ = State::Paused;
+
+        if (advanceSteps(count, dt))
+            return stepResult();
+
+        pendingStep_.emplace(PendingStep{ count, dt, std::move(responder),
+                dispatcher_.holdGate() });
+        armStepDeadline();
+        return pending;
+    }
+
+    // Advances `remaining` frames, each only once the one before it has
+    // rendered every window it was due in. Reports false when it has to stop
+    // for a window with no free in-flight slot.
+    bool advanceSteps(int64_t& remaining, std::chrono::microseconds dt)
+    {
+        for (;;)
+        {
+            if (shuttingDown_)
+                return true;
+
+            if (pauseToken_ && !pauseToken_->finishStep())
+                return false;
+
+            if (remaining <= 0)
+                return true;
+
+            --remaining;
+            advanceFrame(dt);
+        }
+    }
+
+    void resumeStep()
+    {
+        if (!pendingStep_)
+            return;
+
+        int64_t before = pendingStep_->remaining;
+        if (!advanceSteps(pendingStep_->remaining, pendingStep_->dt))
+        {
+            if (pendingStep_->remaining != before)
+                armStepDeadline();
+            return;
+        }
+
+        endStep([this](Responder& responder)
+            {
+                responder.resolve(stepResult());
+            });
+    }
+
+    void armStepDeadline()
+    {
+        stepDeadline_ = controller_->addTimer(stepTimeout_,
+                [this](btl::RunLoop::Controller& controller)
+                {
+                    ControllerScope scope(controller_, controller);
+                    endStep([](Responder& responder)
+                        {
+                            responder.reject(RpcError{ kInternalError,
+                                "the frame did not finish rendering" });
+                        });
+                });
+    }
+
+    // Answers the pending step and lets the requests behind it go ahead.
+    void endStep(std::function<void(Responder&)> const& answer)
+    {
+        PendingStep step = std::move(*pendingStep_);
+        pendingStep_.reset();
+        stepDeadline_ = btl::RunLoop::Timer();
+
+        answer(step.responder);
+        step.gate.release();
+
+        if (shuttingDown_ || (inputEnded_ && !pendingStep_))
+            finish();
+    }
+
+    json stepResult() const
+    {
         return { { "state", "paused" }, { "frame", frame_ } };
     }
 
@@ -568,7 +703,7 @@ private:
                 { "count", "number", false },
                 { "dt_us", "number", false },
             },
-            [this](json const& p, Responder&) { return step(p); } });
+            [this](json const& p, Responder& r) { return step(p, r); } });
 
         dispatcher_.add({ "app.shutdown",
             "End the session and let the app release its windows.",
@@ -619,22 +754,28 @@ private:
     Transport* transport_ = nullptr;
     RemoteApp app_;
     std::optional<ase::PauseToken> pauseToken_;
+    std::chrono::milliseconds stepTimeout_;
     Dispatcher dispatcher_;
+    std::optional<PendingStep> pendingStep_;
+    std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
     uint64_t frame_ = 0;
     State state_ = State::Paused;
     bool shuttingDown_ = false;
+    bool inputEnded_ = false;
     bool closed_ = false;
     bool frameNotifications_ = false;
     bool ticking_ = false;
     btl::RunLoop::Source readable_;
     btl::RunLoop::Source writable_;
     btl::RunLoop::Timer flushTimeout_;
+    btl::RunLoop::Timer stepDeadline_;
 };
 
 RemoteDriver::RemoteDriver(btl::RunLoop& loop, Transport& transport,
-        RemoteApp app, std::optional<ase::PauseToken> pauseToken) :
+        RemoteApp app, std::optional<ase::PauseToken> pauseToken,
+        std::chrono::milliseconds stepTimeout) :
     impl_(std::make_unique<Impl>(loop, transport, std::move(app),
-                std::move(pauseToken)))
+                std::move(pauseToken), stepTimeout))
 {
 }
 
