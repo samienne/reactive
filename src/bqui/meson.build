@@ -1,4 +1,5 @@
 libbquisrc = [
+  'src/remote/dispatcher.cpp',
   'src/remote/introspectionjson.cpp',
   'src/remote/overlappedwriter.cpp',
   'src/remote/remotedriver.cpp',
@@ -109,6 +110,7 @@ libbquidep = declare_dependency(
 
 bquitestsrc = [
   'test/apptest.cpp',
+  'test/dispatchertest.cpp',
   'test/headlessapptest.cpp',
   'test/inputreentrancytest.cpp',
   'test/introspectionjsontest.cpp',
