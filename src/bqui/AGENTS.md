@@ -187,6 +187,35 @@ the deferred path with `DummyRenderContext::holdFences`.
   the session ends then. Replies already queued still reach a half-closed
   client either way.
 
+**A bulk result can be a blob the client pulls.** The driver owns a per-session
+`BlobStore` (`src/remote/blobstore.h`). A producing method hands it bytes and a
+content type and replies with the descriptor it gets back (`id`, `size`,
+`contentType`); `window.renderTree` does so when asked with `asBlob`, and its
+blob holds exactly the inline result. The client reads ranges with `blob.read`
+(base64 chunks, any offset, repeatable) and frees the blob with
+`blob.release`. What holds:
+
+- **Ids count up per session and are never reused within it.** Releasing,
+  reading or re-releasing an id the session does not hold is `kUnknownBlob`
+  (-32001). Nothing is released implicitly, not even by reading the last byte;
+  the session's end frees whatever is left.
+- **The limits are a `BlobLimits` the `RemoteDriver` constructor takes**, so
+  tests shrink them. A producer whose blob would take the unreleased bytes past
+  `maxOutstanding` fails with `kBlobCapReached` (-32002) and the bytes in use
+  and the cap in the error data. A read is clamped to `maxRead`, and is
+  `defaultRead` long when it names no length; a bad offset or length,
+  including a zero length, is invalid params. The constructor throws
+  `std::invalid_argument` for limits under which a read could make no progress
+  or a `maxRead` reply could not fit the outgoing queue.
+- **A blob request is an ordinary request**, so a `blob.read` queues behind a
+  pending `app.step` like any other.
+- **`system.describe` carries both**: each method's `returnsBlob` marker
+  (`Method::returnsBlob`) and a top-level `limits.blob` object with the three
+  limits and the chunk encodings. The MCP bridge reads them to hide `blob.*`
+  and pull marked methods' blobs itself.
+- **`base64Encode` (`src/remote/base64.h`) is the chunk encoding**, exported
+  for its tests.
+
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception
