@@ -12,12 +12,15 @@
 #include <ase/keyevent.h>
 #include <ase/platform.h>
 #include <ase/pointerbuttonevent.h>
+#include <ase/readback.h>
 #include <ase/vector.h>
 
+#include <btl/future/future.h>
 #include <btl/runloop.h>
 #include <btl/uniqueid.h>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -64,6 +67,45 @@ namespace bqui::remote
          * window-space box the window presents.
          */
         virtual avg::Snapshot snapshot() const = 0;
+
+        /**
+         * @brief Whether `readback` can return pixels.
+         *
+         * False unless overridden.
+         */
+        virtual bool canReadback() const;
+
+        /**
+         * @brief Read back the last frame this window rendered.
+         *
+         * Reads the whole frame behind the frames already submitted and
+         * schedules none. The future has the contract of
+         * `ase::CommandBuffer::pushReadback`. Unless overridden it is returned
+         * already failed with `ase::ReadbackError::Unsupported`.
+         */
+        virtual btl::future::Future<ase::ReadbackImage> readback();
+
+        /**
+         * @brief Mark the window due, so the next frame renders it even when
+         * nothing in it changed.
+         *
+         * Does nothing unless overridden.
+         */
+        virtual void requestFrame();
+
+        /**
+         * @brief Pixels per window-space logical unit in a captured frame.
+         *
+         * 1 unless overridden.
+         */
+        virtual float scalingFactor() const;
+
+        /**
+         * @brief How many frames this window has presented.
+         *
+         * 0 unless overridden.
+         */
+        virtual std::uint64_t presentCount() const;
     };
 
     /**
@@ -92,6 +134,30 @@ namespace bqui::remote
         std::function<RemoteWindows()> liveWindows;
     };
 
+    /**
+     * @brief How long a client-driven `app.step` waits for its frame to make
+     * progress before it fails.
+     */
+    inline constexpr std::chrono::seconds kStepTimeout{ 5 };
+
+    /**
+     * @brief The bounds on the bulk results a session hands out as blobs.
+     *
+     * A method that answers with a blob fails once the session's unreleased
+     * blobs would pass `maxOutstanding` bytes. A `blob.read` returns at most
+     * `maxRead` bytes, and `defaultRead` when it names no length.
+     *
+     * The driver throws `std::invalid_argument` for a zero read size, a
+     * `defaultRead` above `maxRead`, or a `maxRead` whose encoded reply would
+     * not fit the transport's outgoing queue.
+     */
+    struct BlobLimits
+    {
+        size_t maxOutstanding = size_t(256) * 1024 * 1024;
+        size_t maxRead = size_t(1024) * 1024;
+        size_t defaultRead = size_t(256) * 1024;
+    };
+
     /** @brief The inspector-protocol driver: maps JSON-RPC messages to the app's
      * frame primitives, over a run loop it does not own.
      *
@@ -107,12 +173,21 @@ namespace bqui::remote
      *   for headless inspection and automated testing.
      * - Observer (no token): the app free-runs and the client only introspects
      *   and injects between frames. Live, not deterministic.
+     *
+     * A client-driven `app.step` answers once its frames have rendered. When
+     * no window finishes a frame for `stepTimeout`, it fails instead and the
+     * requests behind it go ahead.
+     *
+     * A session's blobs live until the client releases them or the session
+     * ends, within `blobLimits`.
      */
     class BQUI_EXPORT RemoteDriver
     {
     public:
         RemoteDriver(btl::RunLoop& loop, Transport& transport, RemoteApp app,
-                std::optional<ase::PauseToken> pauseToken = std::nullopt);
+                std::optional<ase::PauseToken> pauseToken = std::nullopt,
+                std::chrono::milliseconds stepTimeout = kStepTimeout,
+                BlobLimits blobLimits = {});
         ~RemoteDriver();
 
         RemoteDriver(RemoteDriver const&) = delete;

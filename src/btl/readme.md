@@ -5,6 +5,9 @@ every other library: `optional`, tuple manipulation (map/reduce/reverse/head/
 tail/…), `cloneOnCopy`, a `future`/`async` toolkit, `typelist`, `reduce`, and
 shared-ownership helpers.
 
+A future fails with `BrokenPromise` when every copy of its promise is destroyed
+without fulfilling it.
+
 It has no dependencies of its own and is meant to stay a grab-bag of
 general-purpose primitives — nothing UI- or graphics-specific belongs here.
 

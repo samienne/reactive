@@ -6,6 +6,7 @@
 
 namespace ase
 {
+    class DummyRenderQueue;
     class PlatformImpl;
 
     class ASE_EXPORT DummyRenderContext : public RenderContextImpl
@@ -54,6 +55,22 @@ namespace ase
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
+        bool canReadback() const override;
+
+        /**
+         * @brief Leave the fences of frames submitted from now on pending, as
+         * a GPU still working on them would.
+         *
+         * A window then runs out of frames in flight. For tests of that
+         * backpressure; call on the thread that renders.
+         */
+        void holdFences();
+
+        /**
+         * @brief Complete the held fences and stop holding new ones.
+         */
+        void releaseFences();
+
     private:
         // Upward-strong ref to the platform this context was made by; keeps the
         // platform alive for as long as any window holds this context.
@@ -61,7 +78,7 @@ namespace ase
 
         // One persistent main queue, shared across every window frame rather
         // than recreated per submit.
-        std::shared_ptr<RenderQueueImpl> mainQueue_;
+        std::shared_ptr<DummyRenderQueue> mainQueue_;
     };
 } // namespace ase
 

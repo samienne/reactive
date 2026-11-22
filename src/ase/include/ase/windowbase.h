@@ -33,6 +33,7 @@ namespace ase
     {
     public:
         RenderContext& getRenderContext() override;
+        bool ownsDefaultFramebuffer() const override;
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

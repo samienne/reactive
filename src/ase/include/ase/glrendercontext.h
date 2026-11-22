@@ -101,6 +101,8 @@ namespace ase
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
+        bool canReadback() const override;
+
     private:
         std::shared_ptr<GlPlatform> platform_;
         std::shared_ptr<GlRenderQueue> mainQueue_;

@@ -1,6 +1,7 @@
 # ase — agent notes
 
-*Last verified against `6b21821` (2026-08-18).*
+*Last verified against `a662f42` (2026-08-22); the pixel readback note against
+`12aae85a` (2026-11-22).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -72,13 +73,26 @@ are in the top-level `docs/`.
   produces one frame off the same callback/render path an auto tick takes;
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
   pumping), and dropping the token resumes the cadence. `step` lives only on the
-  token, so a free-running loop cannot be stepped by construction.
+  token, so a free-running loop cannot be stepped by construction. A step, like
+  a tick, skips a due window that has no free in-flight slot, but it remembers
+  the skipped windows: `finishStep()` renders those that have a slot by now, on
+  the stepped frame's own time and dt, and reports whether any are left. While
+  paused, each loop wake (`requestFrame`, which a completing fence calls) also
+  runs the callback set with `PauseToken::setWakeCallback`, on the loop thread,
+  so the holder knows when to call `finishStep()` again. The platform has one
+  such callback, not one per token: setting one replaces the last, and the
+  platform holds it weakly, so it ends with the token that set it and a stale
+  token cannot clear a newer one. Resuming the cadence forgets the skipped
+  windows. The dummy context can stand in for a busy GPU:
+  `DummyRenderContext::holdFences()` leaves fences pending until
+  `releaseFences()`.
 - **`PlatformImpl` is a pure interface; `PlatformBase` holds the shared guts.**
   Mirroring the `WindowImpl`/`WindowBase` split below: `PlatformImpl`
   (`include/ase/platformimpl.h`) is only the public platform virtuals the
   `Platform` handle and its `PauseToken` call (`makeWindow`, `makeRenderContext`,
-  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`, `requestFrame`, `runLoop`) plus
-  the `getImplOfType` type-erasure plumbing. Every backend derives instead from
+  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`/`finishStepFrame`/
+  `setWakeCallback`, `requestFrame`, `runLoop`) plus the `getImplOfType`
+  type-erasure plumbing. Every backend derives instead from
   `PlatformBase` (`include/ase/platformbase.h`, `src/platformbase.cpp`), which
   owns the injected `loop_`, the shared frame-loop body, the pause/step state, and
   the loop-contract *protected* virtuals a backend fills in (`handleEvents`,
@@ -136,12 +150,11 @@ are in the top-level `docs/`.
   runs FIFO after the submitted draws on the render thread; `present()` returns
   immediately without blocking. The swap body is what GlxWindow (swaps its GLX
   drawable with the X lock held inside) and WglWindow (`SwapBuffers`es its
-  `hdc_`) run there; OffscreenWindow and DummyWindow are the no-op a future
-  pixel readback hooks into and name no GL types. Because the dispatched swap
-  runs after `present()` returns, the GL windows capture a `shared_from_this()`
-  keep-alive into the task so the window outlives it. `PresentStatus` is
-  `Ok`-only on GL; it exists so a backend whose present can fail (a lost
-  swapchain) is not a `void`-return retrofit.
+  `hdc_`) run there; OffscreenWindow and DummyWindow are no-ops and name no GL
+  types. Because the dispatched swap runs after `present()` returns, the GL
+  windows capture a `shared_from_this()` keep-alive into the task so the window
+  outlives it. `PresentStatus` is `Ok`-only on GL; it exists so a backend whose
+  present can fail (a lost swapchain) is not a `void`-return retrofit.
 - **The GL viewport size travels with the frame.** WglWindow and GlxWindow keep
   the pixel size on the loop thread (set at creation and on WM_SIZE,
   WM_DPICHANGED or ConfigureNotify), and `frame()` first dispatches a task
@@ -177,6 +190,31 @@ are in the top-level `docs/`.
   (`ASE_HAVE_XCURSOR`), falling back to `XCreateFontCursor`; `hidden` is a
   blank 1x1 pixmap cursor. Cursors are cached per window and freed in
   `destroy()`.
+- **Pixel readback is a render command, not a window feature.**
+  `CommandBuffer::pushReadback` (`ReadbackCommand` in `rendercommand.h`) reads a
+  framebuffer's whole colour FIFO behind the commands before it. Like every
+  non-draw command it bounds the GL draw sort, so it sees every draw pushed
+  before it. The size is resolved on the render thread when the command runs
+  (`GlBaseFramebuffer::getSize(Dispatched)`; a default framebuffer's pixel size
+  lives only there) and returned in the `ReadbackImage`, so the caller never
+  passes a size that a resize could have made stale. GL runs `glReadPixels`
+  synchronously on the dispatcher thread
+  (`GlRenderState::dispatchedRenderQueue`), which stalls the render thread until
+  the preceding draws finish but never the loop thread, flips the rows to top
+  first, and fulfils the command's promise there, so continuations run on the
+  render thread. A failure is a `ReadbackFailure` carrying `Failed` or
+  `Unsupported`. A submit dispatches at once, so a readback pushed outside a
+  frame still completes. One still queued when the context is destroyed is
+  dropped unrun (`Dispatcher::~Dispatcher`), and its future fails with
+  `btl::future::BrokenPromise` on whichever thread drops it. The dummy queue
+  fails it at once with `Unsupported`; `RenderContextImpl::canReadback` reports
+  which a context does.
+  A window's frame is read back by pushing one against `getDefaultFramebuffer()`
+  on its main queue: queue order is the synchronisation, so it reads the last
+  frame submitted, rendered this tick or not. That is only meaningful where
+  `Window::ownsDefaultFramebuffer()` is true, which only `OffscreenWindow`
+  reports: an on-screen back buffer is undefined after the swap, so nothing
+  reads one. The real-GL check is the manual `bquiheadlesstest`.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

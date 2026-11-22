@@ -86,6 +86,21 @@ void CommandBuffer::pushUpload(Texture target, Buffer data, Vector2i size, Forma
             });
 }
 
+btl::future::Future<ReadbackImage> CommandBuffer::pushReadback(
+        Framebuffer source)
+{
+    auto control =
+        std::make_shared<btl::future::FutureControl<ReadbackImage>>();
+
+    commands_.push_back(ReadbackCommand
+            {
+                std::move(source),
+                { control }
+            });
+
+    return { std::move(control) };
+}
+
 size_t CommandBuffer::size() const
 {
     return commands_.size();

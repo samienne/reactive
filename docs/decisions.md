@@ -1,10 +1,58 @@
 # Decisions
 
-*Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
-entries against `3ba9415` (2026-09-28).*
+*Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
+entries against `3ba9415` (2026-09-28); the bulk remote results entry against
+`5d2700c` (2026-11-16); the remote screenshot entry against `d4af8075`
+(2026-11-21); the pixel readback entry against `12aae85a` (2026-11-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## Bulk remote results are blobs the client pulls
+
+A remote method with a large result can answer with a blob descriptor instead
+of the inline result. The client pulls the bytes with `blob.read` and frees
+them with `blob.release`. A chunk is base64 inside an ordinary JSON reply. A
+session caps the bytes held in unreleased blobs (256 MiB) and clamps a read to
+1 MiB, 256 KiB by default; a blob lives until it is released or the session
+ends.
+
+**Why:** pulling gives flow control without a second channel. Each chunk is
+one bounded reply, so the outgoing queue never holds a whole image, and other
+requests interleave between the chunks. Base64 keeps the framing pure JSON;
+the encoding sits behind `blob.read` and is named in each reply and in
+`system.describe`, so a binary frame kind can replace it without changing the
+methods. Release is explicit rather than on reading the last byte, so a
+client can re-read a range. The cap bounds what a client that never releases
+can make the app hold, and failing the producer, not evicting an older blob,
+keeps every handed-out id valid until its owner lets go.
+
+## The remote driver ends a session whose outgoing queue passes its cap
+
+Replies and notifications wait in a per-transport queue capped at
+`kMaxQueuedBytes`. A frame that would pass the cap drops the queue and ends
+the session with a logged reason, as a write error does; a single frame larger
+than the cap ends it too.
+
+**Why:** the alternatives are worse. Dropping frames to make room would hand a
+JSON-RPC client a reply stream with holes, and a missing reply looks like a
+hang. Blocking until the client reads would park the app's loop thread, which
+the non-blocking queue exists to avoid. Growing without bound lets a stalled
+client exhaust the app's memory. A client that stops reading has broken the
+protocol, so ending its session is the honest outcome.
+
+## The remote driver's shutdown flush is bounded by inactivity
+
+On an orderly end (`app.shutdown`, the app finishing, or the client closing
+its sending side) the driver keeps flushing queued replies, and stops the loop
+once the queue drains, a write fails, or the client has taken nothing for
+`kShutdownFlushTimeout` (2 s).
+
+**Why:** not flushing at all truncates the last reply, which is often the one
+the client asked for (an introspection, the shutdown acknowledgement). Waiting
+without a bound lets a client that stopped reading keep the app alive forever.
+Bounding inactivity rather than total time lets a slow client that is still
+reading a large reply finish it.
 
 ## The compiler floor is GCC 12, Clang 15 and MSVC 2022
 
@@ -92,6 +140,51 @@ needs an application-minted id in every element to keep its widgets. An update
 is always a change, never compared with the old value, so values need not be
 comparable; signals detect changes by item generation.
 
+## Pixel readback is a render command, not a window feature
+
+`CommandBuffer::pushReadback` reads a framebuffer's whole colour in queue order,
+like a fence, at the size the framebuffer has on the render thread. A window's
+frame is read by pushing it against the window's framebuffer on its main queue:
+queue order is the synchronisation, and it reads the last frame submitted. Only
+a window that owns its framebuffer (`ase::Window::ownsDefaultFramebuffer`, the
+offscreen window) can be read back. GL reads with a synchronous `glReadPixels`
+on the render thread. The push returns a future that fails with
+`ReadbackFailure` (unsupported or failed), or with `BrokenPromise` when the
+command is dropped unrun.
+
+**Why:** a render command is backend-neutral, where a "run this on the render
+thread" hook is not (see *Frame cadence is per-window*): a command-buffer
+backend implements it as a copy into a buffer. Synchronous `glReadPixels` stalls
+only the render thread, never the loop; a PBO with a fence would un-stall it at
+the cost of a two-phase state machine, which a few captures a second does not
+justify. Fixing the pixel layout at the ase boundary means no consumer guesses
+row order or colour space. An earlier version armed one-shot captures on the
+window that its next `present()` served; it needed a callback list, a mutex, a
+present count and a cancel path in every window, for a guarantee queue order
+already gives. Resolving the size on the render thread matters because a
+default framebuffer's pixel size lives there. An on-screen back buffer is
+undefined after the swap, so on-screen windows report unsupported rather than
+grow a present hook. A future rather than a callback, like the fence, because
+a broken promise turns "the context dropped the command" into an answer, where
+a callback that never ran left the consumer to time out.
+
+## A remote screenshot reads the last frame and is PNG over zlib
+
+`window.screenshot` reads back the last frame the window rendered: paused, the
+driver first steps with zero elapsed time so pending input shows without moving
+the clock the client owns. The frame is encoded as an opaque 8-bit RGB PNG by a
+hand-written container over zlib, off the loop thread.
+
+**Why:** waiting for "the next frame" would hang on a paused or idle app; while
+running, the last frame is as current as the client can observe anyway, and
+paused, a zero-time step keeps one frame path, applying pending input exactly
+as the next step would. PNG writing is a small closed problem (signature,
+header, sRGB chunk, filtered rows, deflate, CRCs), so zlib plus a couple of
+hundred lines we own beats libpng's second subproject, `setjmp` error model and
+decoder we would never call. Alpha is dropped because the stored values are
+premultiplied and sRGB-encoded, so straight alpha would be lossy and nothing
+consumes it.
+
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 
 `acquire()` blocked the run-loop thread on a condition variable until a window
@@ -169,6 +262,30 @@ parallel `runSession` loop over a wrapped platform. Folding remote onto the same
 `pause`/`step` primitive that every test and the dummy backend already use is what
 keeps the frame path identical local and remote — no `RemoteWindowImpl`, no
 decorator, no second driving path.
+
+## Remote requests take effect in order; their replies may overtake
+
+A remote method handler may answer later than it returns (a `Responder` it
+keeps). Requests are still dispatched in arrival order, and a handler whose
+effect on the app is unfinished holds a dispatch gate that queues the requests
+behind it, so what a client did happens in the order it asked. Replies are not
+held to that order: one that is slow to produce is overtaken, and the `id`
+correlates. `app.step` is the first deferred method: it answers only after
+every window due in its frames has rendered, where it used to answer even when
+a window without a free in-flight slot had been skipped. A step whose frames
+stop completing fails after a deadline (5 s without progress), so a stuck GPU
+cannot hold the session's later requests, `app.shutdown` among them, for good.
+A client that half-closes still gets the pending step's reply and those behind
+it.
+
+**Why:** strictly serial replies would be simpler for a naive client, but would
+make everything wait behind one slow answer (a screenshot's readback and
+encode). Ordering the effects is what a client's script relies on (inject,
+step, observe); the order of replies carries no meaning that the ids do not.
+The deadline is an inactivity bound rather than a limit on the whole step, so
+a long multi-frame step on a slow GPU still completes; a one-shot script that
+sends its requests and half-closes is the common client, so ending its input
+must not end the answers it is owed.
 
 ## `present` returns `PresentStatus`, not `void`
 
