@@ -8,6 +8,33 @@ entries against `3ba9415` (2026-09-28); the pixel readback entry against
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## The remote driver ends a session whose outgoing queue passes its cap
+
+Replies and notifications wait in a per-transport queue capped at
+`kMaxQueuedBytes`. A frame that would pass the cap drops the queue and ends
+the session with a logged reason, as a write error does; a single frame larger
+than the cap ends it too.
+
+**Why:** the alternatives are worse. Dropping frames to make room would hand a
+JSON-RPC client a reply stream with holes, and a missing reply looks like a
+hang. Blocking until the client reads would park the app's loop thread, which
+the non-blocking queue exists to avoid. Growing without bound lets a stalled
+client exhaust the app's memory. A client that stops reading has broken the
+protocol, so ending its session is the honest outcome.
+
+## The remote driver's shutdown flush is bounded by inactivity
+
+On an orderly end (`app.shutdown`, the app finishing, or the client closing
+its sending side) the driver keeps flushing queued replies, and stops the loop
+once the queue drains, a write fails, or the client has taken nothing for
+`kShutdownFlushTimeout` (2 s).
+
+**Why:** not flushing at all truncates the last reply, which is often the one
+the client asked for (an introspection, the shutdown acknowledgement). Waiting
+without a bound lets a client that stopped reading keep the app alive forever.
+Bounding inactivity rather than total time lets a slow client that is still
+reading a large reply finish it.
+
 ## A fence is polled; its futures are fulfilled off the render thread
 
 A GPU fence is an `ase::Fence` object a command buffer makes and carries, not
