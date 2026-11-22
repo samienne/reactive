@@ -1,7 +1,8 @@
 # Decisions
 
-*Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
-entries against `3ba9415` (2026-09-28).*
+*Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
+entries against `3ba9415` (2026-09-28); the pixel readback entry against
+`5a26b28f` (2026-11-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -91,6 +92,37 @@ item identity*), because a list whose items the user edits in place otherwise
 needs an application-minted id in every element to keep its widgets. An update
 is always a change, never compared with the old value, so values need not be
 comparable; signals detect changes by item generation.
+
+## Pixel readback is a render command, not a window feature
+
+`CommandBuffer::pushReadback` reads a framebuffer's whole colour in queue order,
+like a fence, at the size the framebuffer has on the render thread. A window's
+frame is read by pushing it against the window's framebuffer on its main queue:
+queue order is the synchronisation, and it reads the last frame submitted.
+Whether a framebuffer can be read is the backend's call, reported per readback:
+GL reads the offscreen window's target and context framebuffers, but fails an
+on-screen window's back buffer as unsupported, since it is undefined after the
+swap. There is no window-level query; a caller needs only
+`RenderContext::canReadback` and the future's failure. GL reads with a
+synchronous `glReadPixels` on the render thread. The push returns a future that
+fails with `ReadbackFailure` (unsupported or failed), or with `BrokenPromise`
+when the command is dropped unrun.
+
+**Why:** a render command is backend-neutral, where a "run this on the render
+thread" hook is not (see *Frame cadence is per-window*): a command-buffer
+backend implements it as a copy into a buffer. Synchronous `glReadPixels` stalls
+only the render thread, never the loop; a PBO with a fence would un-stall it at
+the cost of a two-phase state machine, which a few captures a second does not
+justify. Fixing the pixel layout at the ase boundary means no consumer guesses
+row order or colour space. An earlier version armed one-shot captures on the
+window that its next `present()` served; it needed a callback list, a mutex, a
+present count and a cancel path in every window, for a guarantee queue order
+already gives. Resolving the size on the render thread matters because a
+default framebuffer's pixel size lives there. An on-screen back buffer is
+undefined after the swap, so on-screen windows report unsupported rather than
+grow a present hook. A future rather than a callback, like the fence, because
+a broken promise turns "the context dropped the command" into an answer, where
+a callback that never ran left the consumer to time out.
 
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 

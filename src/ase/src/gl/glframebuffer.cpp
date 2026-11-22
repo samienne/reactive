@@ -142,6 +142,16 @@ void GlFramebuffer::makeCurrent(Dispatched d, GlDispatchedContext&,
     renderState.setViewport(d, size_);
 }
 
+Vector2i GlFramebuffer::getSize(Dispatched) const
+{
+    return size_;
+}
+
+bool GlFramebuffer::canReadback() const
+{
+    return true;
+}
+
 void GlFramebuffer::setColorTarget(size_t index, Texture texture)
 {
     size_ = texture.getImpl<GlTexture>().getSize();

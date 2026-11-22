@@ -90,6 +90,16 @@ namespace ase
          */
         std::shared_ptr<RenderContextImpl> getSharedImpl() const;
 
+        /**
+         * @brief Whether this context can read pixels back.
+         *
+         * When false, every readback pushed on its queues fails with
+         * `ReadbackError::Unsupported`. When true the backend supports
+         * readback, but one of a particular framebuffer can still fail that
+         * way. False on the dummy backend.
+         */
+        bool canReadback() const;
+
         template <class T>
         T const& getImpl() const
         {

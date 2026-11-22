@@ -38,7 +38,9 @@ namespace ase
 
         void requestFrame() override;
 
-        /** @brief No-op: an offscreen surface has no drawable to swap. */
+        /**
+         * @brief No-op: an offscreen surface has no drawable to swap.
+         */
         PresentStatus present() override;
 
     private:

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "framebufferimpl.h"
+#include "vector.h"
 
 #include "asevisibility.h"
 
@@ -19,6 +20,18 @@ namespace ase
                 GlDispatchedContext& context,
                 GlRenderState& renderState,
                 GlFunctions const& gl) const = 0;
+
+        /**
+         * @brief The size of the colour target in pixels.
+         */
+        virtual Vector2i getSize(Dispatched) const = 0;
+
+        /**
+         * @brief Whether the pixels can be read back reliably.
+         *
+         * A window back buffer is undefined after the swap, so it cannot.
+         */
+        virtual bool canReadback() const = 0;
     };
 } // namespace ase
 

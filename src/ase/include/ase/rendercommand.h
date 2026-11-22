@@ -2,6 +2,7 @@
 
 #include "window.h"
 #include "drawcommand.h"
+#include "readback.h"
 
 #include <btl/future/promise.h>
 
@@ -41,12 +42,19 @@ namespace ase
         Format format;
     };
 
+    struct ReadbackCommand
+    {
+        Framebuffer source;
+        btl::future::Promise<ReadbackImage> promise;
+    };
+
     using RenderCommand = std::variant<
         DrawCommand,
         ClearCommand,
         FenceCommand,
         BufferUploadCommand,
-        TextureUploadCommand
+        TextureUploadCommand,
+        ReadbackCommand
         >;
 
 } // namespace ase

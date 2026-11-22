@@ -36,6 +36,16 @@ void WglFramebuffer::setPixelSize(Dispatched, Vector2i size)
     pixelSize_ = size;
 }
 
+Vector2i WglFramebuffer::getSize(Dispatched) const
+{
+    return pixelSize_;
+}
+
+bool WglFramebuffer::canReadback() const
+{
+    return false;
+}
+
 void WglFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)
 {
     assert(false);
