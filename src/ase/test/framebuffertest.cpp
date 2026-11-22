@@ -41,7 +41,7 @@ TEST(framebuffer, contextFramebuffersDescribeAttachments)
     EXPECT_NE(firstAttachments->getId(), secondAttachments->getId());
 }
 
-TEST(framebuffer, everyChangeBumpsTheVersion)
+TEST(framebuffer, everyChangeBumpsTheGeneration)
 {
     btl::RunLoop loop;
     Platform platform = makeDummyPlatform(loop);
@@ -49,12 +49,12 @@ TEST(framebuffer, everyChangeBumpsTheVersion)
 
     Framebuffer framebuffer = context.makeFramebuffer();
     AttachmentFramebuffer const& attachments = *attachmentsOf(framebuffer);
-    uint64_t version = attachments.getVersion();
+    uint64_t generation = attachments.getGeneration();
 
     auto expectBumped = [&]()
     {
-        EXPECT_NE(version, attachments.getVersion());
-        version = attachments.getVersion();
+        EXPECT_NE(generation, attachments.getGeneration());
+        generation = attachments.getGeneration();
     };
 
     framebuffer.setColorTarget(0, context.makeTexture(size, FORMAT_SRGBA));
@@ -87,7 +87,7 @@ TEST(framebuffer, snapshotSizeFollowsColorTargetZero)
     framebuffer.setColorTarget(0, context.makeTexture(size, FORMAT_SRGBA));
     AttachmentFramebuffer::Snapshot snapshot = attachments.snapshot();
     EXPECT_EQ(size, snapshot.attachments.size);
-    EXPECT_EQ(attachments.getVersion(), snapshot.version);
+    EXPECT_EQ(attachments.getGeneration(), snapshot.generation);
     EXPECT_TRUE(snapshot.attachments.color[0].has_value());
     EXPECT_TRUE(snapshot.attachments.color[1].has_value());
     EXPECT_FALSE(snapshot.attachments.depth.has_value());

@@ -7,6 +7,8 @@
 
 #include "asevisibility.h"
 
+#include <btl/uniqueid.h>
+
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -45,11 +47,11 @@ namespace ase
         };
 
         /**
-         * @brief The attachments together with the version they belong to.
+         * @brief The attachments together with the generation they belong to.
          */
         struct Snapshot
         {
-            uint64_t version;
+            uint64_t generation;
             Attachments attachments;
         };
 
@@ -58,15 +60,15 @@ namespace ase
         /**
          * @brief An identifier no other framebuffer in the process has had.
          */
-        uint64_t getId() const noexcept;
+        btl::UniqueId getId() const noexcept;
 
         /**
          * @brief A number that changes whenever a target is set or unset.
          */
-        uint64_t getVersion() const noexcept;
+        uint64_t getGeneration() const noexcept;
 
         /**
-         * @brief The current attachments and the version they belong to.
+         * @brief The current attachments and the generation they belong to.
          */
         Snapshot snapshot() const;
 
@@ -83,8 +85,8 @@ namespace ase
         void updateSize();
 
     private:
-        uint64_t const id_;
-        std::atomic<uint64_t> version_;
+        btl::UniqueId const id_;
+        std::atomic<uint64_t> generation_;
         mutable std::mutex mutex_;
         Attachments attachments_;
     };

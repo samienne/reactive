@@ -227,7 +227,7 @@ are in the top-level `docs/`.
   check is the manual `bquiheadlesstest`.
 - **Framebuffer objects.** A backend builds its framebuffer objects from an
   `AttachmentFramebuffer` snapshot, cached in `FramebufferObjectCache`; a
-  version change means rebuild, and `sweep` runs on the thread that owns the
+  generation change means rebuild, and `sweep` runs on the thread that owns the
   handles. `asAttachments()` is null for a framebuffer not described by
   attachments. `asetest` includes ase's private `src/` headers on purpose, to
   test the cache.

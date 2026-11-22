@@ -20,7 +20,7 @@ namespace
         {
             return [this](AttachmentFramebuffer::Snapshot const& snapshot)
             {
-                versions.push_back(snapshot.version);
+                generations.push_back(snapshot.generation);
                 events.push_back("create " + std::to_string(next));
                 return next++;
             };
@@ -35,7 +35,7 @@ namespace
         }
 
         std::vector<std::string> events;
-        std::vector<uint64_t> versions;
+        std::vector<uint64_t> generations;
         int next = 1;
     };
 
@@ -60,7 +60,7 @@ TEST(framebufferObjectCache, createsOncePerFramebuffer)
     EXPECT_EQ(Events({ "create 1", "create 2" }), objects.events);
 }
 
-TEST(framebufferObjectCache, versionChangeDestroysThenCreates)
+TEST(framebufferObjectCache, generationChangeDestroysThenCreates)
 {
     FakeObjects objects;
     FramebufferObjectCache<int> cache;
@@ -72,7 +72,7 @@ TEST(framebufferObjectCache, versionChangeDestroysThenCreates)
         cache.get(*framebuffer, objects.creator(), objects.destroyer()));
 
     EXPECT_EQ(Events({ "create 1", "destroy 1", "create 2" }), objects.events);
-    EXPECT_EQ(framebuffer->getVersion(), objects.versions.back());
+    EXPECT_EQ(framebuffer->getGeneration(), objects.generations.back());
     EXPECT_EQ(1u, cache.size());
 }
 
@@ -159,7 +159,7 @@ TEST(framebufferObjectCache, changeWhileCreatingRebuildsOnNextGet)
         objects.destroyer());
 
     EXPECT_EQ(1, handle);
-    EXPECT_NE(framebuffer->getVersion(), objects.versions.back());
+    EXPECT_NE(framebuffer->getGeneration(), objects.generations.back());
     EXPECT_EQ(2,
         cache.get(*framebuffer, objects.creator(), objects.destroyer()));
     EXPECT_EQ(Events({ "create 1", "destroy 1", "create 2" }), objects.events);

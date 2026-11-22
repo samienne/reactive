@@ -2,6 +2,8 @@
 
 #include <ase/attachmentframebuffer.h>
 
+#include <btl/uniqueid.h>
+
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -30,11 +32,11 @@ namespace ase
             Create&& create,
             Destroy&& destroy)
         {
-            uint64_t const id = framebuffer.getId();
+            btl::UniqueId const id = framebuffer.getId();
             auto i = entries_.find(id);
             if (i != entries_.end())
             {
-                if (i->second.version == framebuffer.getVersion())
+                if (i->second.generation == framebuffer.getGeneration())
                     return i->second.handle;
 
                 destroy(i->second.handle);
@@ -46,7 +48,7 @@ namespace ase
             Handle handle = create(snapshot);
             entries_.emplace(id,
                 Entry{ framebuffer.weak_from_this(),
-                    snapshot.version,
+                    snapshot.generation,
                     handle });
             return handle;
         }
@@ -96,10 +98,10 @@ namespace ase
         struct Entry
         {
             std::weak_ptr<AttachmentFramebuffer const> owner;
-            uint64_t version;
+            uint64_t generation;
             Handle handle;
         };
 
-        std::unordered_map<uint64_t, Entry> entries_;
+        std::unordered_map<btl::UniqueId, Entry> entries_;
     };
 } // namespace ase
