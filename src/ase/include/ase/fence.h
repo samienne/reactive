@@ -14,10 +14,10 @@ namespace ase
      * @brief A point in a render queue that signals once the GPU has
      * finished the work submitted before it.
      *
-     * Made by `RenderContext::makeFence()` and pushed with
-     * `CommandBuffer::pushFence()`. A fence that is never submitted, or whose
-     * queue is torn down before it runs, never signals; once it is destroyed
-     * its pending futures fail with `btl::future::BrokenPromise`.
+     * Made by `CommandBuffer::pushFence()`. A fence whose command buffer is
+     * never submitted, or whose queue is torn down before it runs, never
+     * signals; once it is destroyed its pending futures fail with
+     * `btl::future::BrokenPromise`.
      */
     class ASE_EXPORT Fence
     {

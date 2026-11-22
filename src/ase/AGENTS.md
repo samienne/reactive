@@ -1,7 +1,7 @@
 # ase — agent notes
 
 *Last verified against `a662f42` (2026-08-22); the pixel readback note against
-`5a26b28f` (2026-11-22); the fence and backpressure notes against `c9871428`
+`5a26b28f` (2026-11-22); the fence and backpressure notes against `f1595378`
 (2026-11-22).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
@@ -156,15 +156,14 @@ are in the top-level `docs/`.
   framebuffer's size is render-thread-only state that `makeCurrent` reads
   without a lock. GlxWindow's present task likewise captures the
   `_NET_WM_SYNC_REQUEST` counter value by value.
-- **`Fence` is a polled handle.** `RenderContext::makeFence()` makes one
-  (`FenceImpl` from `RenderContextImpl::makeFenceImpl`) before the command
-  runs, since `CommandBuffer` is backend-agnostic; `pushFence(Fence)` queues
-  it. `isSignaled()` is an atomic read, and the frame throttle uses only that.
-  `whenSignaled()` is the one future entry point. GL and the dummy both use
-  `BasicFence`: the backend calls `signal()`, which hands back the waiting
-  promises, and a per-queue `FenceDrain` fulfils them in order from one btl
-  thread-pool task at a time, so no continuation runs on the GL render
-  thread or under the dispatcher's mutex (where the idle poll runs).
+- **`Fence` is a polled handle.** `CommandBuffer::pushFence()` makes one and
+  queues it. The command buffer is backend-agnostic, so every backend's fence
+  is a `BasicFence`. `isSignaled()` is an atomic read, and the frame throttle
+  uses only that. `whenSignaled()` is the one future entry point. The backend
+  calls `signal()`, which hands back the waiting promises, and a per-queue
+  `FenceDrain` fulfils them in order from one btl thread-pool task at a time,
+  so no continuation runs on the GL render thread or under the dispatcher's
+  mutex (where the idle poll runs).
   `~GlRenderState` deletes unsignaled sync objects and drops its idle poll,
   which captured it; those fences never signal, and once their last reference is
   released, on the destroying thread rather than the render thread, their

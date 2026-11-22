@@ -3,15 +3,15 @@
 *Last verified against `a662f42` (2026-08-22); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the pixel readback entry against
 `5a26b28f` (2026-11-22); the fence and backpressure entries against
-`c9871428` (2026-11-22).*
+`f1595378` (2026-11-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
 ## A fence is polled; its futures are fulfilled off the render thread
 
-A GPU fence is an `ase::Fence` object the render context makes and a command
-buffer carries, not a future the command buffer returns. The frame throttle
+A GPU fence is an `ase::Fence` object a command buffer makes and carries, not
+a bare future. The frame throttle
 reads only its atomic `isSignaled()`, so a window counts its unsignaled fences
 and the loop, which nothing wakes when a fence signals, polls on a short timer
 only while a window is held back. `whenSignaled()` still gives a future, but
