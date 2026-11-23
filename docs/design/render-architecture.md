@@ -339,6 +339,36 @@ Latent and documented rather than fixed:
 - The graphics async abstraction is untouched — only present, the binding, and the
   loop/ownership around it change.
 
+## One render context in bqui
+
+The model above stays: ase supports several contexts, and a window
+carries the one it was made against. This section is a recorded owner
+decision and a future option; it was added after the status above and
+does not re-verify it.
+
+- **Owner decision: bqui assumes a single render context**, owned by
+  `App` and existing from its construction (`image-brush.md`,
+  *Decided*). Render views assume the same context (`render-view.md`).
+
+**A future option, not planned work.** The owner is mapping, for later, a
+queue per window instead of a context per window, and queue roles
+(window, offscreen, transfer) instead of today's foreground and
+background queues. The motivating case is a 3D engine built on ase that
+might want its own context; the direction preferred was separate queues
+over separate contexts. What stands in the way, read on the unmerged
+`origin/effect-brushes` (`30b6727b`):
+
+- Places that assume one main queue:
+  `src/ase/include/ase/rendercontext.h:72-73`,
+  `src/ase/src/windowbase.cpp:27,81`, `src/ase/src/window.cpp:75-77`,
+  `src/ase/include/ase/platform.h:70`,
+  `src/ase/src/gl/glrendercontext.cpp:40-43`,
+  `src/ase/src/windows/wglwindow.cpp:457`,
+  `src/ase/src/glx/glxwindow.cpp:378`,
+  `src/avg/src/painter.cpp:407,418`, `src/bqui/src/app.cpp:167,421`.
+- One painter per window (`src/bqui/src/windowbridge.cpp:48`), with the
+  glyph atlas per painter (`src/avg/include/avg/painter.h:159`).
+
 ## Non-goals
 
 - Reworking the async graphics abstraction (submit-from-any-thread, async
