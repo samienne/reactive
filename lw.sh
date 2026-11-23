@@ -1,6 +1,6 @@
 #!/bin/sh
 # loomworks repo-local launcher. Committed alongside lw.pin. Fetches the pinned,
-# verified lw host binary into .nvim/cache/ and execs it; the host provisions the
+# verified lw host binary into .lw/cache/ and execs it; the host provisions the
 # pinned bundle itself. Regenerate with `lw bootstrap install`. See
 # `lw help bootstrap`. LOOMWORKS_LAUNCHER tells lw which launcher ran it, so the
 # commands it prints read ./lw.sh.
@@ -22,7 +22,7 @@ case "$os" in
   Linux) os=linux ;;
   Darwin) os=macos ;;
   MINGW*|MSYS*|CYGWIN*|Windows_NT) os=windows ;;
-  *) echo "lw: unsupported OS '$os'" >&2; exit 1 ;;
+  *) os=$(printf %s "$os" | tr '[:upper:]' '[:lower:]') ;;
 esac
 case "$arch" in
   x86_64|amd64) arch=x86_64 ;;
@@ -30,9 +30,11 @@ case "$arch" in
 esac
 case "$os-$arch" in
   linux-x86_64) asset=lw-linux-x86_64 ;;
+  linux-arm64) asset=lw-linux-arm64 ;;
   macos-arm64) asset=lw-macos-arm64 ;;
+  macos-x86_64) asset=lw-macos-x86_64 ;;
   windows-x86_64) asset=lw-windows-x86_64.exe ;;
-  *) echo "lw: no pinned lw binary for $os/$arch" >&2; exit 1 ;;
+  *) echo "lw: no lw build for $os-$arch; supported: linux-arm64, linux-x86_64, macos-arm64, macos-x86_64, windows-x86_64" >&2; exit 1 ;;
 esac
 
 # --- read version + the asset's pinned sha256 from lw.pin ------------------
@@ -54,7 +56,12 @@ case "$version" in
   *) repo=samienne/loomworks ;;
 esac
 
-cache="$here/.nvim/cache"
+# Where the binary is cached: .lw/cache for lw 0.2 and later; a pin below 0.2
+# keeps .nvim/cache, where that release expects its own binary.
+case "$version" in
+  0.0.*|0.1.*) cache="$here/.nvim/cache" ;;
+  *) cache="$here/.lw/cache" ;;
+esac
 bin="$cache/lw-$version-$asset"
 
 # --- peel launcher-only flags (--insecure / --verify); forward the rest ---
@@ -124,6 +131,10 @@ fetch_retry() {
 if [ ! -f "$bin" ] || [ "$(sha_of "$bin" | tr 'A-Z' 'a-z')" != "$want" ]; then
   rm -f "$bin"
   mkdir -p "$cache"
+  # .lw/ ignores itself (created once, never rewritten or written through a link)
+  if [ "$cache" = "$here/.lw/cache" ] && [ ! -e "$here/.lw/.gitignore" ] && [ ! -L "$here/.lw/.gitignore" ]; then
+    (set -C; printf '%s\n' '# lw workspace state, machine-local: ignore everything here' '*' > "$here/.lw/.gitignore") 2>/dev/null || :
+  fi
   if [ -n "${LOOMWORKS_RELEASE_URL:-}" ]; then
     url="$LOOMWORKS_RELEASE_URL/$asset"
   else
