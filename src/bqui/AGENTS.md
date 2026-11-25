@@ -2,7 +2,8 @@
 
 *Last verified against `55f2e55` (2026-08-15), for the headless offscreen
 rework; the remote transport, deferred step and blob notes against `0548e867`
-(2026-11-22).*
+(2026-11-22); the remote readback and screenshot paragraphs against `881224b1`
+(2026-11-25).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
