@@ -23,6 +23,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
 #include <optional>
@@ -215,4 +216,89 @@ TEST(renderView, destroyedHandleStopsTheCallback)
             });
 
     EXPECT_GE(calls, 1);
+}
+
+TEST(renderView, requestFrameRendersEveryWindow)
+{
+    std::vector<RenderView> rendered;
+    RenderHandle handle([&](RenderFrame& frame)
+            {
+                for (auto const& target : frame.getTargets())
+                    rendered.push_back(target.view);
+            });
+
+    auto first = handle.makeView();
+    auto second = handle.makeView();
+    auto viewSize = bq::signal::constant(avg::Vector2f(8.0f, 8.0f));
+
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
+
+    App app;
+    app.platform(platform);
+    app.addWindow(window(bq::signal::constant<std::string>("First")),
+            sized(widget::renderView(first), viewSize));
+    app.addWindow(window(bq::signal::constant<std::string>("Second")),
+            sized(widget::renderView(second), viewSize));
+
+    size_t beforeRequest = 0;
+
+    loop.post([&](btl::RunLoop::Controller& controller)
+            {
+                auto token = platform.pause();
+                step(token, 10);
+                beforeRequest = rendered.size();
+
+                handle.requestFrame();
+                step(token, 10);
+                controller.stop();
+            });
+
+    app.run();
+
+    EXPECT_EQ(2u, beforeRequest);
+    ASSERT_EQ(4u, rendered.size());
+    EXPECT_EQ(1, std::count(rendered.begin() + 2, rendered.end(), first));
+    EXPECT_EQ(1, std::count(rendered.begin() + 2, rendered.end(), second));
+}
+
+TEST(renderView, releaseRunsOnceWhenTheRunEnds)
+{
+    int calls = 0;
+    int releases = 0;
+    int callsAtRelease = -1;
+    RenderHandle handle([&](RenderFrame&) { ++calls; },
+            [&]
+            {
+                ++releases;
+                callsAtRelease = calls;
+            });
+
+    runScript(sized(widget::renderView(handle.makeView()),
+                bq::signal::constant(avg::Vector2f(8.0f, 8.0f))),
+            [&](App&, ase::PauseToken& token)
+            {
+                step(token, 5);
+                EXPECT_EQ(0, releases);
+            });
+
+    EXPECT_EQ(1, releases);
+    EXPECT_EQ(1, callsAtRelease);
+}
+
+TEST(renderView, movedHandleKeepsTheCallback)
+{
+    int calls = 0;
+    RenderHandle handle([&](RenderFrame&) { ++calls; });
+    RenderHandle moved(std::move(handle));
+    moved.setContinuous(true);
+
+    runScript(sized(widget::renderView(moved.makeView()),
+                bq::signal::constant(avg::Vector2f(8.0f, 8.0f))),
+            [&](App&, ase::PauseToken& token)
+            {
+                step(token, 5);
+            });
+
+    EXPECT_GE(calls, 4);
 }

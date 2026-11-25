@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "windowdata.h"
 #include "windowbridge.h"
+#include "renderviewstate.h"
 #include "apptestsupport.h"
 
 #include <bq/signal/input.h>
@@ -165,6 +166,8 @@ struct ImplScope
         // pending would run its destructor on the render thread, not this one.
         queue.finish();
         app.windowBridges_.clear();
+        bqui::detail::releaseRenderViews();
+        queue.finish();
     }
 
     AppDeferred& app;

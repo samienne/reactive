@@ -20,6 +20,26 @@ namespace detail
 namespace
 {
     thread_local RenderViewCollector* currentCollector = nullptr;
+    thread_local std::vector<std::weak_ptr<RenderViewState>> collectedViews;
+    thread_local std::vector<std::weak_ptr<RenderHandleCore>> collectedHandles;
+
+    template <typename T>
+    void remember(std::vector<std::weak_ptr<T>>& entries,
+            std::shared_ptr<T> const& value)
+    {
+        bool known = false;
+        entries.erase(std::remove_if(entries.begin(), entries.end(),
+                    [&](std::weak_ptr<T> const& entry)
+                    {
+                        auto locked = entry.lock();
+                        known = known || locked == value;
+                        return !locked;
+                    }),
+                entries.end());
+
+        if (!known)
+            entries.push_back(value);
+    }
 } // anonymous namespace
 
 void RenderHandleCore::wake()
@@ -121,8 +141,12 @@ ase::RenderContext& RenderViewCollector::getContext() const
 
 void RenderViewCollector::add(std::shared_ptr<RenderViewState> view)
 {
-    if (std::find(views_.begin(), views_.end(), view) == views_.end())
-        views_.push_back(std::move(view));
+    if (std::find(views_.begin(), views_.end(), view) != views_.end())
+        return;
+
+    remember(collectedViews, view);
+    remember(collectedHandles, view->handle);
+    views_.push_back(std::move(view));
 }
 
 std::vector<std::shared_ptr<RenderViewState>> RenderViewCollector::take() &&
@@ -151,8 +175,15 @@ bool renderViews(ase::RenderContext& context, ase::Frame const& frame,
     {
         handle->addWaker(wakeOwner, wake);
 
+        uint64_t frameRequests = 0;
+        {
+            std::lock_guard<std::mutex> lock(handle->mutex);
+            frameRequests = handle->frameRequests;
+        }
+
         std::vector<RenderTarget> targets;
         bool resized = false;
+        bool requested = false;
 
         for (auto const& view : views)
         {
@@ -163,24 +194,30 @@ bool renderViews(ase::RenderContext& context, ase::Frame const& frame,
             if (!view->targets)
                 continue;
 
-            targets.push_back(RenderTarget{ RenderView(view),
+            targets.push_back(RenderTarget{ RenderViewAccess::make(view),
                     view->targets->framebuffer, view->targets->size,
                     view->resized });
             resized = resized || view->resized;
+            requested = requested
+                || view->seenFrameRequests != frameRequests;
         }
+
+        if (targets.empty())
+            continue;
+
+        std::lock_guard<std::recursive_mutex> running(handle->callbackMutex);
 
         std::shared_ptr<RenderHandle::Callback> callback;
         bool continuous = false;
 
         {
             std::lock_guard<std::mutex> lock(handle->mutex);
-            bool requested = std::exchange(handle->frameRequested, false);
             continuous = handle->continuous;
             if (continuous || requested || resized)
                 callback = handle->callback;
         }
 
-        if (!callback || targets.empty())
+        if (!callback)
             continue;
 
         RenderFrame renderFrame(context, frame.time, frame.dt,
@@ -190,21 +227,68 @@ bool renderViews(ase::RenderContext& context, ase::Frame const& frame,
 
         for (auto const& target : renderFrame.getTargets())
         {
-            auto const& state = target.view.getState();
+            auto const& state = RenderViewAccess::getState(target.view);
             std::lock_guard<std::mutex> lock(state->mutex);
             state->resized = false;
+            state->seenFrameRequests = frameRequests;
         }
 
         if (renderFrame.isFrameRequested())
         {
             std::lock_guard<std::mutex> lock(handle->mutex);
-            handle->frameRequested = true;
+            ++handle->frameRequests;
         }
 
         again = again || continuous || renderFrame.isFrameRequested();
     }
 
     return again;
+}
+
+void releaseRenderViews()
+{
+    for (auto const& entry : collectedViews)
+    {
+        if (auto view = entry.lock())
+        {
+            std::lock_guard<std::mutex> lock(view->mutex);
+            view->targets.reset();
+            view->resized = false;
+        }
+    }
+
+    auto handles = std::move(collectedHandles);
+    collectedViews.clear();
+    collectedHandles.clear();
+
+    for (auto const& entry : handles)
+    {
+        auto handle = entry.lock();
+        if (!handle)
+            continue;
+
+        std::lock_guard<std::recursive_mutex> running(handle->callbackMutex);
+
+        std::shared_ptr<RenderHandle::Release> release;
+        {
+            std::lock_guard<std::mutex> lock(handle->mutex);
+            release = handle->release;
+        }
+
+        if (release && *release)
+            (*release)();
+    }
+}
+
+RenderView RenderViewAccess::make(std::shared_ptr<RenderViewState> state)
+{
+    return RenderView(std::move(state));
+}
+
+std::shared_ptr<RenderViewState> const& RenderViewAccess::getState(
+        RenderView const& view)
+{
+    return view.state_;
 }
 
 } // namespace detail
@@ -222,11 +306,6 @@ bool RenderView::operator==(RenderView const& rhs) const
 bool RenderView::operator!=(RenderView const& rhs) const
 {
     return state_ != rhs.state_;
-}
-
-std::shared_ptr<detail::RenderViewState> const& RenderView::getState() const
-{
-    return state_;
 }
 
 RenderFrame::RenderFrame(ase::RenderContext& context,
@@ -270,10 +349,11 @@ bool RenderFrame::isFrameRequested() const
     return frameRequested_;
 }
 
-RenderHandle::RenderHandle(Callback callback) :
+RenderHandle::RenderHandle(Callback callback, Release release) :
     core_(std::make_shared<detail::RenderHandleCore>())
 {
     core_->callback = std::make_shared<Callback>(std::move(callback));
+    core_->release = std::make_shared<Release>(std::move(release));
 }
 
 RenderHandle& RenderHandle::operator=(RenderHandle&& rhs) noexcept
@@ -295,14 +375,19 @@ RenderHandle::~RenderHandle()
 RenderView RenderHandle::makeView()
 {
     assert(core_);
-    return RenderView(std::make_shared<detail::RenderViewState>(core_));
+    return detail::RenderViewAccess::make(
+            std::make_shared<detail::RenderViewState>(core_));
 }
 
 void RenderHandle::requestFrame()
 {
+    assert(core_);
+    if (!core_)
+        return;
+
     {
         std::lock_guard<std::mutex> lock(core_->mutex);
-        core_->frameRequested = true;
+        ++core_->frameRequests;
     }
 
     core_->wake();
@@ -310,6 +395,10 @@ void RenderHandle::requestFrame()
 
 void RenderHandle::setContinuous(bool continuous)
 {
+    assert(core_);
+    if (!core_)
+        return;
+
     {
         std::lock_guard<std::mutex> lock(core_->mutex);
         core_->continuous = continuous;
@@ -324,8 +413,14 @@ void RenderHandle::detach()
     if (!core_)
         return;
 
+    // Destroyed after the locks: their captures may own other handles.
+    std::shared_ptr<Callback> callback;
+    std::shared_ptr<Release> release;
+
+    std::lock_guard<std::recursive_mutex> running(core_->callbackMutex);
     std::lock_guard<std::mutex> lock(core_->mutex);
-    core_->callback.reset();
+    callback = std::move(core_->callback);
+    release = std::move(core_->release);
     core_->continuous = false;
 }
 

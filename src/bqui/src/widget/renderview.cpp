@@ -12,6 +12,7 @@
 
 #include <bq/signal/constant.h>
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 
@@ -20,14 +21,18 @@ namespace bqui::widget
 
 namespace
 {
+    constexpr long kMaxViewPixels = 8192;
+
     avg::Drawing drawView(
             std::shared_ptr<bqui::detail::RenderViewState> const& state,
             avg::DrawContext const& context,
             avg::Vector2f size)
     {
         ase::Vector2i pixels(
-                static_cast<int>(std::lround(size.x())),
-                static_cast<int>(std::lround(size.y())));
+                static_cast<int>(std::min(std::lround(size.x()),
+                        kMaxViewPixels)),
+                static_cast<int>(std::min(std::lround(size.y()),
+                        kMaxViewPixels)));
 
         if (pixels.x() <= 0 || pixels.y() <= 0)
             return context.drawing();
@@ -66,7 +71,8 @@ AnyWidget renderView(RenderView view)
                         {{ 0.0f, 100.0f, 100000.0f }},
                         {{ 0.0f, 100.0f, 100000.0f }})))
         | modifier::onDraw(
-            [state = view.getState()](avg::DrawContext const& context,
+            [state = bqui::detail::RenderViewAccess::getState(view)](
+                avg::DrawContext const& context,
                 avg::Vector2f size)
             {
                 return drawView(state, context, size);

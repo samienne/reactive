@@ -8,6 +8,7 @@
 #include <ase/vector.h>
 #include <ase/window.h>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -29,10 +30,15 @@ namespace bqui::detail
         void addWaker(std::weak_ptr<void const> owner,
                 std::function<void()> waker);
 
+        // Held while a callback runs, so detaching waits for it. Recursive:
+        // a callback may destroy its own handle.
+        std::recursive_mutex callbackMutex;
+
         std::mutex mutex;
         std::shared_ptr<RenderHandle::Callback> callback;
+        std::shared_ptr<RenderHandle::Release> release;
         bool continuous = false;
-        bool frameRequested = false;
+        uint64_t frameRequests = 0;
         std::vector<std::pair<std::weak_ptr<void const>,
             std::function<void()>>> wakers;
     };
@@ -48,7 +54,8 @@ namespace bqui::detail
 
         explicit RenderViewState(std::shared_ptr<RenderHandleCore> handle);
 
-        /** Recreates the targets when @p size differs, cleared to transparent.
+        /**
+         * Recreates the targets when @p size differs, cleared to transparent.
          */
         ase::Texture prepare(ase::RenderContext& context, ase::Vector2i size);
 
@@ -59,9 +66,21 @@ namespace bqui::detail
         mutable std::mutex mutex;
         std::optional<Targets> targets;
         bool resized = false;
+        uint64_t seenFrameRequests = 0;
     };
 
-    /** Collects the views drawn while it is current on this thread. */
+    struct RenderViewAccess
+    {
+        static RenderView make(std::shared_ptr<RenderViewState> state);
+
+        static std::shared_ptr<RenderViewState> const& getState(
+                RenderView const& view);
+    };
+
+    /**
+     * Collects the views drawn while it is current on this thread, and
+     * remembers them for releaseRenderViews().
+     */
     class RenderViewCollector
     {
     public:
@@ -85,7 +104,8 @@ namespace bqui::detail
         std::vector<std::shared_ptr<RenderViewState>> views_;
     };
 
-    /** Runs the callbacks of the handles owning @p views for one window
+    /**
+     * Runs the callbacks of the handles owning @p views for one window
      * frame. Returns whether any wants another frame.
      *
      * @p wakeOwner keeps @p wake registered with those handles while alive.
@@ -94,4 +114,10 @@ namespace bqui::detail
             std::vector<std::shared_ptr<RenderViewState>> const& views,
             std::weak_ptr<void const> wakeOwner,
             std::function<void()> const& wake);
+
+    /**
+     * Drops the targets of every view collected on this thread and runs
+     * their handles' release callbacks. Call before the context goes away.
+     */
+    void releaseRenderViews();
 } // namespace bqui::detail
