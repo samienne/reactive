@@ -23,7 +23,8 @@ namespace avg
         using Vertex = Vector2f;
         SoftMesh(pmr::vector<Vertex> vertices,
                 pmr::vector<uint32_t> indices,
-                Brush brush);
+                Brush brush,
+                Rect imageRect = Rect());
         SoftMesh(SoftMesh const&) = default;
         SoftMesh(SoftMesh&&) noexcept = default;
 
@@ -38,6 +39,12 @@ namespace avg
         pmr::vector<uint32_t> const & getIndices() const;
         Brush const& getBrush() const;
         Transform const& getTransform() const;
+
+        /**
+         * @brief The rectangle, in vertex space, that the brush's image is
+         * stretched over.
+         */
+        Rect const& getImageRect() const;
 
         //SoftMesh getClipped(Rect const& r) const;
 

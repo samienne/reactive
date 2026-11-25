@@ -53,6 +53,7 @@ namespace avg
         ase::RenderContext& renderContext_;
         ase::Pipeline solidPipeline_;
         ase::Pipeline transparentPipeline_;
+        ase::Pipeline imagePipeline_;
         ase::Buffer buffer_;
         ase::UniformSet uniformSet_;
         ase::UniformBuffer uniformBuffer_;

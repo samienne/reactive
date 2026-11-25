@@ -18,6 +18,7 @@ public:
     pmr::vector<SoftMesh::Vertex> vertices_;
     pmr::vector<uint32_t> indices_;
     Brush brush_;
+    Rect imageRect_;
 };
 
 SoftMeshDeferred::SoftMeshDeferred(pmr::memory_resource* memory) :
@@ -28,7 +29,8 @@ SoftMeshDeferred::SoftMeshDeferred(pmr::memory_resource* memory) :
 
 SoftMesh::SoftMesh(pmr::vector<Vertex> vertices,
         pmr::vector<uint32_t> indices,
-        Brush brush) :
+        Brush brush,
+        Rect imageRect) :
     deferred_(pmr::make_shared<SoftMeshDeferred>(
                 vertices.get_allocator().resource(),
                 vertices.get_allocator().resource()
@@ -37,6 +39,7 @@ SoftMesh::SoftMesh(pmr::vector<Vertex> vertices,
     deferred_->vertices_ = std::move(vertices);
     deferred_->brush_ = std::move(brush);
     deferred_->indices_ = std::move(indices);
+    deferred_->imageRect_ = imageRect;
 }
 
 SoftMesh::~SoftMesh()
@@ -68,6 +71,11 @@ Transform const& SoftMesh::getTransform() const
     return transform_;
 }
 
+Rect const& SoftMesh::getImageRect() const
+{
+    return d()->imageRect_;
+}
+
 SoftMeshDeferred* SoftMesh::getUnique()
 {
     if (deferred_.use_count() == 1)
@@ -76,6 +84,8 @@ SoftMeshDeferred* SoftMesh::getUnique()
     auto d = pmr::make_shared<SoftMeshDeferred>(getResource(), getResource());
     d->vertices_ = deferred_->vertices_;
     d->indices_ = deferred_->indices_;
+    d->brush_ = deferred_->brush_;
+    d->imageRect_ = deferred_->imageRect_;
     deferred_ = std::move(d);
 
     return deferred_.get();
