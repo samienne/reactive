@@ -43,6 +43,7 @@
 #include <string>
 #include <unordered_map>
 #include <cstdint>
+#include <vector>
 
 namespace bqui
 {
@@ -52,6 +53,11 @@ inline uint64_t getNextFrameId()
     static std::atomic<uint64_t> s_frameId{ 0 };
     return ++s_frameId;
 }
+
+namespace detail
+{
+    struct RenderViewState;
+} // namespace detail
 
 class WindowBridge : public remote::RemoteWindow
 {
@@ -110,6 +116,8 @@ private:
 
     void wake();
 
+    bool renderViews(ase::Frame const& frame);
+
     std::shared_ptr<WakeTarget> wakeTarget_;
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::memory_resource* memory_;
@@ -137,6 +145,7 @@ private:
     avg::RenderTree renderTree_;
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
+    std::vector<std::shared_ptr<detail::RenderViewState>> renderViews_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
     std::atomic<bool> needsUpdate_{true};
     // The constructor evaluates the instance; the first transaction takes it.

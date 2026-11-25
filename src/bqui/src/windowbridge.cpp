@@ -1,5 +1,7 @@
 #include "windowbridge.h"
 
+#include "renderviewstate.h"
+
 #include <ase/commandbuffer.h>
 #include <ase/renderqueue.h>
 
@@ -379,6 +381,8 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     if (animating_)
     {
+        detail::RenderViewCollector collector(aseWindow.getRenderContext());
+
         auto [drawing, cont] = renderTree_.draw(
                 avg::DrawContext(&painter_),
                 avg::Obb(aseWindow.getSize().cast<float>()),
@@ -387,7 +391,10 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
         drawing_ = std::move(drawing);
         animating_ = cont;
+        renderViews_ = std::move(collector).take();
     }
+
+    bool viewsAgain = renderViews(frame);
 
     painter_.clearWindow(aseWindow);
     painter_.paintToWindow(aseWindow, drawing_);
@@ -396,7 +403,7 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     ++frames_;
 
-    if (animating_)
+    if (animating_ || viewsAgain)
         return std::chrono::microseconds(0);
 
     if (nextUpdate_)
@@ -406,6 +413,25 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
     }
 
     return std::nullopt;
+}
+
+bool WindowBridge::renderViews(ase::Frame const& frame)
+{
+    if (renderViews_.empty())
+        return false;
+
+    std::weak_ptr<WakeTarget> target = wakeTarget_;
+
+    return detail::renderViews(aseWindow.getRenderContext(), frame,
+            renderViews_, target, [target]
+            {
+                if (auto locked = target.lock())
+                {
+                    std::lock_guard<std::mutex> lock(locked->mutex);
+                    if (locked->bridge)
+                        locked->bridge->requestFrame();
+                }
+            });
 }
 
 btl::UniqueId WindowBridge::getId() const
