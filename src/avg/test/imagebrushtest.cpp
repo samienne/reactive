@@ -185,3 +185,28 @@ TEST_F(ImageBrush, opaqueFirstThenBlendedInPaintOrder)
     EXPECT_EQ(std::vector<ase::Texture>{ second }, draws[2]->getTextures());
     EXPECT_EQ(std::vector<ase::Texture>{ first }, draws[3]->getTextures());
 }
+
+TEST_F(ImageBrush, laterBlendedDrawsCarrySmallerZ)
+{
+    auto texture = makeTexture();
+
+    Drawing drawing(memory());
+    drawing += fillRect(0.0f, 0.0f, 10.0f, 10.0f, Brush(Image(texture)));
+    drawing += fillRect(0.0f, 0.0f, 10.0f, 10.0f,
+            Brush(Color(0.0f, 0.0f, 0.0f, 0.5f)));
+    drawing += fillRect(0.0f, 0.0f, 10.0f, 10.0f, Brush(Image(texture)));
+
+    auto rendered = render(drawing);
+    auto draws = rendered.draws();
+    ASSERT_EQ(3u, draws.size());
+
+    for (auto draw : draws)
+    {
+        auto vertices = rendered.vertices(*draw);
+        ASSERT_FALSE(vertices.empty());
+        EXPECT_FLOAT_EQ(vertices[6], draw->getZ());
+    }
+
+    EXPECT_GT(draws[0]->getZ(), draws[1]->getZ());
+    EXPECT_GT(draws[1]->getZ(), draws[2]->getZ());
+}

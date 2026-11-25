@@ -59,9 +59,9 @@ namespace
 
         if (pipeline1.isBlendEnabled())
         {
-            // Sort by Z
+            // Back to front: under GL_LESS a larger z is farther.
             if (d1.getZ() != d2.getZ())
-                return d1.getZ() < d2.getZ();
+                return d1.getZ() > d2.getZ();
         }
 
         // Sort by textures

@@ -1,5 +1,7 @@
 #include "image.h"
 
+#include <utility>
+
 namespace avg
 {
 

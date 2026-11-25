@@ -341,7 +341,7 @@ void renderElements(ase::CommandBuffer& commandBuffer,
 
     auto pushElements = [&](Element const& batch)
     {
-        float const z = resultVertices[0][2];
+        float const z = resultVertices[0][6];
 
         auto vb = context.makeVertexBuffer();
         auto ib = context.makeIndexBuffer();
