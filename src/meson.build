@@ -5,4 +5,5 @@ subdir('bq')
 subdir('bqui')
 subdir('testapp1')
 subdir('inspectorapp')
+subdir('renderviewapp')
 
