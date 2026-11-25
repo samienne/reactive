@@ -38,6 +38,11 @@ namespace avg
 
         ase::UniformSet const& getUniformSet() const;
 
+        /**
+         * @brief Whether @p brush is drawn with the opaque pipeline.
+         */
+        bool isOpaque(Brush const& brush) const;
+
         ase::Pipeline const& getPipeline(Brush const& brush) const;
         ase::Pipeline const& getPipeline(Pen const& pen) const;
 

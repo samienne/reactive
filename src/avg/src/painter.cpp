@@ -163,12 +163,17 @@ ase::UniformSet const& Painter::getUniformSet() const
     return uniformSet_;
 }
 
+bool Painter::isOpaque(Brush const& brush) const
+{
+    return !brush.getImage() && brush.getColor().getAlpha() > 254.0f/255.0f;
+}
+
 ase::Pipeline const& Painter::getPipeline(Brush const& brush) const
 {
     if (brush.getImage())
         return imagePipeline_;
 
-    if (brush.getColor().getAlpha() > 254.0f/255.0f)
+    if (isOpaque(brush))
         return solidPipeline_;
     else
         return transparentPipeline_;

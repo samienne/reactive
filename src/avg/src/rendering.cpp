@@ -54,6 +54,7 @@ using Vertices = pmr::vector<Vertex>;
 struct Element
 {
     ase::Pipeline pipeline;
+    bool opaque;
     std::optional<ase::Texture> texture;
     Vertices vertices;
     pmr::vector<uint32_t> indices;
@@ -313,12 +314,11 @@ void renderElements(ase::CommandBuffer& commandBuffer,
         Painter const& painter, pmr::vector<Element>&& elements)
 {
     ZoneScoped;
+    // Blended draws do not write depth, so any opaque draw after them would
+    // cover them; draw the opaque ones first and the rest in paint order.
     auto compare = [](Element const& a, Element const& b)
     {
-        if (a.pipeline != b.pipeline)
-            return a.pipeline < b.pipeline;
-
-        return a.texture < b.texture;
+        return a.opaque && !b.opaque;
     };
 
     std::stable_sort(elements.begin(), elements.end(), compare);
@@ -411,6 +411,7 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
 
         elements.push_back(Element{
                     painter.getPipeline(mesh.getBrush()),
+                    painter.isOpaque(mesh.getBrush()),
                     image ? std::make_optional(image->getTexture())
                         : std::nullopt,
                     generateVertices(memory, mesh, 1.0f - (float)i * step),

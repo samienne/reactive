@@ -165,7 +165,7 @@ TEST_F(ImageBrush, bottomFirstRowOrderFlipsV)
         EXPECT_NEAR(vertices[i + 5] / 10.0f, vertices[i + 8], 1e-4f);
 }
 
-TEST_F(ImageBrush, batchesSplitOnTexture)
+TEST_F(ImageBrush, opaqueFirstThenBlendedInPaintOrder)
 {
     auto first = makeTexture();
     auto second = makeTexture();
@@ -178,23 +178,10 @@ TEST_F(ImageBrush, batchesSplitOnTexture)
 
     auto rendered = render(drawing);
     auto draws = rendered.draws();
-    ASSERT_EQ(3u, draws.size());
+    ASSERT_EQ(4u, draws.size());
 
-    int firstCount = 0;
-    int secondCount = 0;
-    int untextured = 0;
-    for (auto draw : draws)
-    {
-        auto const& textures = draw->getTextures();
-        if (textures.empty())
-            ++untextured;
-        else if (textures == std::vector<ase::Texture>{ first })
-            ++firstCount;
-        else if (textures == std::vector<ase::Texture>{ second })
-            ++secondCount;
-    }
-
-    EXPECT_EQ(1, firstCount);
-    EXPECT_EQ(1, secondCount);
-    EXPECT_EQ(1, untextured);
+    EXPECT_TRUE(draws[0]->getTextures().empty());
+    EXPECT_EQ(std::vector<ase::Texture>{ first }, draws[1]->getTextures());
+    EXPECT_EQ(std::vector<ase::Texture>{ second }, draws[2]->getTextures());
+    EXPECT_EQ(std::vector<ase::Texture>{ first }, draws[3]->getTextures());
 }
