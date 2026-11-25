@@ -1,11 +1,13 @@
 #pragma once
 
 #include "color.h"
+#include "image.h"
 #include "transform.h"
 #include "avgvisibility.h"
 
 #include <btl/hash.h>
 
+#include <optional>
 #include <ostream>
 
 namespace avg
@@ -14,6 +16,15 @@ namespace avg
     {
     public:
         Brush(Color const& color = Color());
+
+        /**
+         * @brief Paint with `image`, stretched over the bounding box of the
+         * filled shape and multiplied by `color`.
+         *
+         * `Brush(Image(texture), Color(1, 1, 1, 0.5f))` paints the texture
+         * at half opacity.
+         */
+        explicit Brush(Image image, Color const& color = Color());
         Brush(Brush const&) = default;
         Brush(Brush&&) = default;
         ~Brush();
@@ -22,6 +33,7 @@ namespace avg
         Brush& operator=(Brush&&) = default;
 
         Color const& getColor() const noexcept;
+        std::optional<Image> const& getImage() const noexcept;
 
         Brush operator*(float scale) const noexcept;
 
@@ -37,7 +49,10 @@ namespace avg
 
         friend std::ostream& operator<<(std::ostream& stream, Brush const& b)
         {
-            return stream << "Brush{" << b.color_ << "}";
+            stream << "Brush{" << b.color_;
+            if (b.image_)
+                stream << ", " << *b.image_;
+            return stream << "}";
         }
 
         template <class THash>
@@ -45,49 +60,12 @@ namespace avg
         {
             using btl::hash_append;
             hash_append(h, brush.color_);
+            if (brush.image_)
+                hash_append(h, *brush.image_);
         }
 
     private:
         Color color_;
+        std::optional<Image> image_;
     };
-
-    inline Brush::Brush(Color const& color) :
-        color_(color)
-    {
-    }
-
-    inline Brush::~Brush()
-    {
-    }
-
-    inline Color const& Brush::getColor() const noexcept
-    {
-        return color_;
-    }
-
-    inline bool Brush::operator==(Brush const& rhs) const noexcept
-    {
-        return color_ == rhs.color_;
-    }
-
-    inline bool Brush::operator!=(Brush const& rhs) const noexcept
-    {
-        return color_ != rhs.color_;
-    }
-
-    inline bool Brush::operator<(Brush const& rhs) const noexcept
-    {
-        return color_ < rhs.color_;
-    }
-
-    inline bool Brush::operator>(Brush const& rhs) const noexcept
-    {
-        return color_ > rhs.color_;
-    }
-
-    inline Brush Brush::operator*(float) const noexcept
-    {
-        return *this;
-    }
 } // namespace avg
-

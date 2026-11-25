@@ -26,6 +26,8 @@ libavgsrc = [
   'src/drawing.cpp',
   'src/shape.cpp',
   'src/pen.cpp',
+  'src/brush.cpp',
+  'src/image.cpp',
   'src/softmesh.cpp',
   'src/textentry.cpp',
   'src/obb.cpp',
