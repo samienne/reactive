@@ -1,6 +1,7 @@
 # avg — agent notes
 
-*Last verified against `44d4091` (2026-07-22).*
+*Last verified against `44d4091` (2026-07-22); the element order note against
+`7bb8406b` (2026-11-25).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -26,6 +27,13 @@ outgrows one file.
 - **Trap:** `Shape::getControlBb` applies a composed element's transform twice
   in its `Operation` branch; the sibling `StrokeToShape` branch is correct.
   Known and unfixed — geometry derived from it inherits the error.
+
+- **Element order** (`renderElements` in `rendering.cpp`): opaque elements
+  draw first, then blended ones in paint order, since blended draws do not
+  write depth. Only neighbouring elements batch, and a batch splits on a
+  change of pipeline or texture. Later paint gets a smaller z; the GL backend
+  sorts blended draws by descending z (back to front under `GL_LESS`), though
+  avg's uploads between draws already keep each sort to one draw.
 
 ## Render tree
 

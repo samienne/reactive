@@ -19,6 +19,12 @@ auto ui = widget::vbox({
 });
 ```
 
+A **render view** shows content drawn with raw `ase` calls: a `RenderHandle`
+owns a per-frame callback and makes `RenderView`s, and `widget::renderView`
+shows one. The callback renders into each view's own framebuffer when a view
+is new or resized, when a frame is requested, or every frame while the handle
+is continuous.
+
 Layout is a size-hint negotiation (minimum / natural / stretch per axis), with
 **gravity** aligning a widget within its allocated space.
 

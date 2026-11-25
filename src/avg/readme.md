@@ -19,6 +19,10 @@ rasterised — by styling it:
 - a **`Brush`** (from a `Color`) fills a shape,
 - a **`Pen`** strokes its outline.
 
+A brush can also carry an **`Image`**: a texture stretched over the bounding
+box of the region it fills, multiplied by the brush colour. The texture holds
+premultiplied colour in an sRGB format.
+
 Text is drawn through a `Font` (`Drawing` also carries text entries).
 
 ## Animation

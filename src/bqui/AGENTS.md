@@ -3,7 +3,7 @@
 *Last verified against `55f2e55` (2026-08-15), for the headless offscreen
 rework; the remote transport, deferred step and blob notes against `0548e867`
 (2026-11-22); the remote readback and screenshot paragraphs against `881224b1`
-(2026-11-25).*
+(2026-11-25); the render view paragraph against `7bb8406b` (2026-11-25).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -277,6 +277,18 @@ The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception
 must not leave one behind.
+
+**Render views run after the tree is drawn, before the window is painted.**
+`WindowBridge::onFrame` installs a `RenderViewCollector`
+(`src/renderviewstate.h`) around the render-tree draw; each drawn
+`widget::renderView` sizes its targets and registers there, and
+`detail::renderViews` then runs the owning handles' callbacks with the window's
+context, so their submits land before the paint. A continuous handle, or a
+requested frame not yet seen by a view, makes `onFrame` return 0. When `run`
+ends, `ImplScope` calls `releaseRenderViews` after the bridges are gone and
+before the context is destroyed: views drop their targets and handles' release
+callbacks run. ase objects hold their context by plain reference, so anything
+made from it must be freed there, not later.
 
 ### Where a window's frames come from
 
