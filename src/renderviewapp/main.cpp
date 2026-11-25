@@ -1,7 +1,5 @@
 // A bqui app showing a render view next to ordinary widgets. Its callback
-// draws a rotating cube with raw ase calls, lit by a warm key light and a cool
-// fill light (ambient, Lambert diffuse and Blinn-Phong specular, in linear
-// space; the sRGB target encodes on write).
+// draws a lit, rotating cube with raw ase calls.
 //
 // Usage: renderviewapp [--headless] [endpoint]
 //
@@ -13,12 +11,17 @@
 #include <bqui/widget/label.h>
 #include <bqui/widget/renderview.h>
 #include <bqui/widget/vbox.h>
+#include <bqui/modifier/ondraw.h>
 
 #include <bqui/renderview.h>
 #include <bqui/window.h>
 #include <bqui/app.h>
 
 #include <bq/signal/constant.h>
+
+#include <avg/brush.h>
+#include <avg/color.h>
+#include <avg/shape.h>
 
 #include <ase/buffer.h>
 #include <ase/commandbuffer.h>
@@ -204,6 +207,14 @@ namespace
             }
         }
 
+        void release()
+        {
+            pipeline_.reset();
+            vertices_.reset();
+            uniforms_.reset();
+            uniformSet_.reset();
+        }
+
     private:
         std::vector<float> makeBlock(ase::Vector2i size) const
         {
@@ -270,6 +281,23 @@ namespace
         std::atomic<bool> paused_ = false;
         float angle_ = 0.6f;
     };
+
+    avg::Drawing drawCaptionStrip(avg::DrawContext const& context,
+            avg::Vector2f size)
+    {
+        float const height = std::min(28.0f, size.y());
+
+        auto path = context.pathBuilder()
+            .start(0.0f, 0.0f)
+            .lineTo(size.x(), 0.0f)
+            .lineTo(size.x(), height)
+            .lineTo(0.0f, height)
+            .close()
+            .build();
+
+        return avg::Shape(std::move(path)).fill(
+                avg::Brush(avg::Color(0.0f, 0.0f, 0.0f, 0.6f)));
+    }
 } // anonymous namespace
 
 int main(int argc, char** argv)
@@ -291,6 +319,10 @@ int main(int argc, char** argv)
     RenderHandle handle([&renderer](RenderFrame& frame)
             {
                 renderer.render(frame);
+            },
+            [&renderer]()
+            {
+                renderer.release();
             });
     handle.setContinuous(true);
 
@@ -304,7 +336,8 @@ int main(int argc, char** argv)
     auto content = widget::vbox({
             widget::label(std::string("Render view: a lit, rotating cube")),
             widget::hbox({
-                    widget::renderView(handle.makeView()),
+                    widget::renderView(handle.makeView())
+                        | modifier::onDraw(drawCaptionStrip),
                     widget::vbox({
                             widget::label(std::string("Key light: warm")),
                             widget::label(std::string("Fill light: cool")),
