@@ -9,7 +9,8 @@ Vulkan work; the five backdrop-effect entries against `4d8e996e`
 (2026-11-12), their sentences on final passes, sharing and surfaces against
 `4cf3da53` (2026-11-14); the six effect-brush, pass-sharing, sub-drawing,
 outline and shadow entries against `4cf3da53` (2026-11-14), the effect
-sizes entry against `4cf3da53` (2026-11-14).*
+sizes entry against `4cf3da53` (2026-11-14); the per-queue framebuffer
+entry against `206ee483` (2026-11-20).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.

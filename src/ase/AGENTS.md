@@ -7,7 +7,9 @@
 pipeline state and target format notes against `28b2afb6` (2026-11-12); the
 submission contract, clip-space, texture and format notes against `28b2afb6`
 (2026-11-12); the `UniformValues` equality note against `4cf3da53`
-(2026-11-14).*
+(2026-11-14); the framebuffer, FBO deletion and `asegltest` notes, and the
+framebuffer sentences of the format and declared-format notes, against
+`206ee483` (2026-11-20).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
